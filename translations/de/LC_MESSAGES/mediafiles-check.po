@@ -347,10 +347,24 @@ msgid_plural "{n} missing files are on the drives as other media files of the sa
 msgstr[0] "{n} fehlende Datei liegt als andere Mediendatei derselben Quelle (Kameraclip oder Band) auf den Laufwerken – der Clip hat nur seine Verlinkung verloren: in Media Composer neu verlinken. Nicht angefordert."
 msgstr[1] "{n} fehlende Dateien liegen als andere Mediendateien derselben Quelle (Kameraclip oder Band) auf den Laufwerken – die Clips haben nur ihre Verlinkung verloren: in Media Composer neu verlinken. Nicht angefordert."
 
-msgid "{n} AMA-linked file – not requested; where it is used is listed below."
-msgid_plural "{n} AMA-linked files – not requested; where they are used is listed below."
-msgstr[0] "{n} AMA-verlinkte Datei – nicht angefordert; wo sie benutzt wird, steht unten."
-msgstr[1] "{n} AMA-verlinkte Dateien – nicht angefordert; wo sie benutzt werden, steht unten."
+msgid "{n} AMA-linked file – not requested."
+msgid_plural "{n} AMA-linked files – not requested."
+msgstr[0] "{n} AMA-verlinkte Datei – nicht angefordert."
+msgstr[1] "{n} AMA-verlinkte Dateien – nicht angefordert."
+
+msgid "{n} AMA-linked file has a master clip of the same name with its media on the drives – left out."
+msgid_plural "{n} AMA-linked files have a master clip of the same name with its media on the drives – left out."
+msgstr[0] "{n} AMA-verlinkte Datei hat einen gleichnamigen Masterclip mit Medien auf den Laufwerken – ausgelassen."
+msgstr[1] "{n} AMA-verlinkte Dateien haben einen gleichnamigen Masterclip mit Medien auf den Laufwerken – ausgelassen."
+
+msgid "Show AMA clips…"
+msgstr "AMA-Clips anzeigen…"
+
+msgid "AMA-Linked Clips"
+msgstr "AMA-verlinkte Clips"
+
+msgid "Where the AMA-linked clips are used. Click a clip to see its master clips, subclips and sequences. AMA files are not requested."
+msgstr "Wo die AMA-verlinkten Clips benutzt werden. Ein Klick auf einen Clip zeigt seine Masterclips, Subclips und Sequenzen. AMA-Dateien werden nicht angefordert."
 
 msgid "AMA-LINKED CLIPS PER BIN"
 msgstr "AMA-VERLINKTE CLIPS PRO BIN"

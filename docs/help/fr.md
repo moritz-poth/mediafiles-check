@@ -86,7 +86,7 @@ Avant de rendre son nom d'origine, MediaFiles Check vérifie chaque dossier :
 Bon à savoir :
 
 - Clips et médias sont associés par les identifiants médias d'Avid, pas par les noms de fichiers. Un fichier présent sur un disque mais dans **aucune** base de données Avid est identifié par l'identifiant média de son en-tête MXF ; seuls les fichiers à l'en-tête illisible (endommagés, en cours d'écriture) restent non reconnus – le résultat vous en avertit.
-- Les fichiers liés par AMA ne sont pas demandés. La section **Clips liés par AMA par chutier** montre où ils sont utilisés – comme les médias manquants, un clic sur un clip affiche ses utilisations. La liste enregistrée les contient aussi.
+- Les fichiers liés par AMA ne sont pas demandés. **Afficher les clips AMA…** ouvre une fenêtre qui montre où ils sont utilisés – comme les médias manquants, un clic sur un clip affiche ses utilisations. Les clips AMA qui ont un clip master du même nom avec ses médias sur les disques (p. ex. liés puis importés) sont ignorés et seulement comptés. La liste enregistrée les contient aussi.
 - Un fichier manquant dont la source (clip caméra ou bande, image ou son) est sur les disques sous un autre fichier média est marqué **sur les disques – à relier** : le clip a seulement perdu son lien ; reliez-le dans Media Composer. Il n'est pas demandé.
 - Les fichiers sans référence média Avid (p. ex. importés par AAF) sont comptés à part. Ferry ne les trouve que si l'autre système les a dans Avid MediaFiles.
 - Les clips master de la caméra ont souvent des pistes son pour lesquelles aucun fichier média n'a jamais été créé (le son a été enregistré à part). Ces références sont ignorées et seulement comptées ; un sous-clip n'a besoin que des pistes qu'il utilise vraiment.

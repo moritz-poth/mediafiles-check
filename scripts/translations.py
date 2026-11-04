@@ -209,10 +209,20 @@ T = {
          "{n} fichiers manquants sont sur les disques sous d'autres fichiers médias de la même source (clip caméra ou bande) – les clips ont seulement perdu leur lien : reliez-les dans Media Composer. Non demandés."),
         ("{n} archivo que falta está en los discos como otro archivo de medios de la misma fuente (clip de cámara o cinta): el clip solo perdió su vínculo; revincúlalo en Media Composer. No se solicita.",
          "{n} archivos que faltan están en los discos como otros archivos de medios de la misma fuente (clip de cámara o cinta): los clips solo perdieron su vínculo; revincúlalos en Media Composer. No se solicitan.")),
-    ("{n} AMA-linked file – not requested; where it is used is listed below.", "{n} AMA-linked files – not requested; where they are used is listed below."): (
-        ("{n} AMA-verlinkte Datei – nicht angefordert; wo sie benutzt wird, steht unten.", "{n} AMA-verlinkte Dateien – nicht angefordert; wo sie benutzt werden, steht unten."),
-        ("{n} fichier lié par AMA – non demandé ; où il est utilisé figure plus bas.", "{n} fichiers liés par AMA – non demandés ; où ils sont utilisés figure plus bas."),
-        ("{n} archivo vinculado por AMA: no se solicita; abajo se indica dónde se usa.", "{n} archivos vinculados por AMA: no se solicitan; abajo se indica dónde se usan.")),
+    ("{n} AMA-linked file – not requested.", "{n} AMA-linked files – not requested."): (
+        ("{n} AMA-verlinkte Datei – nicht angefordert.", "{n} AMA-verlinkte Dateien – nicht angefordert."),
+        ("{n} fichier lié par AMA – non demandé.", "{n} fichiers liés par AMA – non demandés."),
+        ("{n} archivo vinculado por AMA: no se solicita.", "{n} archivos vinculados por AMA: no se solicitan.")),
+    ("{n} AMA-linked file has a master clip of the same name with its media on the drives – left out.", "{n} AMA-linked files have a master clip of the same name with its media on the drives – left out."): (
+        ("{n} AMA-verlinkte Datei hat einen gleichnamigen Masterclip mit Medien auf den Laufwerken – ausgelassen.", "{n} AMA-verlinkte Dateien haben einen gleichnamigen Masterclip mit Medien auf den Laufwerken – ausgelassen."),
+        ("{n} fichier lié par AMA a un clip master du même nom avec ses médias sur les disques – ignoré.", "{n} fichiers liés par AMA ont un clip master du même nom avec ses médias sur les disques – ignorés."),
+        ("{n} archivo vinculado por AMA tiene un clip master con el mismo nombre y sus medios en los discos: omitido.", "{n} archivos vinculados por AMA tienen un clip master con el mismo nombre y sus medios en los discos: omitidos.")),
+    "Show AMA clips…": ("AMA-Clips anzeigen…", "Afficher les clips AMA…", "Mostrar clips AMA…"),
+    "AMA-Linked Clips": ("AMA-verlinkte Clips", "Clips liés par AMA", "Clips vinculados por AMA"),
+    "Where the AMA-linked clips are used. Click a clip to see its master clips, subclips and sequences. AMA files are not requested.": (
+        "Wo die AMA-verlinkten Clips benutzt werden. Ein Klick auf einen Clip zeigt seine Masterclips, Subclips und Sequenzen. AMA-Dateien werden nicht angefordert.",
+        "Où les clips liés par AMA sont utilisés. Un clic sur un clip affiche ses clips master, sous-clips et séquences. Les fichiers AMA ne sont pas demandés.",
+        "Dónde se usan los clips vinculados por AMA. Un clic en un clip muestra sus clips master, subclips y secuencias. Los archivos AMA no se solicitan."),
     "AMA-LINKED CLIPS PER BIN": ("AMA-VERLINKTE CLIPS PRO BIN", "CLIPS LIÉS PAR AMA PAR CHUTIER", "CLIPS VINCULADOS POR AMA POR BIN"),
     "on the drives – relink": ("auf den Laufwerken – neu verlinken", "sur les disques – à relier", "en los discos – revincular"),
     "MISSING MEDIA FILES PER BIN": ("FEHLENDE MEDIENDATEIEN PRO BIN", "FICHIERS MÉDIAS MANQUANTS PAR CHUTIER", "ARCHIVOS DE MEDIOS QUE FALTAN POR BIN"),

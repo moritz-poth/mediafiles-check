@@ -86,7 +86,7 @@ Antes de recuperar el nombre, MediaFiles Check comprueba cada carpeta:
 Conviene saber:
 
 - Clips y medios se asocian por los identificadores de medios de Avid, no por los nombres de archivo. Un archivo de un disco que no está en **ninguna** base de datos de Avid se identifica por el identificador de medios de su cabecera MXF; solo los archivos con cabecera ilegible (dañados, aún escribiéndose) quedan sin reconocer: el resultado lo advierte.
-- Los archivos vinculados por AMA no se solicitan. La sección **Clips vinculados por AMA por bin** muestra dónde se usan: igual que los medios que faltan, un clic en un clip muestra sus usos. La lista guardada también los incluye.
+- Los archivos vinculados por AMA no se solicitan. **Mostrar clips AMA…** abre una ventana que muestra dónde se usan: igual que los medios que faltan, un clic en un clip muestra sus usos. Los clips AMA que tienen un clip master con el mismo nombre y sus medios en los discos (p. ej. vinculados y luego importados) se omiten y solo se cuentan. La lista guardada también los incluye.
 - Un archivo que falta cuya fuente (clip de cámara o cinta, imagen o sonido) está en los discos como otro archivo de medios se marca **en los discos – revincular**: el clip solo perdió su vínculo; revincúlalo en Media Composer. No se solicita.
 - Los archivos sin referencia de medios de Avid (p. ej. importados por AAF) se cuentan aparte. Ferry solo los encuentra si el otro sistema los tiene en Avid MediaFiles.
 - Los clips master de la cámara suelen tener pistas de sonido para las que nunca se creó un archivo de medios (el sonido se grabó aparte). Esas referencias se omiten y solo se cuentan; un subclip solo necesita las pistas que usa de verdad.

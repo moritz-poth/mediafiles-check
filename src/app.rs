@@ -286,6 +286,7 @@ struct Others {
     help: Win<HelpWindow>,
     settings: Win<SettingsWindow>,
     projects: Win<ProjectsWindow>,
+    ama: Win<AmaWindow>,
 }
 
 /// Language or appearance changed: every open window follows.
@@ -294,6 +295,7 @@ fn apply_all(app: &AppWindow, others: &Others, s: &Settings) {
     others.about.borrow().iter().for_each(|a| apply_menus(&a.global::<Shared>(), s));
     others.settings.borrow().iter().for_each(|w| apply_menus(&w.global::<Shared>(), s));
     others.projects.borrow().iter().for_each(|w| apply_menus(&w.global::<Shared>(), s));
+    others.ama.borrow().iter().for_each(|w| apply_menus(&w.global::<Shared>(), s));
     others.help.borrow().iter().for_each(|h| update_help(h, s));
     #[cfg(target_os = "macos")]
     {
@@ -408,6 +410,9 @@ struct ProjectsState {
     result: Arc<Mutex<Option<ScanResult>>>,
     /// opened media file groups in the result list
     open: HashSet<usize>,
+    /// the AMA window (same as `Others::ama`) and its opened groups
+    ama: Win<AmaWindow>,
+    ama_open: HashSet<usize>,
 }
 
 fn projects_folder_file() -> Option<PathBuf> {
@@ -429,11 +434,16 @@ fn show_projects(w: &ProjectsWindow, st: &ProjectsState) {
 
 /// Rows of the result: per bin its missing media files; an open file shows where it is used in the bin.
 /// Capped at whole bins (the saved list has all); group indexes count over all bins, so they stay stable.
-/// Both lists of the result: missing media and AMA-linked clips; group indexes run on over both (one open set).
+/// The list of missing media files.
 fn show_rows(w: &ProjectsWindow, r: &ScanResult, open: &HashSet<usize>) {
     w.set_rows(ModelRc::new(VecModel::from(project_rows(w, &r.by_bin, open, 0))));
-    let first = r.by_bin.values().map(Vec::len).sum();
-    w.set_ama_rows(ModelRc::new(VecModel::from(project_rows(w, &r.ama_by_bin, open, first))));
+}
+
+/// The AMA window (if open) shows the clips of the last result; texts come from the projects window.
+fn show_ama(w: &ProjectsWindow, st: &ProjectsState) {
+    if let (Some(a), Some(r)) = (st.ama.borrow().as_ref(), st.result.lock().unwrap().as_ref()) {
+        a.set_rows(ModelRc::new(VecModel::from(project_rows(w, &r.ama_by_bin, &st.ama_open, 0))));
+    }
 }
 
 fn project_rows(w: &ProjectsWindow, by_bin: &BTreeMap<(String, String), Vec<MissingGroup>>, open: &HashSet<usize>, first: usize) -> Vec<MissingRow> {
@@ -475,6 +485,11 @@ fn project_rows(w: &ProjectsWindow, by_bin: &BTreeMap<(String, String), Vec<Miss
 
 fn start_project_scan(w: &ProjectsWindow, st: &mut ProjectsState) {
     st.open.clear();
+    st.ama_open.clear();
+    // its list belongs to the previous result
+    if let Some(a) = st.ama.borrow().as_ref() {
+        let _ = a.hide();
+    }
     let chosen: Vec<PathBuf> = st.projects.iter().filter(|p| p.1).map(|p| p.0.clone()).collect();
     log::write(&format!("project scan: {}", chosen.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(", ")));
     w.set_error("".into());
@@ -517,6 +532,7 @@ fn start_project_scan(w: &ProjectsWindow, st: &mut ProjectsState) {
             w.set_renders(r.renders as i32);
             w.set_relink(r.relink as i32);
             w.set_ama(r.ama as i32);
+            w.set_ama_covered(r.ama_covered as i32);
             w.set_no_media(r.no_media as i32);
             show_rows(&w, &r, &HashSet::new());
             *result.lock().unwrap() = Some(r);
@@ -525,7 +541,7 @@ fn start_project_scan(w: &ProjectsWindow, st: &mut ProjectsState) {
     });
 }
 
-fn open_projects(weak: &slint::Weak<AppWindow>, win: &Win<ProjectsWindow>, st: &Rc<RefCell<ProjectsState>>, settings: &Settings) {
+fn open_projects(weak: &slint::Weak<AppWindow>, win: &Win<ProjectsWindow>, st: &Rc<RefCell<ProjectsState>>, settings: &Rc<RefCell<Settings>>) {
     let mut win = win.borrow_mut();
     if win.is_none() {
         *win = ProjectsWindow::new().ok();
@@ -598,6 +614,38 @@ fn open_projects(weak: &slint::Weak<AppWindow>, win: &Win<ProjectsWindow>, st: &
                     }
                 }
             });
+            w.on_show_ama({
+                let (ww, st, weak, settings) = (w.as_weak(), st.clone(), weak.clone(), settings.clone());
+                move || {
+                    let w = ww.unwrap();
+                    let ama = st.borrow().ama.clone();
+                    if ama.borrow().is_none() {
+                        *ama.borrow_mut() = AmaWindow::new().ok();
+                        if let Some(a) = ama.borrow().as_ref() {
+                            repaint_on_resize!(a);
+                            forward_menu(&a.global::<Shared>(), &weak);
+                            a.on_toggle_group({
+                                let (ww, st) = (ww.clone(), st.clone());
+                                move |i| {
+                                    let mut s = st.borrow_mut();
+                                    let i = i as usize;
+                                    if !s.ama_open.remove(&i) {
+                                        s.ama_open.insert(i);
+                                    }
+                                    show_ama(&ww.unwrap(), &s);
+                                }
+                            });
+                            let aw = a.as_weak();
+                            a.on_close(move || { let _ = aw.unwrap().hide(); });
+                        }
+                    }
+                    show_ama(&w, &st.borrow());
+                    if let Some(a) = ama.borrow().as_ref() {
+                        apply_menus(&a.global::<Shared>(), &settings.borrow());
+                        let _ = a.show();
+                    }
+                }
+            });
             w.on_save_request({
                 let (ww, st) = (w.as_weak(), st.clone());
                 move || {
@@ -617,7 +665,7 @@ fn open_projects(weak: &slint::Weak<AppWindow>, win: &Win<ProjectsWindow>, st: &
         }
     }
     if let Some(w) = win.as_ref() {
-        apply_menus(&w.global::<Shared>(), settings);
+        apply_menus(&w.global::<Shared>(), &settings.borrow());
         let _ = w.show();
     }
 }
@@ -1140,11 +1188,12 @@ fn main() -> Result<(), slint::PlatformError> {
     });
 
     let projects_state: Rc<RefCell<ProjectsState>> = Rc::default();
+    projects_state.borrow_mut().ama = others.ama.clone();
     app.on_open_projects({
         let (weak, win, st, settings) = (app.as_weak(), others.projects.clone(), projects_state.clone(), settings.clone());
         move || {
             let (weak, win, st, settings) = (weak.clone(), win.clone(), st.clone(), settings.clone());
-            slint::Timer::single_shot(Duration::ZERO, move || open_projects(&weak, &win, &st, &settings.borrow()));
+            slint::Timer::single_shot(Duration::ZERO, move || open_projects(&weak, &win, &st, &settings));
         }
     });
 

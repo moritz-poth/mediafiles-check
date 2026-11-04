@@ -183,6 +183,9 @@ pub struct ScanResult {
     pub ama: usize,
     /// (project, bin) -> the AMA-linked files its clips use, grouped by name (`relink` always false)
     pub ama_by_bin: BTreeMap<(String, String), Vec<MissingGroup>>,
+    /// AMA-linked files whose master clip has a namesake in the project with all its media on the drives
+    /// (e.g. linked first, imported later) – they don't matter, only counted
+    pub ama_covered: usize,
     /// file mobs without any locator: no media was ever made for them (e.g. the camera sound tracks of a master
     /// clip whose sound was never imported – Media Composer still shows the clip online) – left out
     pub no_media: usize,
@@ -222,6 +225,8 @@ pub fn scan(projects: &[PathBuf], available: &HashSet<MobId>, progress: &mut dyn
     let mut media_of: HashMap<MobId, Vec<MobId>> = HashMap::new();
     let mut waiting: Vec<(MobId, Use)> = vec![];
     let mut current = usize::MAX;
+    // (project, key of the name) of master clips whose media are all on the drives
+    let mut online_masters: HashSet<(String, String)> = HashSet::new();
 
     let mut record = |id: MobId, u: Use, missing: &mut HashMap<MobId, Missing>| {
         if available.contains(&id) {
@@ -276,6 +281,9 @@ pub fn scan(projects: &[PathBuf], available: &HashSet<MobId>, progress: &mut dyn
             let u = Use { project: name_of(project), bin: rel.clone(), clip: mob.name.clone(), kind };
             let mut unresolved = HashSet::new();
             let media = bin.media_of(item, &mut unresolved);
+            if kind == ClipKind::Master && !media.is_empty() && unresolved.is_empty() && media.iter().all(|id| available.contains(id)) {
+                online_masters.insert((u.project.clone(), crate::key(&mob.name)));
+            }
             if kind != ClipKind::Sequence {
                 media_of.insert(mob.id, media.clone());
             }
@@ -293,11 +301,14 @@ pub fn scan(projects: &[PathBuf], available: &HashSet<MobId>, progress: &mut dyn
     // covers less of the source still counts; compare timecodes if that shows up in practice.
     renders.retain(|id| !missing.contains_key(id));
     let is_ama = |id: &MobId| files.get(id).is_some_and(|f| f.2);
-    let ama_names: HashMap<MobId, String> = missing
+    let mut ama_names: HashMap<MobId, String> = missing
         .iter()
         .filter(|(id, _)| is_ama(id))
         .map(|(id, m)| (*id, owners.get(id).cloned().or_else(|| files.get(id).map(|f| f.1.clone()).filter(|n| !n.trim().is_empty())).unwrap_or_else(|| m.first.clip.clone())))
         .collect();
+    let before = ama_names.len();
+    ama_names.retain(|id, name| !online_masters.contains(&(missing[id].first.project.clone(), crate::key(name))));
+    r.ama_covered = before - ama_names.len();
     r.ama = ama_names.len();
     missing.retain(|id, _| !is_ama(id));
     let no_locator = |id: &MobId| files.get(id).is_some_and(|f| f.0.is_none());
@@ -423,6 +434,14 @@ pub fn list_text(r: &ScanResult, lang: &str) -> String {
             "\n{} fichiers liés par AMA ignorés.\n",
             "\n{} archivos vinculados por AMA omitidos.\n",
         ]).replace("{}", &r.ama.to_string()));
+    }
+    if r.ama_covered > 0 {
+        out.push_str(&t([
+            "\n{} more AMA-linked files have a master clip of the same name with its media on the drives – left out.\n",
+            "\n{} weitere AMA-verlinkte Dateien haben einen gleichnamigen Masterclip mit Medien auf den Laufwerken – ausgelassen.\n",
+            "\n{} autres fichiers liés par AMA ont un clip master du même nom avec ses médias sur les disques – ignorés.\n",
+            "\n{} archivos vinculados por AMA más tienen un clip master con el mismo nombre y sus medios en los discos: omitidos.\n",
+        ]).replace("{}", &r.ama_covered.to_string()));
     }
     if r.no_media > 0 {
         out.push_str(&t([

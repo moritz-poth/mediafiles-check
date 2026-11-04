@@ -772,4 +772,44 @@ mod tests {
         assert_eq!((r.missing.len(), r.no_media), (0, 1));
         fs::remove_dir_all(project.parent().unwrap()).unwrap();
     }
+
+    /// An AMA clip whose master clip has a namesake with its media on the drives (linked first, imported later)
+    /// is left out of the AMA list.
+    #[test]
+    fn ama_clip_with_an_online_namesake_is_left_out() {
+        let (file, linked) = (id(1), id(2));
+        let mut cdci = W(vec![]);
+        cdci.u8(2).u8(3).u8(0).u32(1).u8(0).u32(0);
+        let mut ama_cdci = W(vec![]);
+        ama_cdci.u8(2).u8(3).u8(0).u32(1).u8(0).u32(0).u8(1).u8(1).u8(65).u32(16);
+        ama_cdci.0.extend([7u8; 16]);
+        let mut abin = W(vec![]);
+        abin.u8(2).u8(0x0e).u32(0).u32(0).u32(0).u16(2);
+        for obj in [5u32, 9] {
+            abin.u32(obj).u16(0).u16(0).u32(0).u8(1);
+        }
+        let objects: Vec<(&[u8; 4], Vec<u8>)> = vec![
+            (b"MSML", vec![0; 8]),
+            (b"CDCI", cdci.0),
+            (b"CMPO", W::mob(b"Stars.mxf", 3, 0, 2, &[], &file)),
+            (b"SCLP", W::clip(&file)),
+            (b"CMPO", W::mob(b"Stars", 2, 0, 0, &[4], &id(3))),
+            (b"CDCI", ama_cdci.0),
+            (b"CMPO", W::mob(b"Stars.mp4", 3, 0, 6, &[], &linked)),
+            (b"SCLP", W::clip(&linked)),
+            (b"CMPO", W::mob(b"Stars", 2, 0, 0, &[8], &id(4))),
+            (b"ABIN", abin.0),
+        ];
+        let project = std::env::temp_dir().join(format!("mfc-ama-{}", std::process::id())).join("P");
+        let _ = fs::remove_dir_all(&project);
+        fs::create_dir_all(&project).unwrap();
+        fs::write(project.join("P.avp"), b"").unwrap();
+        fs::write(project.join("Bin.avb"), W::bin(&objects)).unwrap();
+        let r = crate::projects::scan(&[project.clone()], &HashSet::from([file]), &mut |_, _, _| {});
+        assert_eq!((r.ama, r.ama_covered, r.ama_by_bin.len()), (0, 1, 0));
+        // the imported file is not on the drives: the AMA clip counts
+        let r = crate::projects::scan(&[project.clone()], &HashSet::new(), &mut |_, _, _| {});
+        assert_eq!((r.ama, r.ama_covered, r.ama_by_bin.len()), (1, 0, 1));
+        fs::remove_dir_all(project.parent().unwrap()).unwrap();
+    }
 }
