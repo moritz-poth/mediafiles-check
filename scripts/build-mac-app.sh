@@ -34,6 +34,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleIdentifier</key><string>io.github.moritz-poth.mediafiles-check</string>
   <key>CFBundleVersion</key><string>$BUILD</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
+  <key>MediaFilesCheckRelease</key><string>$RELEASE</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>LSMinimumSystemVersion</key><string>11.0</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>

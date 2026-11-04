@@ -4,7 +4,7 @@
 
 use mediafiles_check::rename::{self, Added, Journal, Renamed, Status};
 use mediafiles_check::projects::{self, ClipKind, ScanResult};
-use mediafiles_check::{FolderReport, check, find_volumes, log, report_text};
+use mediafiles_check::{FolderReport, UPDATE_APP, check, find_volumes, log, report_text, update};
 use std::collections::{HashSet, VecDeque};
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
@@ -31,6 +31,32 @@ const NAMES_SHOWN: usize = 10;
 struct Settings {
     language: String,
     dark: bool,
+    /// not saved; shared with the threads that check and install
+    update: Arc<Mutex<Update>>,
+}
+
+/// Update state as the windows show it (Shared.update-*).
+#[derive(Default)]
+struct Update {
+    available: Option<update::Release>,
+    /// 0 nothing, 1 checking, 2 up to date, 3 installing, 4 failed
+    state: i32,
+    /// with state 4: 0 check, 1 download, 2 damaged, 3 replace, 4 restart
+    error: i32,
+    details: String,
+}
+
+impl Update {
+    fn failed(&mut self, e: update::Error) {
+        self.state = 4;
+        (self.error, self.details) = match e {
+            update::Error::Check => (0, String::new()),
+            update::Error::Download => (1, String::new()),
+            update::Error::Damaged => (2, String::new()),
+            update::Error::Replace(d) => (3, d),
+            update::Error::Restart => (4, String::new()),
+        };
+    }
 }
 
 fn app_dir() -> Option<PathBuf> {
@@ -58,7 +84,7 @@ fn load_settings() -> Settings {
     let text = settings_path().and_then(|p| fs::read_to_string(p).ok()).unwrap_or_default();
     let mut lines = text.lines();
     let language = lines.next().filter(|l| LANGUAGES.iter().any(|x| x.0 == *l)).unwrap_or("en").to_string();
-    Settings { language, dark: lines.next() != Some("light") }
+    Settings { language, dark: lines.next() != Some("light"), update: Arc::default() }
 }
 
 fn save_settings(s: &Settings) {
@@ -77,6 +103,79 @@ fn apply_menus(shared: &Shared, s: &Settings) {
     shared.set_language_names(ModelRc::new(VecModel::from(names)));
     shared.set_language_index(LANGUAGES.iter().position(|l| l.0 == s.language).unwrap_or(0) as i32);
     shared.set_dark(s.dark);
+    let u = s.update.lock().unwrap();
+    shared.set_version(env!("CARGO_PKG_VERSION").into());
+    shared.set_update_version(u.available.as_ref().map(|r| r.tag.trim_start_matches('v').to_string()).unwrap_or_default().into());
+    shared.set_update_state(u.state);
+    shared.set_update_error(u.error);
+    shared.set_update_details(u.details.clone().into());
+}
+
+/// Asks GitHub for a newer version; `manual` (Settings button) also reports "up to date" and errors.
+fn check_for_update(app: &AppWindow, s: &Settings, manual: bool) {
+    {
+        let mut u = s.update.lock().unwrap();
+        if u.state == 1 || u.state == 3 {
+            return;
+        }
+        if manual {
+            u.state = 1;
+        }
+    }
+    app.global::<Shared>().invoke_refresh_update();
+    let (weak, update) = (app.as_weak(), s.update.clone());
+    std::thread::spawn(move || {
+        let result = update::check(&UPDATE_APP, env!("CARGO_PKG_VERSION"));
+        match &result {
+            Ok(Some(r)) => log::write(&format!("update available: {}", r.tag)),
+            Ok(None) => {}
+            Err(_) => log::write("update check failed"),
+        }
+        {
+            let mut u = update.lock().unwrap();
+            if u.state == 3 {
+                return;
+            }
+            match result {
+                Ok(r) => {
+                    let found = r.is_some();
+                    u.available = r;
+                    if manual {
+                        u.state = if found { 0 } else { 2 };
+                    }
+                }
+                Err(e) if manual => u.failed(e),
+                Err(_) => {}
+            }
+        }
+        let _ = slint::invoke_from_event_loop(move || weak.upgrade().iter().for_each(|a| a.global::<Shared>().invoke_refresh_update()));
+    });
+}
+
+/// Downloads, verifies and swaps in the new version, then quits; the new version starts by itself.
+fn install_update(app: &AppWindow, s: &Settings) {
+    let release = {
+        let mut u = s.update.lock().unwrap();
+        let Some(r) = u.available.clone().filter(|_| u.state != 3) else { return };
+        u.state = 3;
+        r
+    };
+    log::write(&format!("installing update {}", release.tag));
+    app.global::<Shared>().invoke_refresh_update();
+    let (weak, update) = (app.as_weak(), s.update.clone());
+    std::thread::spawn(move || {
+        let result = update::download(&release, &UPDATE_APP).and_then(|new| update::swap_and_restart(&new));
+        if let Err(e) = result {
+            log::write(&format!("update failed: {e:?}"));
+            update.lock().unwrap().failed(e);
+            let _ = slint::invoke_from_event_loop(move || weak.upgrade().iter().for_each(|a| a.global::<Shared>().invoke_refresh_update()));
+            return;
+        }
+        log::write("update installed, restarting");
+        let _ = slint::invoke_from_event_loop(|| {
+            let _ = slint::quit_event_loop();
+        });
+    });
 }
 
 fn volume_name(p: &std::path::Path) -> String {
@@ -158,6 +257,12 @@ fn forward_menu(shared: &Shared, weak: &slint::Weak<AppWindow>) {
     shared.on_show_about(move || w.upgrade().into_iter().for_each(|a| a.global::<Shared>().invoke_show_about()));
     let w = weak.clone();
     shared.on_show_log(move || w.upgrade().into_iter().for_each(|a| a.global::<Shared>().invoke_show_log()));
+    let w = weak.clone();
+    shared.on_check_update(move || w.upgrade().into_iter().for_each(|a| a.global::<Shared>().invoke_check_update()));
+    let w = weak.clone();
+    shared.on_install_update(move || w.upgrade().into_iter().for_each(|a| a.global::<Shared>().invoke_install_update()));
+    let w = weak.clone();
+    shared.on_show_release(move || w.upgrade().into_iter().for_each(|a| a.global::<Shared>().invoke_show_release()));
 }
 
 type Win<T> = Rc<RefCell<Option<T>>>;
@@ -847,6 +952,37 @@ fn main() -> Result<(), slint::PlatformError> {
                 }
             });
         }
+    });
+
+    app.global::<Shared>().on_refresh_update({
+        let (weak, settings, others) = (app.as_weak(), settings.clone(), others.clone());
+        move || weak.upgrade().iter().for_each(|a| apply_all(a, &others, &settings.borrow()))
+    });
+    app.global::<Shared>().on_check_update({
+        let (weak, settings) = (app.as_weak(), settings.clone());
+        move || weak.upgrade().iter().for_each(|a| check_for_update(a, &settings.borrow(), true))
+    });
+    app.global::<Shared>().on_install_update({
+        let (weak, settings) = (app.as_weak(), settings.clone());
+        move || weak.upgrade().iter().for_each(|a| install_update(a, &settings.borrow()))
+    });
+    app.global::<Shared>().on_show_release({
+        let settings = settings.clone();
+        move || {
+            if let Some(r) = settings.borrow().update.lock().unwrap().available.as_ref() {
+                let _ = std::process::Command::new("open").arg(&r.page).spawn();
+            }
+        }
+    });
+    // quietly shortly after the start, then every 6 hours
+    slint::Timer::single_shot(Duration::from_secs(5), {
+        let (weak, settings) = (app.as_weak(), settings.clone());
+        move || weak.upgrade().iter().for_each(|a| check_for_update(a, &settings.borrow(), false))
+    });
+    let update_timer = slint::Timer::default();
+    update_timer.start(slint::TimerMode::Repeated, Duration::from_secs(6 * 3600), {
+        let (weak, settings) = (app.as_weak(), settings.clone());
+        move || weak.upgrade().iter().for_each(|a| check_for_update(a, &settings.borrow(), false))
     });
 
     app.global::<Shared>().on_show_log(|| {

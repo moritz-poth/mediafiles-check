@@ -18,6 +18,9 @@ Small Mac app (Rust core + Slint, same look as MediaFiles Ferry) that compares e
 ## UI
 Fixed width 420 px (projects window 680 px; wrapping texts there use the full layout width – a narrower fixed width makes Slint measure one line too few), height from content; pages home / working / result / rename / question / notice in one window; JetBrains Mono, title in Helvetica Neue Light, colours only from `Theme` (copied from Ferry). Menu: app menu → About opens our `AboutWindow`, app menu → Settings… (⌘,) opens `SettingsWindow` (appearance `Switch`, language `Dropdown` = Mountpoint's dropdown with a native menu) – `mac_menu` in app.rs swaps NSApplication's About panel methods and adds the Settings item (re-added after Slint's menu rebuilds via `setMainMenu:` swizzle, a timer after language changes and the 2 s timer); Help → Manual, Show Log File (`src/log.rs`, `~/Library/Logs/MediaFiles Check/`) (`HelpWindow`, content from `docs/help/<code>.md`, split by `help_blocks` – same as Ferry; paragraphs need a fixed width or the scroll height comes out too short). Drive list: green dot (drive ready), name, `Switch` on the right (Mountpoint style) (new drives ticked), polled every 2 s on the start page (`sync_drives`). Settings in `~/Library/Application Support/MediaFiles Check/settings.txt`. The result shows up to 10 file names per finding; the saved report has all.
 
+## Updates
+`src/update.rs` (identical to Ferry's apart from the first comment line): port of Mountpoint's Updater.swift through /usr/bin/curl; checks 5 s after start, every 6 h and from Settings (UPDATES section); banner on top of the main window (`UpdateOffer`/`UpdateStatus`); install = download → ditto → bundle id + `MediaFilesCheckRelease` (Info.plist, written by the build script) == tag + `codesign --verify --deep --strict` → old app to ~/.Trash → new app in place → shell waits for the pid and reopens. Release tags `v<version>`, asset `MediaFiles-Check-<version>.zip`. Beta 1 has no updater – users of it update by hand once. `UPDATE_IT=1 cargo test live_github` asks GitHub.
+
 ## Docs
 Update `docs/help/*.md` and README with every feature change.
 
@@ -28,4 +31,4 @@ Update `docs/help/*.md` and README with every feature change.
 macOS asks for access to removable/network volumes after each (ad-hoc signed) rebuild; reads block until answered – see skill.
 
 ## Open
-Updater (see skill), test on real full drives (not only the test environment), whether older Media Composer versions write the same format.
+Test on real full drives (not only the test environment), whether older Media Composer versions write the same format.

@@ -93,6 +93,10 @@ Gut zu wissen:
 
 **MediaFiles Check → Einstellungen…** (⌘,) stellt die Darstellung (hell oder dunkel) und die Sprache (English, Deutsch, Français, Español) ein. **MediaFiles Check → Über MediaFiles Check** zeigt Version und Lizenz.
 
+## Updates
+
+MediaFiles Check sucht kurz nach dem Start und alle 6 Stunden auf GitHub nach einer neuen Version; **Einstellungen… → Nach Updates suchen** sucht sofort. Eine neue Version erscheint oben im Hauptfenster: **Neuigkeiten** öffnet die Versionshinweise, **Update installieren** lädt sie, prüft, dass sie vollständig und unverändert ist, legt die alte Version in den Papierkorb und startet die App neu.
+
 ## Logdatei
 
 MediaFiles Check schreibt, was es tut – Prüfungen, Umbenennungen, Fehler – in eine Logdatei. **Hilfe → Logdatei zeigen** zeigt sie im Finder; schick sie mit, wenn du ein Problem meldest.

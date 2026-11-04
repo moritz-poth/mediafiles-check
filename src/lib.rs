@@ -12,6 +12,15 @@ pub mod log;
 pub mod mxf;
 pub mod projects;
 pub mod rename;
+pub mod update;
+
+/// This app on GitHub and in its Info.plist (the key is written by scripts/build-mac-app.sh).
+pub const UPDATE_APP: update::App = update::App {
+    repo: "moritz-poth/mediafiles-check",
+    name: "MediaFiles Check",
+    bundle_id: "io.github.moritz-poth.mediafiles-check",
+    release_key: "MediaFilesCheckRelease",
+};
 
 use std::collections::HashSet;
 use std::fs;

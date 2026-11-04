@@ -93,6 +93,10 @@ Bon à savoir :
 
 **MediaFiles Check → Réglages…** (⌘,) règle l'apparence (claire ou sombre) et la langue (English, Deutsch, Français, Español). **MediaFiles Check → À propos de MediaFiles Check** affiche la version et la licence.
 
+## Mises à jour
+
+MediaFiles Check recherche une nouvelle version sur GitHub peu après le démarrage puis toutes les 6 heures ; **Réglages… → Rechercher des mises à jour** le fait immédiatement. Une nouvelle version s'affiche en haut de la fenêtre principale : **Nouveautés** ouvre les notes de version, **Installer la mise à jour** la télécharge, vérifie qu'elle est complète et intacte, met l'ancienne version à la corbeille et redémarre l'app.
+
 ## Fichier journal
 
 MediaFiles Check note ce qu'il fait – vérifications, renommages, erreurs – dans un fichier journal. **Aide → Afficher le fichier journal** le montre dans le Finder ; joignez-le quand vous signalez un problème.

@@ -377,6 +377,63 @@ export global Shared {
     callback show-about();
     callback show-settings();
     callback show-log();
+    // Updates (src/update.rs): laufende Version, neuere Version ("" = keine), Zustand 0 nichts, 1 prüft, 2 aktuell,
+    // 3 installiert, 4 Fehler; Fehlerart 0 Prüfen, 1 Laden, 2 beschädigt, 3 Ersetzen, 4 Neustart
+    in property <string> version;
+    in property <string> update-version;
+    in property <int> update-state;
+    in property <int> update-error;
+    in property <string> update-details;
+    callback check-update();
+    callback install-update();
+    callback show-release();
+    // Rust: Update-Zustand hat sich geändert, alle Fenster neu setzen
+    callback refresh-update();
+}
+
+// Zustand der Updates als Text (Einstellungen und Banner)
+component UpdateStatus inherits Text {
+    width: Metrics.content-width;
+    wrap: word-wrap;
+    font-size: 12px;
+    visible: self.text != "";
+    height: self.visible ? self.preferred-height : 0;
+    color: Shared.update-state == 4 ? Theme.error : Theme.muted;
+    text: Shared.update-state == 1 ? @tr("Checking for updates…")
+        : Shared.update-state == 2 ? @tr("MediaFiles Check is up to date.")
+        : Shared.update-state == 3 ? @tr("Installing the update – MediaFiles Check restarts by itself.")
+        : Shared.update-state != 4 ? ""
+        : Shared.update-error == 0 ? @tr("Could not check for updates. Check the internet connection and try again.")
+        : Shared.update-error == 1 ? @tr("The update could not be downloaded. Check the internet connection and try again.")
+        : Shared.update-error == 2 ? @tr("The downloaded update is damaged. Please try again later or download it from GitHub.")
+        : Shared.update-error == 3 ? @tr("MediaFiles Check could not replace itself. Move it to the Applications folder, or download the update from GitHub. Details: {}", Shared.update-details)
+        : @tr("The update is installed. Quit MediaFiles Check and open it again to finish.");
+}
+
+// Neue Version: Hinweis mit "Neuigkeiten" und "Update installieren" (oben im Hauptfenster und in den Einstellungen)
+component UpdateOffer inherits VerticalLayout {
+    spacing: 10px;
+    Text {
+        width: Metrics.content-width;
+        wrap: word-wrap;
+        text: @tr("Version {} is available.", Shared.update-version);
+        font-weight: 600;
+        color: Theme.text;
+    }
+    HorizontalLayout {
+        spacing: 10px;
+        alignment: start;
+        CheckButton {
+            text: @tr("What's new");
+            clicked => { Shared.show-release(); }
+        }
+        CheckButton {
+            text: @tr("Install update");
+            primary: true;
+            enabled: Shared.update-state != 3;
+            clicked => { Shared.install-update(); }
+        }
+    }
 }
 
 component CheckWindow inherits Window {
@@ -472,6 +529,12 @@ export component AppWindow inherits CheckWindow {
         spacing: Metrics.spacing;
 
         Headline { }
+        if Shared.update-version != "": VerticalLayout {
+            spacing: 10px;
+            UpdateOffer { }
+            UpdateStatus { }
+            Divider { }
+        }
 
         // ── Start ──────────────────────────────────────────────
         if root.page == Page.home: VerticalLayout {
@@ -971,6 +1034,25 @@ export component SettingsWindow inherits CheckWindow {
                     }
                 }
             }
+        }
+        Section {
+            title: @tr("UPDATES");
+            HorizontalLayout {
+                spacing: 10px;
+                Text {
+                    text: @tr("Version {}", Shared.version);
+                    horizontal-stretch: 1;
+                    vertical-alignment: center;
+                    color: Theme.text;
+                }
+                CheckButton {
+                    text: @tr("Check for updates");
+                    enabled: Shared.update-state != 1 && Shared.update-state != 3;
+                    clicked => { Shared.check-update(); }
+                }
+            }
+            if Shared.update-version != "": UpdateOffer { }
+            UpdateStatus { }
         }
     }
 }
