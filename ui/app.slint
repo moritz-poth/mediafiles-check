@@ -1104,6 +1104,7 @@ export component ProjectsWindow inherits CheckWindow {
     in property <int> relink;
     in property <int> ama;
     in property <[MissingRow]> rows;
+    in property <[MissingRow]> ama-rows;
     out property <string> txt-choose: @tr("Choose the folder with your Avid projects");
     out property <string> txt-reading-drives: @tr("Reading the media databases of the drives…");
     out property <string> txt-one-file: @tr("1 file");
@@ -1273,7 +1274,7 @@ export component ProjectsWindow inherits CheckWindow {
                 }
                 if root.ama > 0: Para {
                     width: root.inner;
-                    text: @tr("{n} AMA-linked file left out." | "{n} AMA-linked files left out." % root.ama);
+                    text: @tr("{n} AMA-linked file – not requested; where it is used is listed below." | "{n} AMA-linked files – not requested; where they are used is listed below." % root.ama);
                 }
                 if root.no-media > 0: Para {
                     width: root.inner;
@@ -1289,6 +1290,14 @@ export component ProjectsWindow inherits CheckWindow {
                 MissingList {
                     rows: root.rows;
                     limit: 380px;
+                    toggle(i) => { root.toggle-group(i); }
+                }
+            }
+            if root.ama-rows.length > 0: Section {
+                title: @tr("AMA-LINKED CLIPS PER BIN");
+                MissingList {
+                    rows: root.ama-rows;
+                    limit: 240px;
                     toggle(i) => { root.toggle-group(i); }
                 }
             }

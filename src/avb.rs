@@ -713,6 +713,9 @@ mod tests {
         let r = scan(&[project.clone()], &HashSet::new(), &mut |_, _, _| {});
         assert!(bin.mob(&linked).unwrap().ama && !bin.mob(&file).unwrap().ama);
         assert_eq!((r.missing.len(), r.renders, r.ama, r.relink), (1, 1, 1, 0));
+        // the AMA clip is listed where it is used
+        let ama = &r.ama_by_bin[&("P".to_string(), "Bin.avb".to_string())];
+        assert_eq!(ama, &[MissingGroup { name: "Linked".into(), files: 1, relink: false, uses: vec![("Linked".to_string(), ClipKind::Master)] }]);
         assert_eq!(r.missing[0].name, "Clip Ö");
         let groups = &r.by_bin[&("P".to_string(), "Bin.avb".to_string())];
         let uses = vec![("Clip Ö".to_string(), ClipKind::Master), ("Sequence".to_string(), ClipKind::Sequence)];

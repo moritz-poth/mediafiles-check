@@ -347,10 +347,13 @@ msgid_plural "{n} missing files are on the drives as other media files of the sa
 msgstr[0] "{n} fehlende Datei liegt als andere Mediendatei derselben Quelle (Kameraclip oder Band) auf den Laufwerken – der Clip hat nur seine Verlinkung verloren: in Media Composer neu verlinken. Nicht angefordert."
 msgstr[1] "{n} fehlende Dateien liegen als andere Mediendateien derselben Quelle (Kameraclip oder Band) auf den Laufwerken – die Clips haben nur ihre Verlinkung verloren: in Media Composer neu verlinken. Nicht angefordert."
 
-msgid "{n} AMA-linked file left out."
-msgid_plural "{n} AMA-linked files left out."
-msgstr[0] "{n} AMA-verlinkte Datei ausgelassen."
-msgstr[1] "{n} AMA-verlinkte Dateien ausgelassen."
+msgid "{n} AMA-linked file – not requested; where it is used is listed below."
+msgid_plural "{n} AMA-linked files – not requested; where they are used is listed below."
+msgstr[0] "{n} AMA-verlinkte Datei – nicht angefordert; wo sie benutzt wird, steht unten."
+msgstr[1] "{n} AMA-verlinkte Dateien – nicht angefordert; wo sie benutzt werden, steht unten."
+
+msgid "AMA-LINKED CLIPS PER BIN"
+msgstr "AMA-VERLINKTE CLIPS PRO BIN"
 
 msgid "on the drives – relink"
 msgstr "auf den Laufwerken – neu verlinken"

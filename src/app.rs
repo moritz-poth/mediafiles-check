@@ -3,9 +3,9 @@
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
 use mediafiles_check::rename::{self, Added, Journal, Renamed, Status};
-use mediafiles_check::projects::{self, ClipKind, ScanResult};
+use mediafiles_check::projects::{self, ClipKind, MissingGroup, ScanResult};
 use mediafiles_check::{FolderReport, UPDATE_APP, check, find_volumes, log, report_text, update};
-use std::collections::{HashSet, VecDeque};
+use std::collections::{BTreeMap, HashSet, VecDeque};
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
 use std::fs;
@@ -429,13 +429,20 @@ fn show_projects(w: &ProjectsWindow, st: &ProjectsState) {
 
 /// Rows of the result: per bin its missing media files; an open file shows where it is used in the bin.
 /// Capped at whole bins (the saved list has all); group indexes count over all bins, so they stay stable.
-fn project_rows(w: &ProjectsWindow, r: &ScanResult, open: &HashSet<usize>) -> Vec<MissingRow> {
+/// Both lists of the result: missing media and AMA-linked clips; group indexes run on over both (one open set).
+fn show_rows(w: &ProjectsWindow, r: &ScanResult, open: &HashSet<usize>) {
+    w.set_rows(ModelRc::new(VecModel::from(project_rows(w, &r.by_bin, open, 0))));
+    let first = r.by_bin.values().map(Vec::len).sum();
+    w.set_ama_rows(ModelRc::new(VecModel::from(project_rows(w, &r.ama_by_bin, open, first))));
+}
+
+fn project_rows(w: &ProjectsWindow, by_bin: &BTreeMap<(String, String), Vec<MissingGroup>>, open: &HashSet<usize>, first: usize) -> Vec<MissingRow> {
     const MAX_ROWS: usize = 1000;
     let files = |n: usize| if n == 1 { w.get_txt_one_file() } else { w.get_txt_files_n().replace("{}", &n.to_string()).into() };
     let row = |level, text: String, note: SharedString, open, index| MissingRow { level, text: text.into(), note, open, index };
     let mut rows = vec![];
-    let mut index = 0;
-    for ((project, bin), groups) in &r.by_bin {
+    let mut index = first;
+    for ((project, bin), groups) in by_bin {
         if rows.len() >= MAX_ROWS {
             rows.push(row(2, w.get_txt_more_rows().into(), "".into(), false, -1));
             break;
@@ -511,7 +518,7 @@ fn start_project_scan(w: &ProjectsWindow, st: &mut ProjectsState) {
             w.set_relink(r.relink as i32);
             w.set_ama(r.ama as i32);
             w.set_no_media(r.no_media as i32);
-            w.set_rows(ModelRc::new(VecModel::from(project_rows(&w, &r, &HashSet::new()))));
+            show_rows(&w, &r, &HashSet::new());
             *result.lock().unwrap() = Some(r);
             w.set_step(2);
         });
@@ -565,7 +572,7 @@ fn open_projects(weak: &slint::Weak<AppWindow>, win: &Win<ProjectsWindow>, st: &
                         st.open.insert(i);
                     }
                     if let Some(r) = st.result.lock().unwrap().as_ref() {
-                        w.set_rows(ModelRc::new(VecModel::from(project_rows(&w, r, &st.open))));
+                        show_rows(&w, r, &st.open);
                     }
                         }
             });

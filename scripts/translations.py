@@ -209,10 +209,11 @@ T = {
          "{n} fichiers manquants sont sur les disques sous d'autres fichiers médias de la même source (clip caméra ou bande) – les clips ont seulement perdu leur lien : reliez-les dans Media Composer. Non demandés."),
         ("{n} archivo que falta está en los discos como otro archivo de medios de la misma fuente (clip de cámara o cinta): el clip solo perdió su vínculo; revincúlalo en Media Composer. No se solicita.",
          "{n} archivos que faltan están en los discos como otros archivos de medios de la misma fuente (clip de cámara o cinta): los clips solo perdieron su vínculo; revincúlalos en Media Composer. No se solicitan.")),
-    ("{n} AMA-linked file left out.", "{n} AMA-linked files left out."): (
-        ("{n} AMA-verlinkte Datei ausgelassen.", "{n} AMA-verlinkte Dateien ausgelassen."),
-        ("{n} fichier lié par AMA ignoré.", "{n} fichiers liés par AMA ignorés."),
-        ("{n} archivo vinculado por AMA omitido.", "{n} archivos vinculados por AMA omitidos.")),
+    ("{n} AMA-linked file – not requested; where it is used is listed below.", "{n} AMA-linked files – not requested; where they are used is listed below."): (
+        ("{n} AMA-verlinkte Datei – nicht angefordert; wo sie benutzt wird, steht unten.", "{n} AMA-verlinkte Dateien – nicht angefordert; wo sie benutzt werden, steht unten."),
+        ("{n} fichier lié par AMA – non demandé ; où il est utilisé figure plus bas.", "{n} fichiers liés par AMA – non demandés ; où ils sont utilisés figure plus bas."),
+        ("{n} archivo vinculado por AMA: no se solicita; abajo se indica dónde se usa.", "{n} archivos vinculados por AMA: no se solicitan; abajo se indica dónde se usan.")),
+    "AMA-LINKED CLIPS PER BIN": ("AMA-VERLINKTE CLIPS PRO BIN", "CLIPS LIÉS PAR AMA PAR CHUTIER", "CLIPS VINCULADOS POR AMA POR BIN"),
     "on the drives – relink": ("auf den Laufwerken – neu verlinken", "sur les disques – à relier", "en los discos – revincular"),
     "MISSING MEDIA FILES PER BIN": ("FEHLENDE MEDIENDATEIEN PRO BIN", "FICHIERS MÉDIAS MANQUANTS PAR CHUTIER", "ARCHIVOS DE MEDIOS QUE FALTAN POR BIN"),
     "1 file": ("1 Datei", "1 fichier", "1 archivo"),

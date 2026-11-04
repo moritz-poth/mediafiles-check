@@ -86,7 +86,7 @@ Before renaming back, MediaFiles Check checks every folder:
 Good to know:
 
 - Clips are matched with their media through Avid's media IDs, not file names. A file on a drive that is in **no** Avid database is identified by the media ID in its MXF header; only files whose header cannot be read (damaged, still being written) stay unrecognised – the result warns about them.
-- AMA-linked files are left out (only counted).
+- AMA-linked files are not requested. The section **AMA-linked clips per bin** shows where they are used – grouped like the missing media, click a clip to see its uses. The saved list has them too.
 - A missing file whose source (camera clip or tape, picture or sound) is on the drives in another media file is marked **on the drives – relink**: the clip only lost its link; relink it in Media Composer. It is not requested.
 - Files without an Avid media reference (e.g. imported via AAF) are counted separately. Ferry only finds them if the other system has them in Avid MediaFiles.
 - Master clips from the camera often carry sound tracks for which no media file was ever made (the sound was recorded separately). These references are left out and only counted; a subclip only needs the tracks it actually uses.

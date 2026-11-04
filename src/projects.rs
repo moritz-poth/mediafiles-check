@@ -179,8 +179,10 @@ pub struct ScanResult {
     pub missing: Vec<Missing>,
     /// missing files whose source is on the drives in another media file (relink in Media Composer)
     pub relink: usize,
-    /// AMA-linked files – left out
+    /// AMA-linked files – left out of the request
     pub ama: usize,
+    /// (project, bin) -> the AMA-linked files its clips use, grouped by name (`relink` always false)
+    pub ama_by_bin: BTreeMap<(String, String), Vec<MissingGroup>>,
     /// file mobs without any locator: no media was ever made for them (e.g. the camera sound tracks of a master
     /// clip whose sound was never imported – Media Composer still shows the clip online) – left out
     pub no_media: usize,
@@ -291,7 +293,12 @@ pub fn scan(projects: &[PathBuf], available: &HashSet<MobId>, progress: &mut dyn
     // covers less of the source still counts; compare timecodes if that shows up in practice.
     renders.retain(|id| !missing.contains_key(id));
     let is_ama = |id: &MobId| files.get(id).is_some_and(|f| f.2);
-    r.ama = missing.keys().filter(|id| is_ama(id)).count();
+    let ama_names: HashMap<MobId, String> = missing
+        .iter()
+        .filter(|(id, _)| is_ama(id))
+        .map(|(id, m)| (*id, owners.get(id).cloned().or_else(|| files.get(id).map(|f| f.1.clone()).filter(|n| !n.trim().is_empty())).unwrap_or_else(|| m.first.clip.clone())))
+        .collect();
+    r.ama = ama_names.len();
     missing.retain(|id, _| !is_ama(id));
     let no_locator = |id: &MobId| files.get(id).is_some_and(|f| f.0.is_none());
     r.no_media = missing.keys().filter(|id| no_locator(id)).count();
@@ -303,21 +310,26 @@ pub fn scan(projects: &[PathBuf], available: &HashSet<MobId>, progress: &mut dyn
         m.name = owners.remove(&m.id).or(Some(name).filter(|n| !n.trim().is_empty())).unwrap_or_else(|| m.first.clip.clone());
     }
     r.renders = renders.len();
-    r.by_bin = by_bin
-        .into_iter()
-        .map(|(k, ids)| {
-            let mut groups: BTreeMap<(&str, bool), (usize, BTreeSet<(String, ClipKind)>)> = BTreeMap::new();
-            for (id, uses) in ids {
-                let Some(m) = missing.get(&id) else { continue }; // AMA
-                let g = groups.entry((&m.name, m.relink)).or_default();
-                g.0 += 1;
-                g.1.extend(uses);
-            }
-            let groups: Vec<MissingGroup> = groups.into_iter().map(|((name, relink), (files, uses))| MissingGroup { name: name.to_string(), files, relink, uses: uses.into_iter().collect() }).collect();
-            (k, groups)
-        })
-        .filter(|(_, g)| !g.is_empty())
-        .collect();
+    // per bin: the files `info` knows (name, relink), grouped by name with all their uses
+    let per_bin = |info: &dyn Fn(&MobId) -> Option<(String, bool)>| -> BTreeMap<(String, String), Vec<MissingGroup>> {
+        by_bin
+            .iter()
+            .map(|(k, ids)| {
+                let mut groups: BTreeMap<(String, bool), (usize, BTreeSet<(String, ClipKind)>)> = BTreeMap::new();
+                for (id, uses) in ids {
+                    let Some(key) = info(id) else { continue };
+                    let g = groups.entry(key).or_default();
+                    g.0 += 1;
+                    g.1.extend(uses.iter().cloned());
+                }
+                let groups: Vec<MissingGroup> = groups.into_iter().map(|((name, relink), (files, uses))| MissingGroup { name, files, relink, uses: uses.into_iter().collect() }).collect();
+                (k.clone(), groups)
+            })
+            .filter(|(_, g)| !g.is_empty())
+            .collect()
+    };
+    r.by_bin = per_bin(&|id| missing.get(id).map(|m| (m.name.clone(), m.relink)));
+    r.ama_by_bin = per_bin(&|id| ama_names.get(id).map(|n| (n.clone(), false)));
     r.relink = missing.values().filter(|m| m.relink).count();
     let mut list: Vec<Missing> = missing.into_values().filter(|m| !m.relink).collect();
     list.sort_by(|a, b| (&a.first.project, &a.first.bin, &a.first.clip, a.id).cmp(&(&b.first.project, &b.first.bin, &b.first.clip, b.id)));
@@ -370,16 +382,23 @@ pub fn list_text(r: &ScanResult, lang: &str) -> String {
         ClipKind::Subclip => t([" (subclip)", " (Subclip)", " (sous-clip)", " (subclip)"]),
         ClipKind::Sequence => t([" (sequence)", " (Sequenz)", " (séquence)", " (secuencia)"]),
     };
-    for ((project, bin), groups) in &r.by_bin {
-        out.push_str(&format!("\n{project} / {bin}\n"));
-        for g in groups {
-            let files = if g.files > 1 { format!(" ({})", t(["{} files", "{} Dateien", "{} fichiers", "{} archivos"]).replace("{}", &g.files.to_string())) } else { String::new() };
-            let relink = if g.relink { t([" – on the drives, relink", " – auf den Laufwerken, neu verlinken", " – sur les disques, à relier", " – en los discos, revincular"]) } else { String::new() };
-            out.push_str(&format!("  {}{files}{relink}\n", g.name));
-            for (clip, k) in &g.uses {
-                out.push_str(&format!("      {clip}{}\n", kind(k)));
+    let bins = |out: &mut String, by_bin: &BTreeMap<(String, String), Vec<MissingGroup>>| {
+        for ((project, bin), groups) in by_bin {
+            out.push_str(&format!("\n{project} / {bin}\n"));
+            for g in groups {
+                let files = if g.files > 1 { format!(" ({})", t(["{} files", "{} Dateien", "{} fichiers", "{} archivos"]).replace("{}", &g.files.to_string())) } else { String::new() };
+                let relink = if g.relink { t([" – on the drives, relink", " – auf den Laufwerken, neu verlinken", " – sur les disques, à relier", " – en los discos, revincular"]) } else { String::new() };
+                out.push_str(&format!("  {}{files}{relink}\n", g.name));
+                for (clip, k) in &g.uses {
+                    out.push_str(&format!("      {clip}{}\n", kind(k)));
+                }
             }
         }
+    };
+    bins(&mut out, &r.by_bin);
+    if !r.ama_by_bin.is_empty() {
+        out.push_str(&t(["\n\nAMA-linked clips per bin:\n", "\n\nAMA-verlinkte Clips pro Bin:\n", "\n\nClips liés par AMA par chutier :\n", "\n\nClips vinculados por AMA por bin:\n"]));
+        bins(&mut out, &r.ama_by_bin);
     }
     if r.renders > 0 {
         out.push_str(&t([

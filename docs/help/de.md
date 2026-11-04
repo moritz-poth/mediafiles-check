@@ -86,7 +86,7 @@ Vor dem Zurückbenennen prüft MediaFiles Check jeden Ordner:
 Gut zu wissen:
 
 - Clips und Medien werden über Avids Medien-IDs zugeordnet, nicht über Dateinamen. Eine Datei auf einem Laufwerk, die in **keiner** Avid-Datenbank steht, wird über die Medien-ID in ihrem MXF-Header erkannt; nur Dateien mit unlesbarem Header (beschädigt, noch im Schreiben) bleiben unerkannt – das Ergebnis warnt davor.
-- AMA-verlinkte Dateien bleiben außen vor (nur gezählt).
+- AMA-verlinkte Dateien werden nicht angefordert. Der Abschnitt **AMA-verlinkte Clips pro Bin** zeigt, wo sie benutzt werden – aufgebaut wie die fehlenden Medien, ein Klick auf einen Clip zeigt seine Verwendungen. Auch die gesicherte Liste enthält sie.
 - Eine fehlende Datei, deren Quelle (Kameraclip oder Band, Bild oder Ton) als andere Mediendatei auf den Laufwerken liegt, wird mit **auf den Laufwerken – neu verlinken** markiert: Der Clip hat nur seine Verlinkung verloren; verlinke ihn in Media Composer neu. Sie wird nicht angefordert.
 - Dateien ohne Avid-Medienverweis (z. B. über AAF importiert) werden getrennt gezählt. Ferry findet sie nur, wenn das andere System sie in Avid MediaFiles hat.
 - Kamera-Masterclips haben oft Tonspuren, für die nie eine Mediendatei angelegt wurde (der Ton wurde extern aufgenommen). Diese Verweise werden ausgelassen und nur gezählt; ein Subclip braucht nur die Spuren, die er wirklich nutzt.
