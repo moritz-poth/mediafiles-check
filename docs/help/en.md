@@ -20,6 +20,8 @@ Folder names can be anything, e.g. `1`, `Avid8.1` or `Mac Studio.1`.
 
 The start page lists every connected drive with `Avid MediaFiles/MXF` – the green dot means the drive is ready. The list updates by itself when you connect or eject a drive.
 
+![Drive list](images/en/drives.png)
+
 1. Switch on the drives you want to check. New drives are switched on automatically.
 2. Click **Check drives**.
 
@@ -36,6 +38,8 @@ The start page lists every connected drive with `Avid MediaFiles/MXF` – the gr
 
 The result lists every folder that differs, with what was found:
 
+![Result](images/en/result.png)
+
 - **Files not in the database** – the folder contains MXF files the database does not list. Media Composer may not show them.
 - **Entries in the database without a file** – the database lists files that are not in the folder. They show up as offline media.
 - **No database** – the folder has MXF files but no database files.
@@ -51,9 +55,13 @@ Media Composer only rebuilds the databases of its own folders: numbered folders 
 
 After a check, **Rename for Media Composer…** offers to rename such folders:
 
+![Rename for Media Composer](images/en/rename.png)
+
 1. Quit Media Composer and click **Rename**. Each folder gets the next free number (or computer name and number). MediaFiles Check remembers the original name and every media file.
 2. Click **Start Media Composer** (or start it yourself) and wait until it has scanned the drives. On the start page the dot of a folder turns green once Media Composer has written its database.
 3. Quit Media Composer and click **Rename back**.
+
+![Renamed folders on the start page](images/en/rename-back.png)
 
 Before renaming back, MediaFiles Check checks every folder:
 
@@ -66,6 +74,8 @@ Before renaming back, MediaFiles Check checks every folder:
 ## Avid projects
 
 **Open projects…** on the start page opens the window for Avid projects. It finds the media files the bins of your projects need that are on none of the connected drives – and writes a request for MediaFiles Ferry, which collects them on the system that has them.
+
+![Missing media per bin](images/en/projects.png)
 
 1. **Choose folder…** – the folder with your Avid projects. Every folder with an `.avp` file counts as a project (backups in `Attic` are left out). The folder is remembered.
 2. Switch on the projects you want to check – all are off at first.
@@ -93,6 +103,8 @@ Good to know:
 ## Settings
 
 **MediaFiles Check → Settings…** (⌘,) sets the appearance (light or dark) and the language (English, Deutsch, Français, Español). **MediaFiles Check → About MediaFiles Check** shows the version and the license.
+
+![Settings](images/en/settings.png)
 
 ## Updates
 

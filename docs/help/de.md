@@ -20,6 +20,8 @@ Ordnernamen sind beliebig, z. B. `1`, `Avid8.1` oder `Mac Studio.1`.
 
 Die Startseite zeigt jedes angeschlossene Laufwerk mit `Avid MediaFiles/MXF` – der grüne Punkt heißt: das Laufwerk ist bereit. Die Liste aktualisiert sich von selbst, wenn du ein Laufwerk anschließt oder auswirfst.
 
+![Laufwerksliste](images/de/drives.png)
+
 1. Schalte die Laufwerke ein, die du prüfen möchtest. Neue Laufwerke sind automatisch eingeschaltet.
 2. Auf **Laufwerke prüfen** klicken.
 
@@ -36,6 +38,8 @@ Die Startseite zeigt jedes angeschlossene Laufwerk mit `Avid MediaFiles/MXF` –
 
 Das Ergebnis zeigt jeden Ordner mit Abweichungen und was gefunden wurde:
 
+![Ergebnis](images/de/result.png)
+
 - **Dateien nicht in der Datenbank** – im Ordner liegen MXF-Dateien, die die Datenbank nicht kennt. Media Composer zeigt sie eventuell nicht an.
 - **Einträge in der Datenbank ohne Datei** – die Datenbank nennt Dateien, die nicht im Ordner liegen. Sie erscheinen als Offline-Medien.
 - **Keine Datenbank** – der Ordner hat MXF-Dateien, aber keine Datenbankdateien.
@@ -51,9 +55,13 @@ Media Composer baut nur die Datenbanken seiner eigenen Ordner neu auf: Zahlenord
 
 Nach einer Prüfung bietet **Für Media Composer umbenennen…** an, solche Ordner umzubenennen:
 
+![Für Media Composer umbenennen](images/de/rename.png)
+
 1. Media Composer beenden und auf **Umbenennen** klicken. Jeder Ordner bekommt die nächste freie Zahl (bzw. Rechnername und Zahl). MediaFiles Check merkt sich den Originalnamen und jede Mediendatei.
 2. Auf **Media Composer starten** klicken (oder es selbst starten) und warten, bis es die Laufwerke gescannt hat. Auf der Startseite wird der Punkt eines Ordners grün, sobald Media Composer seine Datenbank geschrieben hat.
 3. Media Composer beenden und auf **Zurückbenennen** klicken.
+
+![Umbenannte Ordner auf der Startseite](images/de/rename-back.png)
 
 Vor dem Zurückbenennen prüft MediaFiles Check jeden Ordner:
 
@@ -66,6 +74,8 @@ Vor dem Zurückbenennen prüft MediaFiles Check jeden Ordner:
 ## Avid-Projekte
 
 **Projekte öffnen…** auf der Startseite öffnet das Fenster für Avid-Projekte. Es findet die Mediendateien, die die Bins deiner Projekte brauchen und die auf keinem angeschlossenen Laufwerk liegen – und schreibt eine Anforderung für MediaFiles Ferry, das sie auf dem System einsammelt, das sie hat.
+
+![Fehlende Medien pro Bin](images/de/projects.png)
 
 1. **Ordner wählen…** – den Ordner mit deinen Avid-Projekten. Jeder Ordner mit einer `.avp`-Datei zählt als Projekt (Sicherungen in `Attic` bleiben außen vor). Der Ordner wird gemerkt.
 2. Schalte die Projekte ein, die du prüfen möchtest – anfangs sind alle aus.
@@ -93,6 +103,8 @@ Gut zu wissen:
 ## Einstellungen
 
 **MediaFiles Check → Einstellungen…** (⌘,) stellt die Darstellung (hell oder dunkel) und die Sprache (English, Deutsch, Français, Español) ein. **MediaFiles Check → Über MediaFiles Check** zeigt Version und Lizenz.
+
+![Einstellungen](images/de/settings.png)
 
 ## Updates
 

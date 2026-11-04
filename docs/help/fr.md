@@ -20,6 +20,8 @@ Les noms de dossier sont libres, p. ex. `1`, `Avid8.1` ou `Mac Studio.1`.
 
 La page d'accueil montre chaque disque connecté avec `Avid MediaFiles/MXF` – le point vert signifie que le disque est prêt. La liste se met à jour toute seule quand vous connectez ou éjectez un disque.
 
+![Liste des disques](images/fr/drives.png)
+
 1. Activez les disques à vérifier. Les nouveaux disques sont activés automatiquement.
 2. Cliquez sur **Vérifier les disques**.
 
@@ -36,6 +38,8 @@ La page d'accueil montre chaque disque connecté avec `Avid MediaFiles/MXF` – 
 
 Le résultat liste chaque dossier qui diffère, avec ce qui a été trouvé :
 
+![Résultat](images/fr/result.png)
+
 - **Fichiers absents de la base de données** – le dossier contient des fichiers MXF que la base de données ne connaît pas. Media Composer ne les affiche peut-être pas.
 - **Entrées de la base de données sans fichier** – la base de données liste des fichiers absents du dossier. Ils apparaissent comme médias hors ligne.
 - **Pas de base de données** – le dossier a des fichiers MXF mais aucun fichier de base de données.
@@ -51,9 +55,13 @@ Media Composer ne reconstruit que les bases de données de ses propres dossiers 
 
 Après une vérification, **Renommer pour Media Composer…** propose de renommer ces dossiers :
 
+![Renommer pour Media Composer](images/fr/rename.png)
+
 1. Quittez Media Composer et cliquez sur **Renommer**. Chaque dossier reçoit le prochain numéro libre (ou nom de l'ordinateur et numéro). MediaFiles Check retient le nom d'origine et chaque fichier média.
 2. Cliquez sur **Lancer Media Composer** (ou lancez-le vous-même) et attendez qu'il ait analysé les disques. Sur la page d'accueil, le point d'un dossier devient vert dès que Media Composer a écrit sa base de données.
 3. Quittez Media Composer et cliquez sur **Renommer à l'origine**.
+
+![Dossiers renommés sur la page d’accueil](images/fr/rename-back.png)
 
 Avant de rendre son nom d'origine, MediaFiles Check vérifie chaque dossier :
 
@@ -66,6 +74,8 @@ Avant de rendre son nom d'origine, MediaFiles Check vérifie chaque dossier :
 ## Projets Avid
 
 **Ouvrir les projets…** sur la page d'accueil ouvre la fenêtre des projets Avid. Elle trouve les fichiers médias dont les chutiers de vos projets ont besoin et qui ne sont sur aucun disque connecté – et écrit une demande pour MediaFiles Ferry, qui les rassemble sur le système qui les possède.
+
+![Médias manquants par chutier](images/fr/projects.png)
 
 1. **Choisir un dossier…** – le dossier de vos projets Avid. Chaque dossier contenant un fichier `.avp` compte comme projet (les sauvegardes dans `Attic` sont ignorées). Le dossier est mémorisé.
 2. Activez les projets à vérifier – au départ, tous sont désactivés.
@@ -93,6 +103,8 @@ Bon à savoir :
 ## Réglages
 
 **MediaFiles Check → Réglages…** (⌘,) règle l'apparence (claire ou sombre) et la langue (English, Deutsch, Français, Español). **MediaFiles Check → À propos de MediaFiles Check** affiche la version et la licence.
+
+![Réglages](images/fr/settings.png)
 
 ## Mises à jour
 

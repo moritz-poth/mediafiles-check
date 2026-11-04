@@ -20,6 +20,8 @@ Los nombres de carpeta pueden ser cualquiera, p. ej. `1`, `Avid8.1` o `Mac Studi
 
 La página de inicio muestra cada disco conectado con `Avid MediaFiles/MXF`; el punto verde indica que el disco está listo. La lista se actualiza sola cuando conectas o expulsas un disco.
 
+![Lista de discos](images/es/drives.png)
+
 1. Activa los discos que quieres comprobar. Los discos nuevos se activan automáticamente.
 2. Haz clic en **Comprobar discos**.
 
@@ -36,6 +38,8 @@ La página de inicio muestra cada disco conectado con `Avid MediaFiles/MXF`; el 
 
 El resultado muestra cada carpeta con diferencias y lo que se encontró:
 
+![Resultado](images/es/result.png)
+
 - **Archivos que no están en la base de datos**: la carpeta contiene archivos MXF que la base de datos no conoce. Puede que Media Composer no los muestre.
 - **Entradas de la base de datos sin archivo**: la base de datos nombra archivos que no están en la carpeta. Aparecen como medios sin conexión.
 - **Sin base de datos**: la carpeta tiene archivos MXF pero ningún archivo de base de datos.
@@ -51,9 +55,13 @@ Media Composer solo reconstruye las bases de datos de sus propias carpetas: carp
 
 Después de una comprobación, **Cambiar el nombre para Media Composer…** ofrece cambiar el nombre de esas carpetas:
 
+![Cambiar el nombre para Media Composer](images/es/rename.png)
+
 1. Cierra Media Composer y haz clic en **Cambiar el nombre**. Cada carpeta recibe el siguiente número libre (o nombre del ordenador y número). MediaFiles Check recuerda el nombre original y cada archivo de medios.
 2. Haz clic en **Abrir Media Composer** (o ábrelo tú) y espera a que haya analizado los discos. En la página de inicio, el punto de una carpeta se vuelve verde en cuanto Media Composer ha escrito su base de datos.
 3. Cierra Media Composer y haz clic en **Recuperar el nombre**.
+
+![Carpetas renombradas en la página de inicio](images/es/rename-back.png)
 
 Antes de recuperar el nombre, MediaFiles Check comprueba cada carpeta:
 
@@ -66,6 +74,8 @@ Antes de recuperar el nombre, MediaFiles Check comprueba cada carpeta:
 ## Proyectos de Avid
 
 **Abrir proyectos…** en la página de inicio abre la ventana de proyectos de Avid. Encuentra los archivos de medios que necesitan los bins de tus proyectos y que no están en ningún disco conectado, y escribe una solicitud para MediaFiles Ferry, que los reúne en el sistema que los tiene.
+
+![Medios que faltan por bin](images/es/projects.png)
 
 1. **Elegir carpeta…**: la carpeta con tus proyectos de Avid. Cada carpeta con un archivo `.avp` cuenta como proyecto (las copias de seguridad en `Attic` se omiten). La carpeta se recuerda.
 2. Activa los proyectos que quieres comprobar; al principio todos están desactivados.
@@ -93,6 +103,8 @@ Conviene saber:
 ## Ajustes
 
 **MediaFiles Check → Ajustes…** (⌘,) ajusta el aspecto (claro u oscuro) y el idioma (English, Deutsch, Français, Español). **MediaFiles Check → Acerca de MediaFiles Check** muestra la versión y la licencia.
+
+![Ajustes](images/es/settings.png)
 
 ## Actualizaciones
 
