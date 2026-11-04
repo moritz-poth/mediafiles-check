@@ -332,6 +332,11 @@ msgid_plural "{n} bins could not be read – see the saved list."
 msgstr[0] "{n} Bin ließ sich nicht lesen – siehe gesicherte Liste."
 msgstr[1] "{n} Bins ließen sich nicht lesen – siehe gesicherte Liste."
 
+msgid "{n} reference without a media file left out – e.g. camera sound that was never imported; Media Composer shows such clips online."
+msgid_plural "{n} references without a media file left out – e.g. camera sound that was never imported; Media Composer shows such clips online."
+msgstr[0] "{n} Verweis ohne Mediendatei ausgelassen – z. B. nie importierter Kameraton; Media Composer zeigt solche Clips online."
+msgstr[1] "{n} Verweise ohne Mediendatei ausgelassen – z. B. nie importierter Kameraton; Media Composer zeigt solche Clips online."
+
 msgid "{n} of the missing files has no Avid media reference – e.g. imported via AAF. Ferry only finds it if the other system has it in Avid MediaFiles."
 msgid_plural "{n} of the missing files have no Avid media reference – e.g. imported via AAF. Ferry only finds them if the other system has them in Avid MediaFiles."
 msgstr[0] "{n} der fehlenden Dateien hat keinen Avid-Medienverweis – z. B. über AAF importiert. Ferry findet sie nur, wenn das andere System sie in Avid MediaFiles hat."

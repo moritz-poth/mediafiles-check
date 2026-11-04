@@ -184,6 +184,15 @@ T = {
         ("{n} Bin ließ sich nicht lesen – siehe gesicherte Liste.", "{n} Bins ließen sich nicht lesen – siehe gesicherte Liste."),
         ("{n} chutier n'a pas pu être lu – voir la liste enregistrée.", "{n} chutiers n'ont pas pu être lus – voir la liste enregistrée."),
         ("{n} bin no se pudo leer: ver la lista guardada.", "{n} bins no se pudieron leer: ver la lista guardada.")),
+    ("{n} reference without a media file left out – e.g. camera sound that was never imported; Media Composer shows such clips online.",
+     "{n} references without a media file left out – e.g. camera sound that was never imported; Media Composer shows such clips online."): (
+        ("{n} Verweis ohne Mediendatei ausgelassen – z. B. nie importierter Kameraton; Media Composer zeigt solche Clips online.",
+         "{n} Verweise ohne Mediendatei ausgelassen – z. B. nie importierter Kameraton; Media Composer zeigt solche Clips online."),
+        ("{n} référence sans fichier média ignorée – p. ex. son caméra jamais importé ; Media Composer affiche ces clips en ligne.",
+         "{n} références sans fichier média ignorées – p. ex. son caméra jamais importé ; Media Composer affiche ces clips en ligne."),
+        ("{n} referencia sin archivo de medios omitida: p. ej. sonido de cámara nunca importado; Media Composer muestra esos clips en línea.",
+         "{n} referencias sin archivo de medios omitidas: p. ej. sonido de cámara nunca importado; Media Composer muestra esos clips en línea."),
+    ),
     ("{n} of the missing files has no Avid media reference – e.g. imported via AAF. Ferry only finds it if the other system has it in Avid MediaFiles.",
      "{n} of the missing files have no Avid media reference – e.g. imported via AAF. Ferry only finds them if the other system has them in Avid MediaFiles."): (
         ("{n} der fehlenden Dateien hat keinen Avid-Medienverweis – z. B. über AAF importiert. Ferry findet sie nur, wenn das andere System sie in Avid MediaFiles hat.",

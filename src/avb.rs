@@ -38,6 +38,8 @@ pub struct Mob {
     /// the descriptor names an AMA plugin (acfUID) – a linked file, not Avid-managed media
     pub ama: bool,
     tracks: Vec<u32>,
+    /// track number of each entry in `tracks` (V1 and A1 both have 1; the media kind tells them apart)
+    track_numbers: Vec<Option<u16>>,
 }
 
 impl Mob {
@@ -50,8 +52,8 @@ impl Mob {
 
 #[derive(Debug, Clone)]
 enum Part {
-    /// source clip: the mob it uses
-    Clip(MobId),
+    /// source clip: the mob it uses and the track number in that mob
+    Clip(MobId, u16),
     /// sequence or track group: the parts below it
     Parts(Vec<u32>),
 }
@@ -64,6 +66,8 @@ pub struct Bin {
     /// indexes into `mobs` of what the bin shows (clips, subclips, sequences)
     pub items: Vec<usize>,
     parts: HashMap<u32, Part>,
+    /// media kind of every parsed component, by object index
+    kinds: HashMap<u32, u16>,
     by_id: HashMap<MobId, usize>,
 }
 
@@ -164,13 +168,13 @@ fn mac_roman(b: &[u8]) -> String {
     b.iter().map(|&c| if c < 0x80 { c as char } else { high.get(c as usize - 0x80).copied().unwrap_or('?') }).collect()
 }
 
-/// Component header shared by clips, sequences and track groups; returns the name.
-fn component(r: &mut R) -> Res<String> {
+/// Component header shared by clips, sequences and track groups; returns the name and the media kind.
+fn component(r: &mut R) -> Res<(String, u16)> {
     r.tag(0x02)?;
     r.tag(0x03)?;
     r.u32()?; // left bob
     r.u32()?; // right bob
-    r.u16()?; // media kind
+    let kind = r.u16()?;
     r.u32()?; // edit rate mantissa
     r.u16()?; // edit rate exponent
     let name = r.string()?;
@@ -187,11 +191,11 @@ fn component(r: &mut R) -> Res<String> {
             _ => return Err(format!("unknown component extension {t}")),
         }
     }
-    Ok(name)
+    Ok((name, kind))
 }
 
-/// Track group part after the component header: the component of every track.
-fn track_group(r: &mut R) -> Res<Vec<u32>> {
+/// Track group part after the component header: track number and component of every track.
+fn track_group(r: &mut R) -> Res<Vec<(Option<u16>, u32)>> {
     r.tag(0x02)?;
     r.tag(0x08)?;
     r.u8()?; // mc mode
@@ -204,9 +208,7 @@ fn track_group(r: &mut R) -> Res<Vec<u32>> {
         if flags & 0xFC00 != 0 {
             return Err(format!("unknown track flags {flags:#x}"));
         }
-        if flags & 1 != 0 {
-            r.u16()?; // index
-        }
+        let index = if flags & 1 != 0 { Some(r.u16()?) } else { None };
         if flags & 2 != 0 {
             r.u32()?; // attributes
         }
@@ -214,7 +216,7 @@ fn track_group(r: &mut R) -> Res<Vec<u32>> {
             r.u32()?; // session attributes
         }
         if flags & 4 != 0 {
-            parts.push(r.u32()?);
+            parts.push((index, r.u32()?));
         }
         for bit in [3, 4] {
             if flags & (1 << bit) != 0 {
@@ -250,15 +252,17 @@ fn track_group(r: &mut R) -> Res<Vec<u32>> {
 struct Raw {
     mob: Option<(Mob, u32)>, // mob and its descriptor index
     part: Option<Part>,
+    /// media kind of a parsed component (1 picture, 2 sound, ...)
+    kind: Option<u16>,
     /// descriptor class, locator index, AMA plugin id present
     descriptor: Option<(String, u32, bool)>,
 }
 
 fn parse_object(class: &[u8; 4], d: &[u8], le: bool) -> Res<Raw> {
     let mut r = R { d, p: 0, le };
-    let mut raw = Raw { mob: None, part: None, descriptor: None };
+    let mut raw = Raw { mob: None, part: None, kind: None, descriptor: None };
     if class == b"SCLP" {
-        component(&mut r)?;
+        raw.kind = Some(component(&mut r)?.1);
         r.tag(0x02)?;
         r.tag(0x01)?;
         r.u32()?; // length
@@ -266,7 +270,7 @@ fn parse_object(class: &[u8; 4], d: &[u8], le: bool) -> Res<Raw> {
         r.tag(0x03)?;
         r.u32()?;
         r.u32()?; // old short mob id
-        r.u16()?; // track
+        let track = r.u16()?;
         r.u32()?; // start
         let mut id = None;
         while let Some(t) = r.ext()? {
@@ -276,17 +280,18 @@ fn parse_object(class: &[u8; 4], d: &[u8], le: bool) -> Res<Raw> {
             }
         }
         if let Some(id) = id {
-            raw.part = Some(Part::Clip(id));
+            raw.part = Some(Part::Clip(id, track));
         }
     } else if class == b"SEQU" {
-        component(&mut r)?;
+        raw.kind = Some(component(&mut r)?.1);
         r.tag(0x02)?;
         r.tag(0x03)?;
         let n = r.u32()?;
         raw.part = Some(Part::Parts((0..n).map(|_| r.u32()).collect::<Res<_>>()?));
     } else if TRACK_GROUPS.contains(&class) {
-        let name = component(&mut r)?;
-        let tracks = track_group(&mut r)?;
+        let (name, kind) = component(&mut r)?;
+        raw.kind = Some(kind);
+        let (track_numbers, tracks): (Vec<Option<u16>>, Vec<u32>) = track_group(&mut r)?.into_iter().unzip();
         if class == b"CMPO" {
             r.tag(0x02)?;
             r.tag(0x02)?;
@@ -313,7 +318,7 @@ fn parse_object(class: &[u8; 4], d: &[u8], le: bool) -> Res<Raw> {
                 }
             }
             let id = id.ok_or("mob without mob id")?;
-            raw.mob = Some((Mob { name, id, kind, usage, descriptor: None, locator: None, ama: false, tracks }, descriptor));
+            raw.mob = Some((Mob { name, id, kind, usage, descriptor: None, locator: None, ama: false, tracks, track_numbers }, descriptor));
         } else {
             raw.part = Some(Part::Parts(tracks));
         }
@@ -400,10 +405,14 @@ impl Bin {
         let mut mobs = vec![];
         let mut mob_at = HashMap::new();
         let mut descriptors = HashMap::new();
+        let mut kinds = HashMap::new();
         for (i, (class, d)) in objects.iter().enumerate().skip(1) {
             let raw = parse_object(class, d, le).map_err(|e| format!("object {i} ({}): {e}", String::from_utf8_lossy(class)))?;
             if let Some(p) = raw.part {
                 parts.insert(i as u32, p);
+            }
+            if let Some(k) = raw.kind {
+                kinds.insert(i as u32, k);
             }
             if let Some(d) = raw.descriptor {
                 descriptors.insert(i as u32, d);
@@ -454,7 +463,7 @@ impl Bin {
             }
         }
         let by_id = mobs.iter().enumerate().map(|(i, m)| (m.id, i)).collect();
-        Ok(Bin { creator, mobs, items, parts, by_id })
+        Ok(Bin { creator, mobs, items, parts, kinds, by_id })
     }
 
     pub fn mob(&self, id: &MobId) -> Option<&Mob> {
@@ -471,7 +480,7 @@ impl Bin {
             }
             match self.parts.get(&p) {
                 Some(Part::Parts(v)) => stack.extend(v),
-                Some(Part::Clip(id)) => match self.mob(id) {
+                Some(Part::Clip(id, _)) => match self.mob(id) {
                     Some(m) if m.kind == MobKind::Source && !m.is_file() && !m.name.trim().is_empty() => return Some(m.name.clone()),
                     _ => {}
                 },
@@ -481,13 +490,26 @@ impl Bin {
         None
     }
 
+    /// The tracks of `m` a source clip points at: same track number and media kind. A camera master clip
+    /// also has sound tracks; a subclip that only uses its picture must not need the camera sound.
+    /// Falls back to all tracks when the clip's track is not found (unknown layout: rather too much than too little).
+    fn used_tracks(&self, m: &Mob, track: u16, kind: Option<u16>) -> Vec<u32> {
+        let hit: Vec<u32> = m
+            .tracks
+            .iter()
+            .zip(&m.track_numbers)
+            .filter(|(p, n)| **n == Some(track) && kind.is_some() && self.kinds.get(p).copied() == kind)
+            .map(|(p, _)| *p)
+            .collect();
+        if hit.is_empty() { m.tracks.clone() } else { hit }
+    }
+
     /// Media files a mob uses: file source mobs reached through its tracks, sequences, groups and clips.
     /// `missing` gets mob ids that are referenced but not stored in this bin.
     pub fn media_of(&self, mob: usize, missing: &mut HashSet<MobId>) -> Vec<MobId> {
         let mut found = vec![];
         let mut seen_mobs = HashSet::new();
         let mut stack: Vec<u32> = self.mobs[mob].tracks.clone();
-        seen_mobs.insert(self.mobs[mob].id);
         let mut seen_parts = HashSet::new();
         while let Some(p) = stack.pop() {
             if !seen_parts.insert(p) {
@@ -495,15 +517,16 @@ impl Bin {
             }
             match self.parts.get(&p) {
                 Some(Part::Parts(v)) => stack.extend(v),
-                Some(Part::Clip(id)) => {
-                    if !seen_mobs.insert(*id) {
+                Some(Part::Clip(id, track)) => {
+                    // the same mob can be reached for different tracks (subclip picture + its master's sound)
+                    if !seen_mobs.insert((*id, *track, self.kinds.get(&p).copied())) {
                         continue;
                     }
                     match self.mob(id) {
                         Some(m) if m.is_file() => found.push(*id),
                         // tape / import sources end the chain
                         Some(m) if m.kind == MobKind::Source => {}
-                        Some(m) => stack.extend(&m.tracks),
+                        Some(m) => stack.extend(self.used_tracks(m, *track, self.kinds.get(&p).copied())),
                         None => {
                             missing.insert(*id);
                         }
@@ -584,9 +607,30 @@ mod tests {
             w.0
         }
         fn clip(id: &MobId) -> Vec<u8> {
+            W::clip_on(id, 1)
+        }
+        fn clip_on(id: &MobId, track: u16) -> Vec<u8> {
             let mut w = W(vec![]);
-            w.component(b"").u8(2).u8(1).u32(100).u8(2).u8(3).u32(0).u32(0).u16(1).u32(0);
+            w.component(b"").u8(2).u8(1).u32(100).u8(2).u8(3).u32(0).u32(0).u16(track).u32(0);
             w.u8(1).u8(1).mob_id(id).u8(3);
+            w.0
+        }
+        /// A whole bin: header, then the objects (1-based; the last one is the root).
+        fn bin(objects: &[(&[u8; 4], Vec<u8>)]) -> Vec<u8> {
+            let mut w = W(vec![6, 0]);
+            w.0.extend(b"Domain");
+            w.0.extend(b"DJBO");
+            w.str("AObjDoc").u8(4).str("2026/11/04 10:00:00").u32(objects.len() as u32).u32(objects.len() as u32);
+            w.u32(0x49494949).u32(0).u32(0);
+            w.0.extend(b"boTA");
+            w.0.extend(b"evTA");
+            w.str("Media Composer 25.12");
+            w.0.extend([0u8; 16]);
+            for (class, data) in objects {
+                w.0.extend(class.iter().rev());
+                w.u32(data.len() as u32);
+                w.0.extend(data);
+            }
             w.0
         }
     }
@@ -643,20 +687,7 @@ mod tests {
             (b"CMPO", W::mob(b"Linked", 2, 0, 0, &[21], &id(11))),
             (b"ABIN", abin.0),
         ];
-        let mut w = W(vec![6, 0]);
-        w.0.extend(b"Domain");
-        w.0.extend(b"DJBO");
-        w.str("AObjDoc").u8(4).str("2026/11/04 10:00:00").u32(objects.len() as u32).u32(objects.len() as u32);
-        w.u32(0x49494949).u32(0).u32(0);
-        w.0.extend(b"boTA");
-        w.0.extend(b"evTA");
-        w.str("Media Composer 25.12");
-        w.0.extend([0u8; 16]);
-        for (class, data) in &objects {
-            w.0.extend(class.iter().rev());
-            w.u32(data.len() as u32);
-            w.0.extend(data);
-        }
+        let w = W(W::bin(&objects));
 
         let bin = Bin::parse(&w.0).unwrap();
         assert_eq!(bin.creator, "Media Composer 25.12");
@@ -691,6 +722,51 @@ mod tests {
         assert_eq!((r.missing.len(), r.relink), (0, 1));
         assert!(r.by_bin.values().next().unwrap()[0].relink);
         assert!(scan(&[project.clone()], &HashSet::from([file, render]), &mut |_, _, _| {}).by_bin.is_empty());
+        fs::remove_dir_all(project.parent().unwrap()).unwrap();
+    }
+
+    /// A subclip that uses only the picture of a camera master clip does not need the camera sound; a file mob
+    /// without any locator (sound that was never imported) is left out of the project scan.
+    #[test]
+    fn follows_only_the_used_track() {
+        let (file, sound, master, sub) = (id(1), id(2), id(3), id(4));
+        let mut cdci = W(vec![]);
+        cdci.u8(2).u8(3).u8(0).u32(1).u8(0).u32(0);
+        let mut pcma = W(vec![]);
+        pcma.u8(2).u8(3).u8(0).u32(0).u8(0).u32(0);
+        let mut abin = W(vec![]);
+        abin.u8(2).u8(0x0e).u32(0).u32(0).u32(0).u16(2);
+        for obj in [9u32, 11] {
+            abin.u32(obj).u16(0).u16(0).u32(0).u8(1);
+        }
+        let objects: Vec<(&[u8; 4], Vec<u8>)> = vec![
+            (b"MSML", vec![0; 8]),
+            (b"CDCI", cdci.0),
+            (b"CMPO", W::mob(b"Cam.mxf", 3, 0, 2, &[], &file)),
+            (b"PCMA", pcma.0),
+            (b"CMPO", W::mob(b"Audio file", 3, 0, 4, &[], &sound)),
+            (b"SCLP", W::clip(&file)),
+            (b"SCLP", W::clip(&sound)),
+            (b"MSML", vec![0; 8]), // filler object, keeps the indexes below
+            (b"CMPO", W::mob(b"Cam", 2, 0, 0, &[6, 7], &master)),
+            (b"SCLP", W::clip_on(&master, 1)),
+            (b"CMPO", W::mob(b"Sub", 2, 2, 0, &[10], &sub)),
+            (b"ABIN", abin.0),
+        ];
+        let data = W::bin(&objects);
+        let bin = Bin::parse(&data).unwrap();
+        let mut unresolved = HashSet::new();
+        assert_eq!(bin.media_of(bin.items[0], &mut unresolved), [file, sound]);
+        assert_eq!(bin.media_of(bin.items[1], &mut unresolved), [file]);
+        assert_eq!(bin.mob(&sound).unwrap().locator, None);
+
+        let project = std::env::temp_dir().join(format!("mfc-track-{}", std::process::id())).join("P");
+        let _ = fs::remove_dir_all(&project);
+        fs::create_dir_all(&project).unwrap();
+        fs::write(project.join("P.avp"), b"").unwrap();
+        fs::write(project.join("Bin.avb"), &data).unwrap();
+        let r = crate::projects::scan(&[project.clone()], &HashSet::from([file]), &mut |_, _, _| {});
+        assert_eq!((r.missing.len(), r.no_media), (0, 1));
         fs::remove_dir_all(project.parent().unwrap()).unwrap();
     }
 }

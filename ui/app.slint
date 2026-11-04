@@ -1076,6 +1076,7 @@ export component ProjectsWindow inherits CheckWindow {
     in property <float> work-value;
     in property <int> missing;
     in property <int> unmanaged;
+    in property <int> no-media;
     in property <int> bins;
     in property <int> clips;
     in property <int> failed;
@@ -1255,6 +1256,10 @@ export component ProjectsWindow inherits CheckWindow {
                 if root.ama > 0: Para {
                     width: root.inner;
                     text: @tr("{n} AMA-linked file left out." | "{n} AMA-linked files left out." % root.ama);
+                }
+                if root.no-media > 0: Para {
+                    width: root.inner;
+                    text: @tr("{n} reference without a media file left out – e.g. camera sound that was never imported; Media Composer shows such clips online." | "{n} references without a media file left out – e.g. camera sound that was never imported; Media Composer shows such clips online." % root.no-media);
                 }
                 if root.unmanaged > 0: Para {
                     width: root.inner;

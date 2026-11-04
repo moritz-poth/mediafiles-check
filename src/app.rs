@@ -482,7 +482,7 @@ fn start_project_scan(w: &ProjectsWindow, st: &mut ProjectsState) {
                 }
             });
         });
-        log::write(&format!("  {} bins ({} unreadable), {} clips, {} media files missing, {} to relink, {} AMA left out, {} renders", r.bins, r.failed.len(), r.clips, r.missing.len(), r.relink, r.ama, r.renders));
+        log::write(&format!("  {} bins ({} unreadable), {} clips, {} media files missing, {} to relink, {} AMA left out, {} without media left out, {} renders", r.bins, r.failed.len(), r.clips, r.missing.len(), r.relink, r.ama, r.no_media, r.renders));
         for (p, e) in &r.failed {
             log::write(&format!("  unreadable bin {}: {e}", p.display()));
         }
@@ -498,6 +498,7 @@ fn start_project_scan(w: &ProjectsWindow, st: &mut ProjectsState) {
             w.set_renders(r.renders as i32);
             w.set_relink(r.relink as i32);
             w.set_ama(r.ama as i32);
+            w.set_no_media(r.no_media as i32);
             w.set_rows(ModelRc::new(VecModel::from(project_rows(&w, &r, &HashSet::new()))));
             *result.lock().unwrap() = Some(r);
             w.set_step(2);

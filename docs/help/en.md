@@ -79,6 +79,7 @@ Good to know:
 - AMA-linked files are left out (only counted).
 - A missing file whose source (camera clip or tape, picture or sound) is on the drives in another media file is marked **on the drives – relink**: the clip only lost its link; relink it in Media Composer. It is not requested.
 - Files without an Avid media reference (e.g. imported via AAF) are counted separately. Ferry only finds them if the other system has them in Avid MediaFiles.
+- Master clips from the camera often carry sound tracks for which no media file was ever made (the sound was recorded separately). These references are left out and only counted; a subclip only needs the tracks it actually uses.
 - Missing render files (rendered effects) are only counted, not listed or requested – Media Composer renders them again.
 - A drive that does not answer for 30 seconds is skipped and named in the result.
 

@@ -181,6 +181,9 @@ pub struct ScanResult {
     pub relink: usize,
     /// AMA-linked files – left out
     pub ama: usize,
+    /// file mobs without any locator: no media was ever made for them (e.g. the camera sound tracks of a master
+    /// clip whose sound was never imported – Media Composer still shows the clip online) – left out
+    pub no_media: usize,
     /// (project, bin) -> its missing media files, grouped by name
     pub by_bin: BTreeMap<(String, String), Vec<MissingGroup>>,
     /// missing render files (precomputed effects) – not requested, Media Composer renders them again
@@ -206,8 +209,8 @@ pub fn scan(projects: &[PathBuf], available: &HashSet<MobId>, progress: &mut dyn
     let mut r = ScanResult { projects: projects.len(), bins: all.len(), ..Default::default() };
     let mut missing: HashMap<MobId, Missing> = HashMap::new();
     let mut by_bin: BTreeMap<(String, String), BTreeMap<MobId, BTreeSet<(String, ClipKind)>>> = BTreeMap::new();
-    // missing file mobs: managed by Avid?, name, AMA, source; and the sources of the files that are on the drives
-    let mut files: HashMap<MobId, (bool, String, bool, Option<(String, bool)>)> = HashMap::new();
+    // missing file mobs: locator class, name, AMA, source; and the sources of the files that are on the drives
+    let mut files: HashMap<MobId, (Option<String>, String, bool, Option<(String, bool)>)> = HashMap::new();
     let mut on_drives: HashSet<(String, bool)> = HashSet::new();
     let source = |bin: &Bin, m: &crate::avb::Mob| bin.source_name(m).map(|n| (n, matches!(m.descriptor.as_deref(), Some("PCMA" | "WAVE" | "AIFC"))));
     let mut renders: HashSet<MobId> = HashSet::new();
@@ -256,7 +259,7 @@ pub fn scan(projects: &[PathBuf], available: &HashSet<MobId>, progress: &mut dyn
             if available.contains(&m.id) {
                 on_drives.extend(source(&bin, m));
             } else {
-                files.entry(m.id).or_insert_with(|| (m.locator.as_deref() == Some("MSML"), m.name.clone(), m.ama, source(&bin, m)));
+                files.entry(m.id).or_insert_with(|| (m.locator.clone(), m.name.clone(), m.ama, source(&bin, m)));
             }
         }
         for &item in &bin.items {
@@ -290,9 +293,12 @@ pub fn scan(projects: &[PathBuf], available: &HashSet<MobId>, progress: &mut dyn
     let is_ama = |id: &MobId| files.get(id).is_some_and(|f| f.2);
     r.ama = missing.keys().filter(|id| is_ama(id)).count();
     missing.retain(|id, _| !is_ama(id));
+    let no_locator = |id: &MobId| files.get(id).is_some_and(|f| f.0.is_none());
+    r.no_media = missing.keys().filter(|id| no_locator(id)).count();
+    missing.retain(|id, _| !no_locator(id));
     for m in missing.values_mut() {
-        let (managed, name, _, src) = files.remove(&m.id).unwrap_or((true, String::new(), false, None));
-        m.unmanaged = !managed;
+        let (locator, name, _, src) = files.remove(&m.id).unwrap_or((Some("MSML".into()), String::new(), false, None));
+        m.unmanaged = locator.as_deref() != Some("MSML");
         m.relink = src.is_some_and(|s| on_drives.contains(&s));
         m.name = owners.remove(&m.id).or(Some(name).filter(|n| !n.trim().is_empty())).unwrap_or_else(|| m.first.clip.clone());
     }
@@ -398,6 +404,14 @@ pub fn list_text(r: &ScanResult, lang: &str) -> String {
             "\n{} fichiers liés par AMA ignorés.\n",
             "\n{} archivos vinculados por AMA omitidos.\n",
         ]).replace("{}", &r.ama.to_string()));
+    }
+    if r.no_media > 0 {
+        out.push_str(&t([
+            "\n{} references without media left out (e.g. camera sound that was never imported).\n",
+            "\n{} Verweise ohne Mediendatei ausgelassen (z. B. nie importierter Kameraton).\n",
+            "\n{} références sans fichier média ignorées (p. ex. son caméra jamais importé).\n",
+            "\n{} referencias sin archivo de medios omitidas (p. ej. sonido de cámara nunca importado).\n",
+        ]).replace("{}", &r.no_media.to_string()));
     }
     let unmanaged = r.missing.iter().filter(|m| m.unmanaged).count();
     if unmanaged > 0 {

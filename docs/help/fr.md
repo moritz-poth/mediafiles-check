@@ -79,6 +79,7 @@ Bon à savoir :
 - Les fichiers liés par AMA sont ignorés (seulement comptés).
 - Un fichier manquant dont la source (clip caméra ou bande, image ou son) est sur les disques sous un autre fichier média est marqué **sur les disques – à relier** : le clip a seulement perdu son lien ; reliez-le dans Media Composer. Il n'est pas demandé.
 - Les fichiers sans référence média Avid (p. ex. importés par AAF) sont comptés à part. Ferry ne les trouve que si l'autre système les a dans Avid MediaFiles.
+- Les clips master de la caméra ont souvent des pistes son pour lesquelles aucun fichier média n'a jamais été créé (le son a été enregistré à part). Ces références sont ignorées et seulement comptées ; un sous-clip n'a besoin que des pistes qu'il utilise vraiment.
 - Les fichiers de rendu manquants (effets calculés) sont seulement comptés, ni listés ni demandés – Media Composer les recalcule.
 - Un disque qui ne répond pas pendant 30 secondes est ignoré et nommé dans le résultat.
 

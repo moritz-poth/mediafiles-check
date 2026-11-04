@@ -79,6 +79,7 @@ Conviene saber:
 - Los archivos vinculados por AMA se omiten (solo se cuentan).
 - Un archivo que falta cuya fuente (clip de cámara o cinta, imagen o sonido) está en los discos como otro archivo de medios se marca **en los discos – revincular**: el clip solo perdió su vínculo; revincúlalo en Media Composer. No se solicita.
 - Los archivos sin referencia de medios de Avid (p. ej. importados por AAF) se cuentan aparte. Ferry solo los encuentra si el otro sistema los tiene en Avid MediaFiles.
+- Los clips master de la cámara suelen tener pistas de sonido para las que nunca se creó un archivo de medios (el sonido se grabó aparte). Esas referencias se omiten y solo se cuentan; un subclip solo necesita las pistas que usa de verdad.
 - Los archivos de render que faltan (efectos renderizados) solo se cuentan, no se listan ni se solicitan: Media Composer los vuelve a renderizar.
 - Un disco que no responde durante 30 segundos se omite y se nombra en el resultado.
 
