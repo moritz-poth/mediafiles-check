@@ -259,6 +259,14 @@ fn start_check(app: &AppWindow, roots: Vec<PathBuf>, last: Last) {
 
 /// A second window that changes its height does not always repaint the new area (Slint 1.18 on macOS: the frame
 /// is drawn before the resize is done and nothing asks again). Ask a few times while the resize settles.
+/// Every window grows with its content: redraw after each size change, or the new area stays unpainted.
+macro_rules! repaint_on_resize {
+    ($w:expr) => {{
+        let weak = $w.as_weak();
+        $w.global::<Shared>().on_resized(move || weak.upgrade().iter().for_each(repaint_soon));
+    }};
+}
+
 fn repaint_soon<T: ComponentHandle + 'static>(c: &T) {
     for ms in [50, 200, 600, 1500] {
         let weak = c.as_weak();
@@ -388,7 +396,6 @@ fn start_project_scan(w: &ProjectsWindow, st: &mut ProjectsState) {
             w.set_rows(ModelRc::new(VecModel::from(project_rows(&w, &r, &HashSet::new()))));
             *result.lock().unwrap() = Some(r);
             w.set_step(2);
-            repaint_soon(&w);
         });
     });
 }
@@ -398,6 +405,7 @@ fn open_projects(weak: &slint::Weak<AppWindow>, win: &Win<ProjectsWindow>, st: &
     if win.is_none() {
         *win = ProjectsWindow::new().ok();
         if let Some(w) = win.as_ref() {
+            repaint_on_resize!(w);
             forward_menu(&w.global::<Shared>(), weak);
             let saved = projects_folder_file().and_then(|f| fs::read_to_string(f).ok()).map(|s| PathBuf::from(s.trim()));
             if let Some(folder) = saved.filter(|f| f.is_dir()) {
@@ -441,16 +449,14 @@ fn open_projects(weak: &slint::Weak<AppWindow>, win: &Win<ProjectsWindow>, st: &
                     if let Some(r) = st.result.lock().unwrap().as_ref() {
                         w.set_rows(ModelRc::new(VecModel::from(project_rows(&w, r, &st.open))));
                     }
-                    repaint_soon(&w);
-                }
+                        }
             });
             w.on_back({
                 let ww = w.as_weak();
                 move || {
                     let w = ww.unwrap();
                     w.set_step(0);
-                    repaint_soon(&w);
-                }
+                        }
             });
             w.on_save_list({
                 let (ww, st) = (w.as_weak(), st.clone());
@@ -744,6 +750,7 @@ mod mac_menu {
 fn main() -> Result<(), slint::PlatformError> {
     let settings = Rc::new(RefCell::new(load_settings()));
     let app = AppWindow::new()?;
+    repaint_on_resize!(app);
     let _ = slint::select_bundled_translation(&settings.borrow().language);
     app.set_language(settings.borrow().language.clone().into());
     apply_menus(&app.global::<Shared>(), &settings.borrow());
@@ -799,6 +806,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 if about.is_none() {
                     *about = AboutWindow::new().ok();
                     if let Some(a) = about.as_ref() {
+                        repaint_on_resize!(a);
                         a.set_version(env!("CARGO_PKG_VERSION").into());
                         a.on_open_source(|| {
                             let _ = std::process::Command::new("open").arg("https://github.com/moritz-poth/mediafiles-check").spawn();
@@ -828,7 +836,10 @@ fn main() -> Result<(), slint::PlatformError> {
                 let mut win = win.borrow_mut();
                 if win.is_none() {
                     *win = SettingsWindow::new().ok();
-                    win.iter().for_each(|w| forward_menu(&w.global::<Shared>(), &weak));
+                    win.iter().for_each(|w| {
+                        repaint_on_resize!(w);
+                        forward_menu(&w.global::<Shared>(), &weak)
+                    });
                 }
                 if let Some(w) = win.as_ref() {
                     apply_menus(&w.global::<Shared>(), &settings.borrow());
@@ -851,7 +862,10 @@ fn main() -> Result<(), slint::PlatformError> {
                 let mut help = help.borrow_mut();
                 if help.is_none() {
                     *help = HelpWindow::new().ok();
-                    help.iter().for_each(|h| forward_menu(&h.global::<Shared>(), &weak));
+                    help.iter().for_each(|h| {
+                        repaint_on_resize!(h);
+                        forward_menu(&h.global::<Shared>(), &weak)
+                    });
                 }
                 if let Some(h) = help.as_ref() {
                     update_help(h, &settings.borrow());

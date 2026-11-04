@@ -364,6 +364,8 @@ component ProgressBar inherits Rectangle {
 
 // Gemeinsam für alle Fenster: auf dem Mac gehört die Menüleiste zum aktiven Fenster.
 export global Shared {
+    // Größe des Fensters hat sich geändert (jedes Fenster hat sein eigenes Shared)
+    callback resized();
     in property <[MenuChoice]> languages;
     in property <[string]> language-names;
     in property <int> language-index;
@@ -389,6 +391,9 @@ component CheckWindow inherits Window {
     changed dark => {
         Palette.color-scheme = root.dark ? ColorScheme.dark : ColorScheme.light;
     }
+    // Fenster, deren Höhe aus dem Inhalt kommt, wachsen; auf dem Mac malt Slint den neuen Bereich erst nach einem
+    // weiteren Redraw – Rust zeichnet nach jeder Größenänderung nach (repaint_on_resize)
+    changed height => { Shared.resized(); }
 
     MenuBar {
         Menu {
