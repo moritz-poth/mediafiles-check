@@ -1,5 +1,3 @@
-<p align="center"><img src="assets/icon.png" width="128" alt="MediaFiles Check icon"></p>
-
 # MediaFiles Check
 
 Checks whether every folder in **Avid MediaFiles/MXF** matches its Avid database – and tells you where it doesn't.
