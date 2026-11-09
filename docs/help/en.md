@@ -45,6 +45,8 @@ Exchange › **Scan** records every MXF file of the switched-on drives with a ch
 
 Every file is copied with a checksum check into a new folder like `261102-1830_Mac Studio_to_MacBook`, together with `Tasks.txt` (instructions for importing by hand). Collecting again after an interruption continues where it stopped.
 
+![Compare with another system](images/en/exchange.png)
+
 ## Exchange: import
 
 1. Quit Media Composer.
@@ -79,6 +81,8 @@ Check › **Result** lists every folder that differs:
 - **Database unreadable** – an unknown format. MediaFiles Check never guesses.
 
 Up to 10 file names are shown per finding; **Save report…** writes all of them to a text file. Folders Media Composer does not update itself get **Rename for Media Composer…** right there.
+
+![Check result](images/en/check.png)
 
 ## Projects
 
@@ -125,6 +129,8 @@ Maintain › **Duplicates** → **Find duplicates…** looks through the switche
 
 The green dot marks the copy that stays (the one its folder's database knows, otherwise the oldest) – click another copy to keep that one. Copies with the same ID but different sizes are not switched on by themselves. **Set aside** moves the other copies into `MediaFiles Check Duplicates` on their drive; a folder left without media files goes along. Then the databases are rewritten as for rebalancing.
 
+![Duplicates](images/en/duplicates.png)
+
 ## History
 
 Maintain › **History** lists every rebalancing and duplicates run: **Rewrite databases** does the database step later, **Undo** moves everything back (never over an existing file) – rename renamed folders back first.
@@ -134,6 +140,8 @@ Maintain › **History** lists every rebalancing and duplicates run: **Rewrite d
 Tasks › **Open** lists everything that needs doing by hand: tasks of deliveries collected or imported here (the system they are for is in brackets; a yellow dot means this system), databases still to be rewritten after rebalancing or duplicates, and folders waiting to be renamed back. Where the app can help, the button is right there – e.g. **Check…** for a folder of this system that needs a new database. **Done** moves a task to **Completed**.
 
 **Import by hand** explains how to import a delivery without the app. The most important rule: copy only the contents of the delivery folder – never drag the whole folder onto an existing folder, the Finder would replace it with all its media files.
+
+![Tasks](images/en/tasks.png)
 
 ## Rebuild a database
 
@@ -147,6 +155,8 @@ For folders Media Composer does not update itself, use Maintain › Rename inste
 ## Settings
 
 **MediaFiles Check → Settings…** (⌘,) opens the settings window: **General** (Light/Dark, language), **Rebalancing** (files per folder), **Updates**, **Support** and **About**.
+
+![Settings](images/en/settings.png)
 
 ## Updates
 

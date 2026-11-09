@@ -45,6 +45,8 @@ Les dossiers peuvent porter n’importe quel nom, p. ex. `1`, `Avid8.1` ou `Mac 
 
 Chaque fichier est copié avec contrôle de somme dans un nouveau dossier comme `261102-1830_Mac Studio_to_MacBook`, avec `Tasks.txt` (instructions pour importer à la main). Rassembler à nouveau après une interruption reprend là où cela s’est arrêté.
 
+![Comparer avec un autre poste](images/fr/exchange.png)
+
 ## Échange : importer
 
 1. Quittez Media Composer.
@@ -79,6 +81,8 @@ Vérifier › **Résultat** liste chaque dossier qui diffère :
 - **Base de données illisible** – un format inconnu. MediaFiles Check ne devine jamais.
 
 Jusqu’à 10 noms de fichiers sont affichés par constat ; **Enregistrer le rapport…** les écrit tous dans un fichier texte. Les dossiers que Media Composer ne met pas à jour lui-même ont directement **Renommer pour Media Composer…**.
+
+![Résultat de la vérification](images/fr/check.png)
 
 ## Projets
 
@@ -125,6 +129,8 @@ Entretien › **Doublons** → **Chercher les doublons…** cherche sur les disq
 
 Le point vert marque la copie qui reste (celle que connaît la base de son dossier, sinon la plus ancienne) – cliquez sur une autre copie pour garder celle-ci. Les copies de même ID mais de taille différente ne sont pas activées d’elles-mêmes. **Mettre de côté** déplace les autres copies dans `MediaFiles Check Duplicates` sur leur disque ; un dossier sans fichiers média part avec. Ensuite, les bases de données sont réécrites comme pour le rééquilibrage.
 
+![Doublons](images/fr/duplicates.png)
+
 ## Historique
 
 Entretien › **Historique** liste chaque opération de rééquilibrage et de doublons : **Réécrire les bases** fait l’étape des bases plus tard, **Annuler** remet tout en place (jamais par-dessus un fichier existant) – renommez d’abord à l’origine les dossiers renommés.
@@ -134,6 +140,8 @@ Entretien › **Historique** liste chaque opération de rééquilibrage et de do
 Tâches › **En cours** liste tout ce qu’il faut faire à la main : les tâches des livraisons rassemblées ou importées ici (le poste concerné est entre crochets ; un point jaune signifie ce poste), les bases à réécrire après un rééquilibrage ou des doublons, et les dossiers qui attendent d’être renommés à l’origine. Là où l’app peut aider, le bouton est juste à côté – p. ex. **Vérifier…** pour un dossier de ce poste qui a besoin d’une nouvelle base. **Terminé** déplace une tâche dans **Terminées**.
 
 **Importer à la main** explique comment importer une livraison sans l’app. La règle la plus importante : copiez seulement le contenu du dossier de livraison – ne glissez jamais le dossier entier sur un dossier existant, le Finder le remplacerait avec tous ses fichiers média.
+
+![Tâches](images/fr/tasks.png)
 
 ## Reconstruire une base de données
 
@@ -147,6 +155,8 @@ Pour les dossiers que Media Composer ne met pas à jour lui-même, utilisez plut
 ## Réglages
 
 **MediaFiles Check → Réglages…** (⌘,) ouvre la fenêtre des réglages : **Général** (Clair/Sombre, langue), **Rééquilibrage** (fichiers par dossier), **Mises à jour**, **Assistance** et **À propos**.
+
+![Réglages](images/fr/settings.png)
 
 ## Mises à jour
 

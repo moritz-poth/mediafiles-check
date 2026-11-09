@@ -8,10 +8,15 @@ Looks after the Avid media files (MXF) of your edit systems: keeps two systems i
 
 ## What it does
 
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/exchange-dark.png"><img src="assets/screenshots/exchange-light.png" width="700" alt="Exchange: compare with another edit system"></picture></p>
+
 One window with five tabs; each tab lists its steps on the left in the order you do them.
 
 - **Exchange** (formerly MediaFiles Ferry) keeps the media of two edit systems in step without a network: scan this system into a small manifest (checksums are remembered, later scans are fast), open the other system's manifest, collect the files it is missing into a delivery folder (copied with checksum checks), and import a delivery on the other side – verified first, only complete deliveries, files are only added. A file counts as present if the other side has it anywhere with the same name and checksum; a database is only delivered if the target folder ends up exactly like the source.
 - **Check** compares the `.mxf` files of every MXF folder with its database (`msmFMID.pmr`): files not in the database (Media Composer may not show them), entries without a file (offline media), missing, empty or unreadable databases. Checking only reads. **Save report…** writes every difference.
+
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/check-dark.png"><img src="assets/screenshots/check-light.png" width="700" alt="Check: folders that differ from their database"></picture></p>
+
 - **Projects** reads every bin (`.avb`) of the Avid projects you switch on, follows each master clip, subclip and sequence to its media files and lists per bin those that are on none of the connected drives. Render and AMA-linked files are only counted; files whose source is on the drives in another media file are marked for relinking. **Save request…** writes a `…_Request.ferry` file that Exchange opens on the system that has the media. Bins are read with a small reader of our own (`src/avb.rs`), based on the format knowledge of [pyavb](https://github.com/markreidvfx/pyavb) (MIT, see THIRD-PARTY.md).
 - **Maintain:** *Rename for Media Composer* – Media Composer only rebuilds the databases of its own folders (numbers on local drives, `<computer name>.<number>` on network drives); MediaFiles Check gives other folders such a name, remembers the original name and every media file, shows when Media Composer has rewritten the database and renames them back. *Rebalancing* splits MXF folders with more than 5000 files, the two database files included (adjustable): the oldest files move into `-rebalanced-1`, `-2` … folders. *Duplicates* finds media files that are on the drives more than once (by their Media Composer ID, also when renamed) and sets the extra copies aside on their own drive. *History* undoes any run.
 - **Tasks** lists everything that needs doing by hand – tasks of deliveries, databases still to be rewritten, folders waiting to be renamed back – with a button where the app can help, plus instructions for importing a delivery by hand.

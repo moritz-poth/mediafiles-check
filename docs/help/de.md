@@ -45,6 +45,8 @@ Austausch › **Scannen** erfasst jede MXF-Datei der eingeschalteten Laufwerke m
 
 Jede Datei wird mit Prüfsumme in einen neuen Ordner wie `261102-1830_Mac Studio_to_MacBook` kopiert, zusammen mit `Aufgaben.txt` (Anleitung zum Importieren von Hand). Nochmal Sammeln nach einer Unterbrechung macht dort weiter, wo es aufgehört hat.
 
+![Mit einem anderen Schnittplatz vergleichen](images/de/exchange.png)
+
 ## Austausch: Importieren
 
 1. Media Composer beenden.
@@ -79,6 +81,8 @@ Prüfen › **Ergebnis** listet jeden Ordner mit Abweichung:
 - **Datenbank unlesbar** – ein unbekanntes Format. MediaFiles Check rät nie.
 
 Pro Befund stehen bis zu 10 Dateinamen da; **Bericht sichern…** schreibt alle in eine Textdatei. Für Ordner, die Media Composer nicht selbst aktualisiert, gibt es gleich dort **Für Media Composer umbenennen…**.
+
+![Prüfergebnis](images/de/check.png)
 
 ## Projekte
 
@@ -125,6 +129,8 @@ Pflegen › **Duplikate** → **Duplikate suchen…** sucht auf den eingeschalte
 
 Der grüne Punkt zeigt die Kopie, die bleibt (die, die die Datenbank ihres Ordners kennt, sonst die älteste) – ein Klick auf eine andere Kopie behält diese. Kopien mit gleicher ID, aber anderer Größe sind nicht von selbst eingeschaltet. **Zur Seite legen** verschiebt die anderen Kopien nach `MediaFiles Check Duplicates` auf ihrem Laufwerk; ein Ordner ohne Mediendateien geht mit. Danach werden die Datenbanken neu geschrieben wie beim Rebalancing.
 
+![Duplikate](images/de/duplicates.png)
+
 ## Verlauf
 
 Pflegen › **Verlauf** listet jeden Lauf von Rebalancing und Duplikaten: **Datenbanken neu schreiben** holt den Datenbank-Schritt nach, **Rückgängig** schiebt alles zurück (nie über eine vorhandene Datei) – umbenannte Ordner vorher zurückbenennen.
@@ -134,6 +140,8 @@ Pflegen › **Verlauf** listet jeden Lauf von Rebalancing und Duplikaten: **Date
 Aufgaben › **Offen** listet alles, was von Hand zu tun ist: Aufgaben von Lieferungen, die hier gesammelt oder importiert wurden (der Schnittplatz steht in eckigen Klammern; ein gelber Punkt heißt: dieser Schnittplatz), Datenbanken, die nach Rebalancing oder Duplikaten noch neu geschrieben werden müssen, und Ordner, die aufs Zurückbenennen warten. Wo die App helfen kann, steht der Knopf direkt daneben – z. B. **Prüfen…** für einen Ordner dieses Schnittplatzes, der eine neue Datenbank braucht. **Fertig** schiebt eine Aufgabe nach **Erledigt**.
 
 **Von Hand importieren** erklärt, wie man eine Lieferung ohne die App importiert. Die wichtigste Regel: nur den Inhalt des Lieferordners kopieren – nie den ganzen Ordner auf einen bestehenden ziehen, der Finder würde ihn samt allen Mediendateien ersetzen.
+
+![Aufgaben](images/de/tasks.png)
 
 ## Eine Datenbank neu bauen
 
@@ -147,6 +155,8 @@ Für Ordner, die Media Composer nicht selbst aktualisiert, stattdessen Pflegen �
 ## Einstellungen
 
 **MediaFiles Check → Einstellungen…** (⌘,) öffnet das Einstellungsfenster: **Allgemein** (Hell/Dunkel, Sprache), **Rebalancing** (Dateien pro Ordner), **Updates**, **Support** und **Über**.
+
+![Einstellungen](images/de/settings.png)
 
 ## Updates
 

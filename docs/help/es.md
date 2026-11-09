@@ -45,6 +45,8 @@ Intercambio › **Analizar** registra cada archivo MXF de las unidades activadas
 
 Cada archivo se copia con control de suma en una carpeta nueva como `261102-1830_Mac Studio_to_MacBook`, junto con `Tasks.txt` (instrucciones para importar a mano). Reunir de nuevo tras una interrupción continúa donde se quedó.
 
+![Comparar con otro puesto](images/es/exchange.png)
+
 ## Intercambio: importar
 
 1. Cierra Media Composer.
@@ -79,6 +81,8 @@ Comprobar › **Resultado** muestra cada carpeta que difiere:
 - **Base de datos ilegible**: un formato desconocido. MediaFiles Check nunca adivina.
 
 Se muestran hasta 10 nombres de archivo por hallazgo; **Guardar informe…** los escribe todos en un archivo de texto. Las carpetas que Media Composer no actualiza por sí mismo tienen ahí mismo **Cambiar el nombre para Media Composer…**.
+
+![Resultado de la comprobación](images/es/check.png)
 
 ## Proyectos
 
@@ -125,6 +129,8 @@ Mantenimiento › **Duplicados** → **Buscar duplicados…** busca en las unida
 
 El punto verde marca la copia que se queda (la que conoce la base de datos de su carpeta; si no, la más antigua); haz clic en otra copia para quedarte con ella. Las copias con el mismo ID pero distinto tamaño no se activan solas. **Apartar** mueve las demás copias a `MediaFiles Check Duplicates` en su unidad; una carpeta que se queda sin archivos de medios va con ellas. Después se reescriben las bases de datos como en el reequilibrado.
 
+![Duplicados](images/es/duplicates.png)
+
 ## Historial
 
 Mantenimiento › **Historial** muestra cada operación de reequilibrado y de duplicados: **Reescribir bases de datos** hace el paso de las bases más tarde, **Deshacer** lo devuelve todo (nunca sobre un archivo existente); recupera antes el nombre de las carpetas renombradas.
@@ -134,6 +140,8 @@ Mantenimiento › **Historial** muestra cada operación de reequilibrado y de du
 Tareas › **Pendientes** muestra todo lo que hay que hacer a mano: tareas de entregas reunidas o importadas aquí (el puesto al que corresponden va entre corchetes; un punto amarillo significa este puesto), bases de datos que aún hay que reescribir tras un reequilibrado o duplicados, y carpetas que esperan recuperar su nombre. Donde la app puede ayudar, el botón está al lado, p. ej. **Comprobar…** para una carpeta de este puesto que necesita una base de datos nueva. **Listo** pasa una tarea a **Hechas**.
 
 **Importar a mano** explica cómo importar una entrega sin la app. La regla más importante: copia solo el contenido de la carpeta de entrega; nunca arrastres la carpeta entera sobre una existente, el Finder la reemplazaría con todos sus archivos de medios.
+
+![Tareas](images/es/tasks.png)
 
 ## Reconstruir una base de datos
 
@@ -147,6 +155,8 @@ Para las carpetas que Media Composer no actualiza por sí mismo, usa en su lugar
 ## Ajustes
 
 **MediaFiles Check → Ajustes…** (⌘,) abre la ventana de ajustes: **General** (Claro/Oscuro, idioma), **Reequilibrado** (archivos por carpeta), **Actualizaciones**, **Soporte** y **Acerca de**.
+
+![Ajustes](images/es/settings.png)
 
 ## Actualizaciones
 
