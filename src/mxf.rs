@@ -10,9 +10,9 @@ use std::io::Read;
 use std::path::Path;
 
 /// Header metadata set keys share everything but byte 14 (byte 7 is the registry version and is ignored).
-const SET: [u8; 16] = [0x06, 0x0e, 0x2b, 0x34, 0x02, 0x53, 0x01, 0x00, 0x0d, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00];
-const ESSENCE_CONTAINER_DATA: u8 = 0x23;
-const PARTITION: [u8; 13] = [0x06, 0x0e, 0x2b, 0x34, 0x02, 0x05, 0x01, 0x00, 0x0d, 0x01, 0x02, 0x01, 0x01];
+pub(crate) const SET: [u8; 16] = [0x06, 0x0e, 0x2b, 0x34, 0x02, 0x53, 0x01, 0x00, 0x0d, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00];
+pub(crate) const ESSENCE_CONTAINER_DATA: u8 = 0x23;
+pub(crate) const PARTITION: [u8; 13] = [0x06, 0x0e, 0x2b, 0x34, 0x02, 0x05, 0x01, 0x00, 0x0d, 0x01, 0x02, 0x01, 0x01];
 /// stop reading a header that claims to be larger than this
 const MAX_HEADER: u64 = 16 << 20;
 
@@ -127,24 +127,7 @@ mod tests {
         umid[..12].copy_from_slice(&[6, 0x0a, 0x2b, 0x34, 1, 1, 1, 1, 1, 1, 0x0f, 0]);
         umid[12] = 0x13;
         umid[16..24].copy_from_slice(&[1, 2, 3, 4, 5, 6, 7, 8]);
-        let mut d = vec![];
-        let mut partition = PARTITION.to_vec();
-        partition.extend([0x02, 0x04, 0x00]);
-        d.extend(&partition);
-        d.push(88);
-        d.extend([0u8; 88]);
-        // some other set first (material package), with a long-form BER length
-        let mut other = SET;
-        other[14] = 0x36;
-        d.extend(other);
-        d.extend([0x83, 0, 0, 6, 0x44, 0x01, 0, 2, 9, 9]);
-        let mut ecd = SET;
-        ecd[14] = ESSENCE_CONTAINER_DATA;
-        d.extend(ecd);
-        d.push(4 + 4 + 32);
-        d.extend([0x3f, 0x07, 0, 0]);
-        d.extend([0x27, 0x01, 0, 32]);
-        d.extend(umid);
+        let d = crate::selftest::sample_mxf(&umid);
         let id = parse(&d).unwrap();
         assert_eq!(id[..16], umid[..16]);
         assert_eq!(id[16..24], [4, 3, 2, 1, 6, 5, 8, 7]);

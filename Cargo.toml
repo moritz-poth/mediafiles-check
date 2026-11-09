@@ -1,16 +1,19 @@
 [package]
 name = "mediafiles-check"
-version = "1.0.0-beta.5"
+version = "1.0.0-beta.6"
 edition = "2024"
 license = "GPL-3.0-or-later"
 description = "Checks whether every Avid MXF folder matches its Avid database"
 
 [dependencies]
+base64 = "0.22"
 chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
+ed25519-dalek = "2"
 libc = "0.2.191"
 rfd = "0.17.2"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
+sha2 = "0.10"
 slint = "1.18.1"
 unicode-normalization = "0.1.26"
 

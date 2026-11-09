@@ -102,13 +102,24 @@ Good to know:
 
 ## Settings
 
-**MediaFiles Check → Settings…** (⌘,) sets the appearance (light or dark) and the language (English, Deutsch, Français, Español). **MediaFiles Check → About MediaFiles Check** shows the version and the license.
+**MediaFiles Check → Settings…** (⌘,) sets the appearance (switch **Light/Dark**, on = dark) and the language (English, Deutsch, Français, Español). **MediaFiles Check → About MediaFiles Check** shows the version and the license.
 
 ![Settings](images/en/settings.png)
 
 ## Updates
 
 MediaFiles Check looks for a new version on GitHub shortly after starting and every 6 hours; **Settings… → Check for updates** looks right away. A new version shows at the top of the main window: **What's new** opens the release notes, **Install update** downloads it, checks that it is complete and unchanged, puts the old version in the Trash and restarts the app.
+
+## Support
+
+**Settings… → Support** has four things:
+
+- **Run self-test…** checks reading databases, comparing, renaming for Media Composer and back, and updates – on test data of its own in a temporary folder. Your drives are only listed, never changed. **Send report** sends us the result anonymously; **Save report** puts it in Downloads so you can look at it first.
+- **Report…** sends us a problem or an idea – no GitHub account needed. You can add your email for questions and attach system info and the log file; your user name and folder names are replaced.
+- **Show log file** (see below).
+- **Buy me a coffee** – if you use MediaFiles Check and like it, I would be glad about a coffee.
+
+If sending fails, the report is saved in Downloads.
 
 ## Log file
 

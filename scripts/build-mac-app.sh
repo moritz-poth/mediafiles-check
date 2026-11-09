@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 NAME="MediaFiles Check"
 RELEASE=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)   # e.g. 1.0.0-beta.1
 VERSION=${RELEASE%%-*}                                                  # numbers only for macOS
-BUILD=5                                                                 # bump with every release
+BUILD=6                                                                 # bump with every release
 APP="dist/$NAME.app"
 
 cargo build --release --bin mediafiles-check --target aarch64-apple-darwin
@@ -51,4 +51,11 @@ codesign --force --deep --sign - "$APP"
 ZIP="dist/MediaFiles-Check-$RELEASE.zip"
 rm -f "$ZIP"
 ditto -c -k --keepParent "$APP" "$ZIP"
-echo "Done: $APP, $ZIP"
+# update signature: installed apps only accept zips signed with the key in this Mac's Keychain
+rm -f "$ZIP.sig"
+if PUB=$(swift scripts/update-key.swift public 2>/dev/null) && grep -q "\"$PUB\"" src/lib.rs \
+   && swift scripts/update-key.swift sign "$ZIP"; then
+  echo "Done: $APP, $ZIP (+ .sig – upload both)"
+else
+  echo "Done: $APP, $ZIP – NOT SIGNED (no update key, or it differs from UPDATE_APP.public_key): not releasable" >&2
+fi

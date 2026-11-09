@@ -1,5 +1,5 @@
 // Oberfläche von MediaFiles Check (gleicher Look wie MediaFiles Ferry). Texte auf Englisch in @tr(); Deutsch in translations/.
-import { Palette } from "std-widgets.slint";
+import { Palette, TextEdit } from "std-widgets.slint";
 import "fonts/JetBrainsMono-Regular.ttf";
 import "fonts/JetBrainsMono-SemiBold.ttf";
 import "fonts/JetBrainsMono-Bold.ttf";
@@ -44,6 +44,13 @@ export struct NoticeRow {
 }
 
 // level: 0 Ordner, 1 Befund, 2 Dateiname
+// Selbsttest: eine Zeile pro Prüfung; status 0 bestanden, 1 Fehler, 2 übersprungen
+export struct TestRow {
+    title: string,
+    detail: string,
+    status: int,
+}
+
 export struct ReportRow {
     text: string,
     level: int,
@@ -72,12 +79,12 @@ export global Theme {
     out property <color> background: dark ? #1f2225 : #f5f5f3;
     out property <color> text: dark ? #eceded : #17191b;
     out property <color> muted: dark ? #a9adb1 : #3f444a;
-    out property <color> faint: dark ? #7c8288 : #60666c;
+    out property <color> faint: dark ? #858b91 : #60666c;   // dark 4.6:1 (WCAG AA)
     out property <color> line: dark ? #3a3f44 : #c4c8cc;
     out property <color> disabled: dark ? #6a7076 : #70767c;
     out property <color> primary: dark ? #e6e7e8 : #2e3236;
     out property <color> on-primary: dark ? #1f2225 : #f5f5f3;
-    out property <color> online: dark ? #3fb950 : #1f883d;
+    out property <color> online: dark ? #3fb950 : #1a7f37;   // light 4.7:1
     out property <color> warning: dark ? #d29922 : #8a5a00;
     out property <color> error: dark ? #f85149 : #c62828;
 }
@@ -997,42 +1004,55 @@ export component HelpWindow inherits CheckWindow {
 export component SettingsWindow inherits CheckWindow {
     title: @tr("Settings");
     width: Metrics.window-width;
-    height: settings.preferred-height;
+    height: root.page == 0 ? settings.preferred-height : root.page == 1 ? selftest.preferred-height : problem.preferred-height;
+
+    // Support (wie Mountpoint): 0 Einstellungen, 1 Selbsttest, 2 Problem melden
+    in-out property <int> page;
+    // Selbsttest: 0 bereit, 1 läuft, 2 fertig
+    in property <int> test-phase;
+    in property <[TestRow]> test-rows;
+    in property <string> test-current;
+    in property <string> test-summary;
+    in property <bool> test-failed;
+    in property <string> test-note;
+    in property <bool> sending;
+    in-out property <string> report-text;
+    in-out property <string> report-contact;
+    in-out property <bool> report-attach: true;
+    // kurze Meldung nach dem Senden (3 s, Fehler 8 s – Rust blendet sie aus)
+    in property <string> toast-text;
+    in property <bool> toast-ok;
+    callback start-selftest();
+    callback send-selftest();
+    callback save-selftest();
+    callback send-problem();
+    callback open-coffee();
+    callback back();
 
     settings := VerticalLayout {
+        visible: root.page == 0;
         padding: Metrics.padding;
         spacing: Metrics.spacing;
         Headline { }
         Section {
             title: @tr("SETTINGS");
+            // „Light/Dark“ wie in Mountpoint: Schalter rechts, an = dunkel
             HorizontalLayout {
                 spacing: 10px;
                 height: 28px;
                 Text {
-                    text: @tr("Appearance");
+                    text: @tr("Light/Dark");
                     horizontal-stretch: 1;
                     vertical-alignment: center;
                     color: Theme.text;
-                }
-                Text {
-                    text: @tr("Light");
-                    font-size: 12px;
-                    vertical-alignment: center;
-                    color: Shared.dark ? Theme.faint : Theme.text;
                 }
                 VerticalLayout {
                     alignment: center;
                     Switch {
                         on: Shared.dark;
-                        label: @tr("Dark appearance");
+                        label: @tr("Light/Dark");
                         toggled => { Shared.select-dark(!Shared.dark); }
                     }
-                }
-                Text {
-                    text: @tr("Dark");
-                    font-size: 12px;
-                    vertical-alignment: center;
-                    color: Shared.dark ? Theme.text : Theme.faint;
                 }
             }
             HorizontalLayout {
@@ -1071,6 +1091,230 @@ export component SettingsWindow inherits CheckWindow {
             }
             if Shared.update-version != "": UpdateOffer { }
             UpdateStatus { }
+        }
+        Section {
+            title: @tr("SUPPORT");
+            HorizontalLayout {
+                spacing: 10px;
+                Text {
+                    text: root.test-phase == 1 ? @tr("Self-test running…") : @tr("Test this Mac");
+                    horizontal-stretch: 1;
+                    vertical-alignment: center;
+                    color: Theme.text;
+                }
+                CheckButton {
+                    text: @tr("Run self-test…");
+                    clicked => { root.page = 1; }
+                }
+            }
+            Para { text: @tr("Tests reading databases, comparing, renaming and updates on test data of its own and sends us an anonymous report."); }
+            HorizontalLayout {
+                spacing: 10px;
+                Text {
+                    text: @tr("Problem or idea?");
+                    horizontal-stretch: 1;
+                    vertical-alignment: center;
+                    color: Theme.text;
+                }
+                CheckButton {
+                    text: @tr("Report…");
+                    clicked => { root.page = 2; }
+                }
+            }
+            Para { text: @tr("No GitHub account needed."); }
+            HorizontalLayout {
+                spacing: 10px;
+                Text {
+                    text: @tr("Events and errors");
+                    horizontal-stretch: 1;
+                    vertical-alignment: center;
+                    color: Theme.text;
+                }
+                CheckButton {
+                    text: @tr("Show log file");
+                    clicked => { Shared.show-log(); }
+                }
+            }
+            HorizontalLayout {
+                spacing: 10px;
+                Text {
+                    text: @tr("Like MediaFiles Check?");
+                    horizontal-stretch: 1;
+                    vertical-alignment: center;
+                    color: Theme.text;
+                }
+                CheckButton {
+                    text: @tr("Buy me a coffee");
+                    clicked => { root.open-coffee(); }
+                }
+            }
+            Para { text: @tr("If you use MediaFiles Check and like it, I would be glad if you bought me a coffee."); }
+        }
+    }
+
+    selftest := VerticalLayout {
+        visible: root.page == 1;
+        padding: Metrics.padding;
+        spacing: 14px;
+        Section {
+            title: @tr("SELF-TEST");
+            if root.test-phase == 0: Para {
+                text: @tr("MediaFiles Check tests reading databases, comparing, renaming and updates on test data of its own and sends us an anonymous report. Your drives and folders are only listed, never changed. It takes less than a minute.");
+            }
+            for row in root.test-rows: HorizontalLayout {
+                spacing: 8px;
+                Text {
+                    width: 14px;
+                    text: row.status == 0 ? "✓" : row.status == 1 ? "✕" : "–";
+                    color: row.status == 0 ? Theme.online : row.status == 1 ? Theme.error : Theme.faint;
+                    accessible-label: row.status == 0 ? @tr("Passed") : row.status == 1 ? @tr("Failed") : @tr("Skipped");
+                }
+                VerticalLayout {
+                    spacing: 2px;
+                    Text { text: row.title; font-size: 12px; color: Theme.text; }
+                    Text {
+                        width: Metrics.content-width - 22px;
+                        text: row.detail;
+                        wrap: word-wrap;
+                        font-size: 10px;
+                        color: row.status == 1 ? Theme.error : Theme.faint;
+                    }
+                }
+            }
+            if root.test-phase == 1: Text { text: root.test-current; font-size: 12px; color: Theme.muted; }
+            if root.test-phase == 2: Text {
+                text: root.test-summary;
+                font-size: 12px;
+                font-weight: 600;
+                color: root.test-failed ? Theme.error : Theme.text;
+            }
+            if root.test-phase == 2: Para {
+                text: root.test-note != "" ? root.test-note : @tr("Only anonymous data is sent: system, test results and the log with user and folder names replaced. Save the report to look at it first.");
+            }
+        }
+        Divider { }
+        HorizontalLayout {
+            spacing: 10px;
+            CheckButton {
+                text: root.test-phase == 1 ? @tr("Hide") : @tr("Back");
+                clicked => { root.back(); }
+            }
+            Rectangle { horizontal-stretch: 1; }
+            if root.test-phase == 0: CheckButton {
+                text: @tr("Start self-test");
+                primary: true;
+                clicked => { root.start-selftest(); }
+            }
+            if root.test-phase == 2: CheckButton {
+                text: @tr("Save report");
+                clicked => { root.save-selftest(); }
+            }
+            if root.test-phase == 2: CheckButton {
+                text: root.sending ? @tr("Sending…") : @tr("Send report");
+                primary: true;
+                enabled: !root.sending;
+                clicked => { root.send-selftest(); }
+            }
+        }
+    }
+
+    problem := VerticalLayout {
+        visible: root.page == 2;
+        padding: Metrics.padding;
+        spacing: 12px;
+        Section {
+            title: @tr("REPORT A PROBLEM");
+            Para { text: @tr("What happened, and what did you expect? Ideas are welcome too. No GitHub account needed."); }
+            TextEdit {
+                width: Metrics.content-width;
+                height: 120px;
+                font-size: 12px;
+                wrap: word-wrap;
+                text <=> root.report-text;
+                accessible-label: @tr("Description");
+            }
+            // eigenes Feld statt LineEdit: die Standard-Fläche passte nicht zum Theme
+            Rectangle {
+                width: Metrics.content-width;
+                height: 28px;
+                border-radius: 6px;
+                border-width: 1px;
+                border-color: contact.has-focus ? Theme.muted : Theme.line;
+                if root.report-contact == "": Text {
+                    x: 8px;
+                    text: @tr("Email for questions (optional)");
+                    font-size: 12px;
+                    color: Theme.faint;
+                    vertical-alignment: center;
+                    height: parent.height;
+                }
+                contact := TextInput {
+                    x: 8px;
+                    width: parent.width - 16px;
+                    height: parent.height;
+                    font-size: 12px;
+                    color: Theme.text;
+                    vertical-alignment: center;
+                    single-line: true;
+                    text <=> root.report-contact;
+                    accessible-label: @tr("Email for questions (optional)");
+                }
+            }
+            HorizontalLayout {
+                spacing: 10px;
+                Text {
+                    text: @tr("Attach system info and log file");
+                    horizontal-stretch: 1;
+                    vertical-alignment: center;
+                    color: Theme.text;
+                }
+                VerticalLayout {
+                    alignment: center;
+                    Switch {
+                        on: root.report-attach;
+                        label: @tr("Attach system info and log file");
+                        toggled => { root.report-attach = !root.report-attach; }
+                    }
+                }
+            }
+            Para { text: @tr("Anonymized: your user name and folder names are replaced."); }
+        }
+        Divider { }
+        HorizontalLayout {
+            spacing: 10px;
+            CheckButton {
+                text: @tr("Back");
+                clicked => { root.back(); }
+            }
+            Rectangle { horizontal-stretch: 1; }
+            CheckButton {
+                text: root.sending ? @tr("Sending…") : @tr("Send");
+                primary: true;
+                enabled: !root.sending && root.report-text != "";
+                clicked => { root.send-problem(); }
+            }
+        }
+    }
+
+    if root.toast-text != "": Rectangle {
+        x: (root.width - self.width) / 2;
+        y: root.height - self.height - 60px;
+        width: root.width - 64px;
+        height: toast.preferred-height + 18px;
+        border-radius: 8px;
+        background: root.toast-ok ? Theme.online : Theme.background;
+        border-width: root.toast-ok ? 0px : 1px;
+        border-color: Theme.warning;
+        drop-shadow-blur: 10px;
+        drop-shadow-color: #00000040;
+        toast := Text {
+            width: parent.width - 28px;
+            text: root.toast-text;
+            wrap: word-wrap;
+            font-size: 11px;
+            font-weight: 600;
+            color: root.toast-ok ? Theme.on-primary : Theme.text;
+            horizontal-alignment: center;
         }
     }
 }

@@ -1,7 +1,10 @@
 //! Updates from GitHub releases (port of Mountpoint's Updater.swift; the same file is in MediaFiles Ferry).
 //! Newest non-draft release with the zip asset → download → unzip with ditto → check bundle id, release key ==
-//! tag and the signature → old app to the Trash, new app in its place → restart once this process has quit.
+//! tag and the code signature → old app to the Trash, new app in its place → restart once this process has quit.
 //! Network through /usr/bin/curl (part of macOS), so the app needs no TLS library.
+//! Every zip is signed with the app's Ed25519 update key (`<zip>.sig`, scripts/update-key.swift): releases without
+//! a signature are not offered, and the zip is checked before anything in it is unpacked or run – codesign alone only
+//! proves the app is intact, not who built it (ad-hoc signature).
 use serde::Deserialize;
 use std::cmp::Ordering;
 use std::path::{Path, PathBuf};
@@ -16,6 +19,8 @@ pub struct App {
     pub bundle_id: &'static str,
     /// Info.plist key holding the full release version (e.g. "1.0.0-beta.2"), set by the build script
     pub release_key: &'static str,
+    /// public half of the update key, base64 (`swift scripts/update-key.swift public`)
+    pub public_key: &'static str,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -24,6 +29,8 @@ pub struct Release {
     /// release page ("What's new")
     pub page: String,
     pub zip: String,
+    /// `<zip>.sig`: base64 Ed25519 signature of the zip
+    pub sig: String,
 }
 
 #[derive(Debug, PartialEq)]
@@ -64,7 +71,7 @@ pub fn compare(a: &str, b: &str) -> Option<Ordering> {
     }))
 }
 
-/// Newest non-draft release that has the app's zip, from GitHub's releases JSON.
+/// Newest non-draft release that has the app's zip and its signature, from GitHub's releases JSON.
 pub fn newest_release(json: &[u8], app: &App) -> Option<Release> {
     #[derive(Deserialize)]
     struct Asset {
@@ -83,8 +90,9 @@ pub fn newest_release(json: &[u8], app: &App) -> Option<Release> {
     list.into_iter()
         .filter(|r| !r.draft && version(&r.tag_name).is_some())
         .filter_map(|r| {
-            let zip = r.assets.into_iter().find(|a| a.name.starts_with(&prefix) && a.name.ends_with(".zip"))?;
-            Some(Release { tag: r.tag_name, page: r.html_url, zip: zip.browser_download_url })
+            let zip = r.assets.iter().find(|a| a.name.starts_with(&prefix) && a.name.ends_with(".zip"))?;
+            let sig = r.assets.iter().find(|a| a.name == format!("{}.sig", zip.name))?;
+            Some(Release { tag: r.tag_name, page: r.html_url, zip: zip.browser_download_url.clone(), sig: sig.browser_download_url.clone() })
         })
         .max_by(|a, b| compare(&a.tag, &b.tag).unwrap_or(Ordering::Equal))
 }
@@ -113,6 +121,16 @@ fn plist_value(app: &Path, key: &str) -> Option<String> {
     out.status.success().then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
 
+/// The zip was signed with the app's update key.
+pub fn signature_valid(zip: &[u8], sig: &[u8], public_key: &str) -> bool {
+    use base64::{Engine, engine::general_purpose::STANDARD};
+    use ed25519_dalek::{Signature, VerifyingKey};
+    let decode = |s: &[u8]| STANDARD.decode(String::from_utf8_lossy(s).trim()).ok();
+    let (Some(sig), Some(key)) = (decode(sig), decode(public_key.as_bytes())) else { return false };
+    let (Ok(sig), Ok(key)) = (<[u8; 64]>::try_from(sig.as_slice()), <[u8; 32]>::try_from(key.as_slice())) else { return false };
+    VerifyingKey::from_bytes(&key).is_ok_and(|k| k.verify_strict(zip, &Signature::from_bytes(&sig)).is_ok())
+}
+
 /// Unzips into a fresh temporary folder and checks that it really is the expected, intact version of this app.
 pub fn unpack(zip: &Path, tag: &str, app: &App) -> Result<PathBuf, Error> {
     let dir = std::env::temp_dir().join(format!("{}-update-{}-{}", app.bundle_id, std::process::id(), stamp()));
@@ -132,11 +150,19 @@ fn stamp() -> u128 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos())
 }
 
-/// Downloads the release's zip and unpacks it (see `unpack`). Runs for a while – call it off the UI thread.
+/// Downloads the release's zip and its signature, checks the signature, then unpacks it (see `unpack`).
+/// Runs for a while – call it off the UI thread.
 pub fn download(release: &Release, app: &App) -> Result<PathBuf, Error> {
     let zip = std::env::temp_dir().join(format!("{}-{}.zip", app.bundle_id, stamp()));
     let ok = quiet(Command::new("/usr/bin/curl").args(["-fsSL", "--max-time", "900", "-o"]).arg(&zip).arg(&release.zip));
-    let result = if ok { unpack(&zip, &release.tag, app) } else { Err(Error::Download) };
+    let sig = Command::new("/usr/bin/curl").args(["-fsSL", "--max-time", "60", &release.sig]).stderr(Stdio::null()).output();
+    let result = match (ok, sig) {
+        (true, Ok(sig)) if sig.status.success() => {
+            let signed = std::fs::read(&zip).is_ok_and(|data| signature_valid(&data, &sig.stdout, app.public_key));
+            if signed { unpack(&zip, &release.tag, app) } else { Err(Error::Damaged) }
+        }
+        _ => Err(Error::Download),
+    };
     let _ = std::fs::remove_file(&zip);
     result
 }
@@ -183,7 +209,7 @@ pub fn swap_and_restart(new: &Path) -> Result<(), Error> {
 mod tests {
     use super::*;
 
-    const APP: App = App { repo: "moritz-poth/x", name: "My App", bundle_id: "io.example.x", release_key: "MyAppRelease" };
+    const APP: App = App { repo: "moritz-poth/x", name: "My App", bundle_id: "io.example.x", release_key: "MyAppRelease", public_key: "" };
 
     #[test]
     fn version_order() {
@@ -201,11 +227,25 @@ mod tests {
     fn newest_release_skips_drafts_and_releases_without_zip() {
         let json = br#"[{"tag_name":"v1.0.0-beta.9","html_url":"https://x/9","draft":true,"assets":[{"name":"My-App-1.0.0-beta.9.zip","browser_download_url":"https://x/9.zip"}]},
             {"tag_name":"v1.0.0-beta.8","html_url":"https://x/8","draft":false,"assets":[]},
-            {"tag_name":"v1.0.0-beta.10","html_url":"https://x/10","draft":false,"assets":[{"name":"My-App-1.0.0-beta.10.zip","browser_download_url":"https://x/10.zip"}]},
-            {"tag_name":"v1.0.0-beta.7","html_url":"https://x/7","draft":false,"assets":[{"name":"My-App-1.0.0-beta.7.zip","browser_download_url":"https://x/7.zip"}]}]"#;
+            {"tag_name":"v1.0.0-beta.11","html_url":"https://x/11","draft":false,"assets":[{"name":"My-App-1.0.0-beta.11.zip","browser_download_url":"https://x/11.zip"}]},
+            {"tag_name":"v1.0.0-beta.10","html_url":"https://x/10","draft":false,"assets":[{"name":"My-App-1.0.0-beta.10.zip","browser_download_url":"https://x/10.zip"},{"name":"My-App-1.0.0-beta.10.zip.sig","browser_download_url":"https://x/10.sig"}]},
+            {"tag_name":"v1.0.0-beta.7","html_url":"https://x/7","draft":false,"assets":[{"name":"My-App-1.0.0-beta.7.zip","browser_download_url":"https://x/7.zip"},{"name":"My-App-1.0.0-beta.7.zip.sig","browser_download_url":"https://x/7.sig"}]}]"#;
+        // beta.11 has no signature: not offered
         let r = newest_release(json, &APP).unwrap();
-        assert_eq!((r.tag.as_str(), r.zip.as_str()), ("v1.0.0-beta.10", "https://x/10.zip"));
+        assert_eq!((r.tag.as_str(), r.zip.as_str(), r.sig.as_str()), ("v1.0.0-beta.10", "https://x/10.zip", "https://x/10.sig"));
         assert_eq!(newest_release(br#"{"message":"rate limit"}"#, &APP), None);
+    }
+
+    /// Key and signature made with CryptoKit (scripts/update-key.swift) are accepted; anything else is not.
+    #[test]
+    fn signature_check() {
+        // fixed test key pair, made with Curve25519.Signing in Swift over the bytes "zip"
+        let public = "JHktrBD3FFYWd+3z3/3sAPocRWzXQkrU8Q3t7esJmxM=";
+        let sig = b"JcC3jlOTrsrlxMzG0/p9RPJC74+SMQGvKIV55ueHKYICmUCkG55QLjLp2Ginkp6/42rsRLSjBRmIbA9Hv4bjAQ==";
+        assert!(signature_valid(b"zip", sig, public));
+        assert!(!signature_valid(b"zap", sig, public));
+        assert!(!signature_valid(b"zip", b"bm9wZQ==", public));
+        assert!(!signature_valid(b"zip", sig, crate::UPDATE_APP.public_key));
     }
 
     /// Uses the zip from scripts/build-mac-app.sh, if there is one: only the expected, intact app is accepted.

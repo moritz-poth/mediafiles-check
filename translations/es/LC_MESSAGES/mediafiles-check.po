@@ -8,20 +8,107 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+msgid "Run self-test…"
+msgstr "Autoprueba…"
+
+msgid "What happened, and what did you expect? Ideas are welcome too. No GitHub account needed."
+msgstr "¿Qué pasó y qué esperabas? Las ideas también son bienvenidas. No hace falta cuenta de GitHub."
+
+msgid "Problem or idea?"
+msgstr "¿Problema o idea?"
+
+msgid "Light/Dark"
+msgstr "Claro/Oscuro"
+
+msgid "Email for questions (optional)"
+msgstr "Correo para preguntas (opcional)"
+
+msgid "Events and errors"
+msgstr "Eventos y errores"
+
+msgid "No GitHub account needed."
+msgstr "No hace falta cuenta de GitHub."
+
+msgid "Start self-test"
+msgstr "Iniciar autoprueba"
+
+msgid "Save report"
+msgstr "Guardar"
+
+msgid "Buy me a coffee"
+msgstr "Invítame a un café"
+
+msgid "Send"
+msgstr "Enviar"
+
+msgid "Sending…"
+msgstr "Enviando…"
+
+msgid "Attach system info and log file"
+msgstr "Adjuntar información del sistema y registro"
+
+msgid "Only anonymous data is sent: system, test results and the log with user and folder names replaced. Save the report to look at it first."
+msgstr "Solo se envían datos anónimos: sistema, resultados y el registro con nombres de usuario y carpetas sustituidos. Guarda el informe para verlo antes."
+
+msgid "Send report"
+msgstr "Enviar informe"
+
+msgid "Failed"
+msgstr "Fallida"
+
+msgid "Anonymized: your user name and folder names are replaced."
+msgstr "Anonimizado: tu nombre de usuario y los nombres de carpetas se sustituyen."
+
+msgid "Self-test running…"
+msgstr "Autoprueba en curso…"
+
+msgid "Test this Mac"
+msgstr "Probar este Mac"
+
+msgid "Report…"
+msgstr "Informar…"
+
+msgid "Passed"
+msgstr "Superada"
+
+msgid "Description"
+msgstr "Descripción"
+
+msgid "Show log file"
+msgstr "Ver registro"
+
+msgid "Hide"
+msgstr "Ocultar"
+
+msgid "Skipped"
+msgstr "Omitida"
+
+msgid "SUPPORT"
+msgstr "SOPORTE"
+
+msgid "SELF-TEST"
+msgstr "AUTOPRUEBA"
+
+msgid "REPORT A PROBLEM"
+msgstr "INFORMAR DE UN PROBLEMA"
+
+msgid "Like MediaFiles Check?"
+msgstr "¿Te gusta MediaFiles Check?"
+
+msgid "If you use MediaFiles Check and like it, I would be glad if you bought me a coffee."
+msgstr "Si usas MediaFiles Check y te gusta, me alegraría que me invitaras a un café."
+
+msgid "Tests reading databases, comparing, renaming and updates on test data of its own and sends us an anonymous report."
+msgstr "Prueba la lectura de bases de datos, la comparación, el renombrado y las actualizaciones con sus propios datos de prueba y nos envía un informe anónimo."
+
+msgid "MediaFiles Check tests reading databases, comparing, renaming and updates on test data of its own and sends us an anonymous report. Your drives and folders are only listed, never changed. It takes less than a minute."
+msgstr "MediaFiles Check prueba la lectura de bases de datos, la comparación, el renombrado y las actualizaciones con sus propios datos de prueba y nos envía un informe anónimo. Tus discos y carpetas solo se listan, nunca se cambian. Tarda menos de un minuto."
+
 msgid "Settings"
 msgstr "Ajustes"
 
 msgid "Language"
 msgstr "Idioma"
-
-msgid "Appearance"
-msgstr "Aspecto"
-
-msgid "Dark"
-msgstr "Oscuro"
-
-msgid "Light"
-msgstr "Claro"
 
 msgid "Help"
 msgstr "Ayuda"
@@ -268,9 +355,6 @@ msgstr "Ajustes…"
 
 msgid "SETTINGS"
 msgstr "AJUSTES"
-
-msgid "Dark appearance"
-msgstr "Aspecto oscuro"
 
 msgid "Start Media Composer"
 msgstr "Abrir Media Composer"

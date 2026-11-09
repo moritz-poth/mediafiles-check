@@ -17,6 +17,9 @@ pub fn path() -> PathBuf {
 
 /// Appends a line. Logging never stops the app: errors while writing are ignored.
 pub fn write(msg: &str) {
+    if cfg!(test) {
+        return; // unit tests never write the user's log
+    }
     let p = path();
     let _ = fs::create_dir_all(p.parent().unwrap_or(&p));
     if fs::metadata(&p).is_ok_and(|m| m.len() > MAX_BYTES) {

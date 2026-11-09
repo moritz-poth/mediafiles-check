@@ -102,13 +102,24 @@ Gut zu wissen:
 
 ## Einstellungen
 
-**MediaFiles Check → Einstellungen…** (⌘,) stellt die Darstellung (hell oder dunkel) und die Sprache (English, Deutsch, Français, Español) ein. **MediaFiles Check → Über MediaFiles Check** zeigt Version und Lizenz.
+**MediaFiles Check → Einstellungen…** (⌘,) stellt die Darstellung (Schalter **Hell/Dunkel**, an = dunkel) und die Sprache (English, Deutsch, Français, Español) ein. **MediaFiles Check → Über MediaFiles Check** zeigt Version und Lizenz.
 
 ![Einstellungen](images/de/settings.png)
 
 ## Updates
 
 MediaFiles Check sucht kurz nach dem Start und alle 6 Stunden auf GitHub nach einer neuen Version; **Einstellungen… → Nach Updates suchen** sucht sofort. Eine neue Version erscheint oben im Hauptfenster: **Neuigkeiten** öffnet die Versionshinweise, **Update installieren** lädt sie, prüft, dass sie vollständig und unverändert ist, legt die alte Version in den Papierkorb und startet die App neu.
+
+## Support
+
+**Einstellungen… → Support** bietet vier Dinge:
+
+- **Selbsttest…** prüft Datenbanken lesen, Vergleichen, Umbenennen für Media Composer und zurück sowie Updates – mit eigenen Testdaten in einem temporären Ordner. Deine Laufwerke werden nur aufgelistet, nie verändert. **Bericht senden** schickt uns das Ergebnis anonym; **Speichern** legt es in „Downloads“, damit du es vorher ansehen kannst.
+- **Melden…** schickt uns ein Problem oder eine Idee – ohne GitHub-Konto. Du kannst deine E-Mail für Rückfragen angeben und Systeminfo und Logdatei anhängen; dein Benutzername und Ordnernamen werden ersetzt.
+- **Logdatei zeigen** (siehe unten).
+- **Spendier mir einen Kaffee** – wenn du MediaFiles Check nutzt und es dir gefällt, freue ich mich über einen Kaffee.
+
+Klappt das Senden nicht, liegt der Bericht in „Downloads“.
 
 ## Logdatei
 

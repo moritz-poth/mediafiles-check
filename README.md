@@ -2,9 +2,11 @@
 
 Checks whether every folder in **Avid MediaFiles/MXF** matches its Avid database – and tells you where it doesn't.
 
+<p align="center">☕ If you use MediaFiles Check and like it, I would be glad if you <a href="https://buymeacoffee.com/moritzpoth">bought me a coffee</a>.</p>
+
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/home-dark.png"><img src="assets/screenshots/home-light.png" width="420" alt="Start page: drive list, Avid projects, renamed folders"></picture></p>
 
-> **Beta.** Please report problems in [Issues](../../issues).
+> **Beta.** Please report problems in [Issues](../../issues) or in the app: **Settings… → Support → Report…** (no GitHub account needed).
 
 ## What it reports
 

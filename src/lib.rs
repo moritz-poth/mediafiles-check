@@ -12,6 +12,8 @@ pub mod log;
 pub mod mxf;
 pub mod projects;
 pub mod rename;
+pub mod report;
+pub mod selftest;
 pub mod update;
 
 /// This app on GitHub and in its Info.plist (the key is written by scripts/build-mac-app.sh).
@@ -20,6 +22,8 @@ pub const UPDATE_APP: update::App = update::App {
     name: "MediaFiles Check",
     bundle_id: "io.github.moritz-poth.mediafiles-check",
     release_key: "MediaFilesCheckRelease",
+    // never replace: installed apps trust only zips signed with this key (scripts/update-key.swift, Keychain)
+    public_key: "u6xmb0TIVpNgH3B0G2CTddatplyt2R5Lat3BDhvQLPE=",
 };
 
 use std::collections::HashSet;
@@ -268,7 +272,7 @@ pub fn check(roots: &[PathBuf], progress: &mut dyn FnMut(usize, usize, &str)) ->
 }
 
 /// Picks the text for a language code (en, de, fr, es; anything else = English).
-pub(crate) fn pick<'a>(lang: &str, [en, de, fr, es]: [&'a str; 4]) -> &'a str {
+pub fn pick<'a>(lang: &str, [en, de, fr, es]: [&'a str; 4]) -> &'a str {
     match lang {
         "de" => de,
         "fr" => fr,
@@ -337,35 +341,7 @@ pub fn report_text(reports: &[FolderReport], lang: &str) -> String {
 mod tests {
     use super::*;
 
-    /// Builds a database the way Media Composer writes it (both blocks).
-    fn pmr(names: &[&str]) -> Vec<u8> {
-        let mut d = vec![];
-        let put = |d: &mut Vec<u8>, b: &[u8]| d.extend_from_slice(b);
-        // block 1 as Media Composer writes it: "ö" in Mac Roman (0x9A), names with "İ" left out
-        let block1: Vec<Vec<u8>> = names.iter().filter(|n| !n.contains('İ')).map(|n| n.replace('ö', "\u{9a}").chars().map(|c| c as u8).collect()).collect();
-        put(&mut d, &1961u32.to_le_bytes());
-        put(&mut d, &8u32.to_le_bytes());
-        put(&mut d, &(block1.len() as u32).to_le_bytes());
-        for n in &block1 {
-            put(&mut d, &[6; 32]);
-            put(&mut d, &(n.len() as u16).to_le_bytes());
-            put(&mut d, n);
-            put(&mut d, &7u16.to_le_bytes());
-            put(&mut d, b"PROJECT");
-            put(&mut d, &[1; 36]);
-        }
-        put(&mut d, &16u32.to_le_bytes());
-        put(&mut d, &(names.len() as u32).to_le_bytes());
-        for n in names {
-            put(&mut d, &[6; 32]);
-            put(&mut d, &(n.len() as u32 + 2).to_le_bytes());
-            put(&mut d, n.as_bytes());
-            put(&mut d, &7u16.to_le_bytes());
-            put(&mut d, b"PROJECT");
-            put(&mut d, &[1; 36]);
-        }
-        d
-    }
+    use crate::selftest::sample_pmr as pmr;
 
     #[test]
     fn reads_both_blocks_and_rejects_anything_else() {

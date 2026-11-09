@@ -4,7 +4,8 @@
 
 use mediafiles_check::rename::{self, Added, Journal, Renamed, Status};
 use mediafiles_check::projects::{self, ClipKind, MissingGroup, ScanResult};
-use mediafiles_check::{FolderReport, UPDATE_APP, check, find_volumes, log, report_text, update};
+use mediafiles_check::report::{self, Outcome, Report};
+use mediafiles_check::{FolderReport, UPDATE_APP, check, find_volumes, log, pick, report_text, selftest, update};
 use std::collections::{BTreeMap, HashSet, VecDeque};
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
@@ -275,6 +276,157 @@ fn forward_menu(shared: &Shared, weak: &slint::Weak<AppWindow>) {
     shared.on_install_update(move || w.upgrade().into_iter().for_each(|a| a.global::<Shared>().invoke_install_update()));
     let w = weak.clone();
     shared.on_show_release(move || w.upgrade().into_iter().for_each(|a| a.global::<Shared>().invoke_show_release()));
+}
+
+/// Short message over the settings after sending (success 3 s, failure 8 s – the file name stays readable).
+fn toast(w: &slint::Weak<SettingsWindow>, outcome: &Outcome, lang: &str) {
+    let (text, ok) = match outcome {
+        Outcome::Sent => (pick(lang, ["Sent – thank you!", "Gesendet – danke!", "Envoyé – merci !", "Enviado, ¡gracias!"]).to_string(), true),
+        Outcome::Failed(path) if !path.is_empty() => {
+            let file = Path::new(path).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            (pick(lang, [
+                "The report could not be sent. It is saved in Downloads as “{}” – please try again later or send us the file.",
+                "Der Bericht konnte nicht gesendet werden. Er liegt in „Downloads“ als „{}“ – bitte später noch einmal versuchen oder uns die Datei schicken.",
+                "Le rapport n’a pas pu être envoyé. Il est enregistré dans Téléchargements sous « {} » – réessayez plus tard ou envoyez-nous le fichier.",
+                "No se pudo enviar el informe. Está guardado en Descargas como «{}»: inténtalo más tarde o envíanos el archivo.",
+            ]).replace("{}", &file), false)
+        }
+        Outcome::Failed(_) => (pick(lang, ["The report could not be sent or saved.", "Der Bericht konnte weder gesendet noch gesichert werden.", "Le rapport n’a pu être ni envoyé ni enregistré.", "No se pudo enviar ni guardar el informe."]).to_string(), false),
+    };
+    let Some(win) = w.upgrade() else { return };
+    win.set_toast_ok(ok);
+    win.set_toast_text(text.clone().into());
+    let w = w.clone();
+    slint::Timer::single_shot(Duration::from_secs(if ok { 3 } else { 8 }), move || {
+        w.upgrade().into_iter().filter(|w| w.get_toast_text() == text.as_str()).for_each(|w| w.set_toast_text("".into()));
+    });
+}
+
+/// Settings → Support: self-test and problem report (same flow as Mountpoint). After a successful send the page
+/// returns to the settings and shows the toast; on failure it stays, so nothing typed is lost.
+fn wire_support(w: &SettingsWindow, settings: &Rc<RefCell<Settings>>) {
+    let last: Rc<RefCell<Option<Report>>> = Rc::default();
+    w.on_open_coffee(|| {
+        let _ = std::process::Command::new("open").arg("https://buymeacoffee.com/moritzpoth").spawn();
+    });
+    w.on_back({
+        let weak = w.as_weak();
+        move || {
+            let Some(w) = weak.upgrade() else { return };
+            if w.get_test_phase() == 2 {
+                w.set_test_phase(0);
+                w.set_test_rows(ModelRc::default());
+            }
+            w.set_page(0);
+        }
+    });
+    w.on_start_selftest({
+        let (weak, settings, last) = (w.as_weak(), settings.clone(), last.clone());
+        move || {
+            let Some(w) = weak.upgrade() else { return };
+            let lang = settings.borrow().language.clone();
+            w.set_test_phase(1);
+            w.set_test_note("".into());
+            w.set_test_rows(ModelRc::default());
+            let (weak, last) = (weak.clone(), last.clone());
+            let (tx, rx) = std::sync::mpsc::channel::<Report>();
+            let l = lang.clone();
+            let progress_weak = weak.clone();
+            std::thread::spawn(move || {
+                let r = selftest::run(&l, &mut |done, next| {
+                    let rows: Vec<TestRow> = done.iter().map(|c| TestRow {
+                        title: selftest::title(&c.id, &l).into(),
+                        detail: c.detail.clone().into(),
+                        status: match c.status { "pass" => 0, "fail" => 1, _ => 2 },
+                    }).collect();
+                    let next = if next.is_empty() { String::new() } else { selftest::title(selftest::CHECKS.iter().find(|c| c.1 == next).map_or(next, |c| c.0), &l) + "…" };
+                    let pw = progress_weak.clone();
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(w) = pw.upgrade() {
+                            w.set_test_rows(ModelRc::new(VecModel::from(rows)));
+                            w.set_test_current(next.into());
+                        }
+                    });
+                });
+                let _ = tx.send(r);
+            });
+            // the report itself is not Send through slint's closure in every version: poll the channel
+            let timer = Rc::new(slint::Timer::default());
+            let t = timer.clone();
+            timer.start(slint::TimerMode::Repeated, Duration::from_millis(200), move || {
+                let Ok(r) = rx.try_recv() else { return };
+                t.stop();
+                if let Some(w) = weak.upgrade() {
+                    let n = |s: &str| r.results.iter().filter(|c| c.status == s).count();
+                    w.set_test_summary(pick(&lang, ["{p} passed, {f} failed, {s} skipped", "{p} bestanden, {f} fehlgeschlagen, {s} übersprungen", "{p} réussis, {f} échoués, {s} ignorés", "{p} superadas, {f} fallidas, {s} omitidas"])
+                        .replace("{p}", &n("pass").to_string()).replace("{f}", &n("fail").to_string()).replace("{s}", &n("skip").to_string()).into());
+                    w.set_test_failed(n("fail") > 0);
+                    w.set_test_phase(2);
+                }
+                *last.borrow_mut() = Some(r);
+            });
+        }
+    });
+    w.on_save_selftest({
+        let (weak, settings, last) = (w.as_weak(), settings.clone(), last.clone());
+        move || {
+            let Some(r) = last.borrow().clone() else { return };
+            let lang = settings.borrow().language.clone();
+            let note = match report::save(&r) {
+                Some(p) => {
+                    let _ = std::process::Command::new("open").arg("-R").arg(&p).spawn();
+                    pick(&lang, ["Saved as “{}” in Downloads.", "Gesichert als „{}“ in „Downloads“.", "Enregistré sous « {} » dans Téléchargements.", "Guardado como «{}» en Descargas."])
+                        .replace("{}", &p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default())
+                }
+                None => pick(&lang, ["The report could not be saved.", "Der Bericht konnte nicht gesichert werden.", "Le rapport n’a pas pu être enregistré.", "No se pudo guardar el informe."]).into(),
+            };
+            weak.upgrade().into_iter().for_each(|w| w.set_test_note(note.clone().into()));
+        }
+    });
+    let send = move |weak: slint::Weak<SettingsWindow>, lang: String, report: Report, on_sent: Box<dyn Fn(&SettingsWindow)>| {
+        let Some(w) = weak.upgrade() else { return };
+        w.set_sending(true);
+        let (tx, rx) = std::sync::mpsc::channel::<Outcome>();
+        std::thread::spawn(move || {
+            let _ = tx.send(report::send(&report));
+        });
+        let timer = Rc::new(slint::Timer::default());
+        let t = timer.clone();
+        timer.start(slint::TimerMode::Repeated, Duration::from_millis(200), move || {
+            let Ok(outcome) = rx.try_recv() else { return };
+            t.stop();
+            if let Some(w) = weak.upgrade() {
+                w.set_sending(false);
+                if outcome == Outcome::Sent {
+                    on_sent(&w);
+                    w.set_page(0);
+                }
+                toast(&weak, &outcome, &lang);
+            }
+        });
+    };
+    w.on_send_selftest({
+        let (weak, settings, last) = (w.as_weak(), settings.clone(), last.clone());
+        move || {
+            let Some(r) = last.borrow().clone() else { return };
+            send(weak.clone(), settings.borrow().language.clone(), r, Box::new(|w: &SettingsWindow| {
+                w.set_test_phase(0);
+                w.set_test_rows(ModelRc::default());
+            }));
+        }
+    });
+    w.on_send_problem({
+        let (weak, settings) = (w.as_weak(), settings.clone());
+        move || {
+            let Some(w) = weak.upgrade() else { return };
+            let lang = settings.borrow().language.clone();
+            let r = report::problem(&w.get_report_text(), &w.get_report_contact(), w.get_report_attach(), &lang);
+            send(weak.clone(), lang, r, Box::new(|w: &SettingsWindow| {
+                w.set_report_text("".into());
+                w.set_report_contact("".into());
+            }));
+        }
+    });
 }
 
 type Win<T> = Rc<RefCell<Option<T>>>;
@@ -1011,7 +1163,8 @@ fn main() -> Result<(), slint::PlatformError> {
                     *win = SettingsWindow::new().ok();
                     win.iter().for_each(|w| {
                         repaint_on_resize!(w);
-                        forward_menu(&w.global::<Shared>(), &weak)
+                        forward_menu(&w.global::<Shared>(), &weak);
+                        wire_support(w, &settings);
                     });
                 }
                 if let Some(w) = win.as_ref() {

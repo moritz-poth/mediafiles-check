@@ -102,13 +102,24 @@ Conviene saber:
 
 ## Ajustes
 
-**MediaFiles Check → Ajustes…** (⌘,) ajusta el aspecto (claro u oscuro) y el idioma (English, Deutsch, Français, Español). **MediaFiles Check → Acerca de MediaFiles Check** muestra la versión y la licencia.
+**MediaFiles Check → Ajustes…** (⌘,) ajusta el aspecto (interruptor **Claro/Oscuro**, activado = oscuro) y el idioma (English, Deutsch, Français, Español). **MediaFiles Check → Acerca de MediaFiles Check** muestra la versión y la licencia.
 
 ![Ajustes](images/es/settings.png)
 
 ## Actualizaciones
 
 MediaFiles Check busca una nueva versión en GitHub poco después de arrancar y cada 6 horas; **Ajustes… → Buscar actualizaciones** lo hace al momento. Una nueva versión aparece arriba en la ventana principal: **Novedades** abre las notas de la versión, **Instalar actualización** la descarga, comprueba que esté completa e intacta, mueve la versión anterior a la papelera y reinicia la app.
+
+## Soporte
+
+**Ajustes… → Soporte** ofrece cuatro cosas:
+
+- **Autoprueba…** comprueba la lectura de bases de datos, la comparación, el renombrado para Media Composer y la vuelta, y las actualizaciones, con sus propios datos de prueba en una carpeta temporal. Tus discos solo se listan, nunca se cambian. **Enviar informe** nos envía el resultado de forma anónima; **Guardar** lo deja en Descargas para que puedas verlo antes.
+- **Informar…** nos envía un problema o una idea, sin cuenta de GitHub. Puedes indicar tu correo para preguntas y adjuntar la información del sistema y el archivo de registro; tu nombre de usuario y los nombres de carpetas se sustituyen.
+- **Ver registro** (ver abajo).
+- **Invítame a un café**: si usas MediaFiles Check y te gusta, me alegraría un café.
+
+Si el envío falla, el informe se guarda en Descargas.
 
 ## Archivo de registro
 
