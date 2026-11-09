@@ -8,6 +8,15 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 
+msgid "Show media…"
+msgstr "Afficher les médias…"
+
+msgid "Show clips…"
+msgstr "Afficher les clips…"
+
+msgid "Click a file to see where it is used: master clips, subclips and sequences."
+msgstr "Cliquez sur un fichier pour voir où il est utilisé : master clips, sous-clips et séquences."
+
 msgid "Welcome to MediaFiles Check"
 msgstr "Bienvenue dans MediaFiles Check"
 
@@ -997,9 +1006,6 @@ msgstr "Où les clips liés par AMA sont utilisés. Un clic sur un clip affiche 
 
 msgid "on the drives – relink"
 msgstr "sur les disques – à relier"
-
-msgid "MISSING MEDIA FILES PER BIN"
-msgstr "FICHIERS MÉDIAS MANQUANTS PAR CHUTIER"
 
 msgid "1 file"
 msgstr "1 fichier"

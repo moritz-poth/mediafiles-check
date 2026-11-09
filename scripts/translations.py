@@ -9,6 +9,9 @@ PLURAL = {"de": "nplurals=2; plural=(n != 1);", "fr": "nplurals=2; plural=(n > 1
 
 # English: (German, French, Spanish). Plural entries: (singular, plural) -> ((de1, de2), (fr1, fr2), (es1, es2))
 T = {
+    'Show media…': ('Medien anzeigen…', 'Afficher les médias…', 'Mostrar medios…'),
+    'Show clips…': ('Clips anzeigen…', 'Afficher les clips…', 'Mostrar clips…'),
+    'Click a file to see where it is used: master clips, subclips and sequences.': ('Klick auf eine Datei zeigt, wo sie verwendet wird: Master-Clips, Subclips und Sequenzen.', 'Cliquez sur un fichier pour voir où il est utilisé : master clips, sous-clips et séquences.', 'Haz clic en un archivo para ver dónde se usa: master clips, subclips y secuencias.'),
     'Welcome to MediaFiles Check': ('Willkommen bei MediaFiles Check', 'Bienvenue dans MediaFiles Check', 'Te damos la bienvenida a MediaFiles Check'),
     'Get started': ('Los geht’s', 'Commencer', 'Empezar'),
     'MediaFiles Check never deletes or overwrites a media file. Still, keep a backup of your media – you use it at your own risk.': ('MediaFiles Check löscht und überschreibt nie eine Mediendatei. Trotzdem: Halte ein Backup deiner Medien bereit – die Nutzung erfolgt auf eigenes Risiko.', 'MediaFiles Check ne supprime ni n’écrase jamais un fichier média. Gardez quand même une sauvegarde de vos médias – l’utilisation est à vos risques.', 'MediaFiles Check nunca borra ni sobrescribe un archivo de medios. Aun así, guarda una copia de seguridad de tus medios: lo usas bajo tu propia responsabilidad.'),
@@ -424,7 +427,6 @@ T = {
         "Où les clips liés par AMA sont utilisés. Un clic sur un clip affiche ses clips master, sous-clips et séquences. Les fichiers AMA ne sont pas demandés.",
         "Dónde se usan los clips vinculados por AMA. Un clic en un clip muestra sus clips master, subclips y secuencias. Los archivos AMA no se solicitan."),
     "on the drives – relink": ("auf den Laufwerken – neu verlinken", "sur les disques – à relier", "en los discos – revincular"),
-    "MISSING MEDIA FILES PER BIN": ("FEHLENDE MEDIENDATEIEN PRO BIN", "FICHIERS MÉDIAS MANQUANTS PAR CHUTIER", "ARCHIVOS DE MEDIOS QUE FALTAN POR BIN"),
     "1 file": ("1 Datei", "1 fichier", "1 archivo"),
     "{} files": ("{} Dateien", "{} fichiers", "{} archivos"),
     ("{n} render file is missing too – not requested, Media Composer renders it again.",

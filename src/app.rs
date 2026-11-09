@@ -1065,6 +1065,7 @@ type Win<T> = Rc<RefCell<Option<T>>>;
 struct Others {
     help: Win<HelpWindow>,
     settings: Win<SettingsWindow>,
+    media: Win<MediaWindow>,
 }
 
 /// Language or appearance changed: every open window follows.
@@ -1072,6 +1073,7 @@ fn apply_all(app: &AppWindow, others: &Others, s: &Settings) {
     apply_menus(&app.global::<Shared>(), s);
     others.settings.borrow().iter().for_each(|w| apply_menus(&w.global::<Shared>(), s));
     others.help.borrow().iter().for_each(|h| update_help(h, s));
+    others.media.borrow().iter().for_each(|w| apply_menus(&w.global::<Shared>(), s));
     #[cfg(target_os = "macos")]
     {
         // Slint rebuilds the menu after this event; add the item back once that is done
@@ -1186,6 +1188,9 @@ struct ProjectsState {
     /// opened media file groups in the result list and in the AMA list
     open: HashSet<usize>,
     ama_open: HashSet<usize>,
+    /// the media window (Projects › Show media…) and what it shows: 0 missing media, 1 AMA clips
+    media: Win<MediaWindow>,
+    media_kind: i32,
 }
 
 fn projects_folder_file() -> Option<PathBuf> {
@@ -1211,6 +1216,12 @@ fn show_rows(w: &AppWindow, r: &ScanResult, st: &ProjectsState) {
     let p = w.global::<Projects>();
     p.set_rows(ModelRc::new(VecModel::from(project_rows(w, &r.by_bin, &st.open))));
     p.set_ama_rows(ModelRc::new(VecModel::from(project_rows(w, &r.ama_by_bin, &st.ama_open))));
+    if let Some(m) = st.media.borrow().as_ref() {
+        let ama = st.media_kind == 1;
+        m.set_kind(st.media_kind);
+        m.set_count(if ama { p.get_ama() } else { p.get_missing() });
+        m.set_rows(if ama { p.get_ama_rows() } else { p.get_rows() });
+    }
 }
 
 /// Capped at whole bins (the saved list has all); group indexes count over all bins, so they stay stable.
@@ -1254,6 +1265,10 @@ fn project_rows(w: &AppWindow, by_bin: &BTreeMap<(String, String), Vec<MissingGr
 fn start_project_scan(w: &AppWindow, st: &mut ProjectsState) {
     st.open.clear();
     st.ama_open.clear();
+    // its list belongs to the previous result
+    if let Some(m) = st.media.borrow().as_ref() {
+        let _ = m.hide();
+    }
     let chosen: Vec<PathBuf> = st.projects.iter().filter(|p| p.1).map(|p| p.0.clone()).collect();
     log::write(&format!("project scan: {}", chosen.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(", ")));
     let p = w.global::<Projects>();
@@ -1310,7 +1325,7 @@ fn start_project_scan(w: &AppWindow, st: &mut ProjectsState) {
 }
 
 /// Wires the "Projects" tab; the saved projects folder is loaded at once.
-fn wire_projects(app: &AppWindow, st: &Rc<RefCell<ProjectsState>>) {
+fn wire_projects(app: &AppWindow, st: &Rc<RefCell<ProjectsState>>, settings: &Rc<RefCell<Settings>>) {
     let p = app.global::<Projects>();
     let saved = projects_folder_file().and_then(|f| fs::read_to_string(f).ok()).map(|s| PathBuf::from(s.trim()));
     if let Some(folder) = saved.filter(|f| f.is_dir()) {
@@ -1358,6 +1373,41 @@ fn wire_projects(app: &AppWindow, st: &Rc<RefCell<ProjectsState>>) {
     };
     p.on_toggle_group(toggle(false));
     p.on_toggle_ama(toggle(true));
+    p.on_show_media({
+        let (ww, st, settings) = (app.as_weak(), st.clone(), settings.clone());
+        move |kind| {
+            let app = ww.unwrap();
+            let win = st.borrow().media.clone();
+            if win.borrow().is_none() {
+                *win.borrow_mut() = MediaWindow::new().ok();
+                if let Some(m) = win.borrow().as_ref() {
+                    repaint_on_resize!(m);
+                    forward_menu(&m.global::<Shared>(), &ww);
+                    let (ww2, st2) = (ww.clone(), st.clone());
+                    m.on_toggle_group(move |i| {
+                        let a = ww2.unwrap();
+                        let p = a.global::<Projects>();
+                        if st2.borrow().media_kind == 1 { p.invoke_toggle_ama(i) } else { p.invoke_toggle_group(i) }
+                    });
+                    let ww3 = ww.clone();
+                    m.on_save_list(move || ww3.unwrap().global::<Projects>().invoke_save_list());
+                    let mw = m.as_weak();
+                    m.on_close(move || { let _ = mw.unwrap().hide(); });
+                }
+            }
+            st.borrow_mut().media_kind = kind;
+            {
+                let s = st.borrow();
+                if let Some(r) = s.result.lock().unwrap().as_ref() {
+                    show_rows(&app, r, &s);
+                }
+            }
+            if let Some(m) = win.borrow().as_ref() {
+                apply_menus(&m.global::<Shared>(), &settings.borrow());
+                let _ = m.show();
+            }
+        }
+    });
     p.on_save_list({
         let (ww, st) = (app.as_weak(), st.clone());
         move || {
@@ -2937,7 +2987,8 @@ fn main() -> Result<(), slint::PlatformError> {
     });
     let task_acts = wire_tasks(&app, &last);
     let projects_state: Rc<RefCell<ProjectsState>> = Rc::default();
-    wire_projects(&app, &projects_state);
+    projects_state.borrow_mut().media = others.media.clone();
+    wire_projects(&app, &projects_state, &settings);
 
     app.on_start_media_composer({
         let weak = app.as_weak();

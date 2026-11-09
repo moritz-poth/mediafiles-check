@@ -597,6 +597,8 @@ export global Projects {
     callback save-request();
     callback toggle-group(int);
     callback toggle-ama(int);
+    // eigenes, größeres Fenster: 0 fehlende Medien, 1 AMA-Clips
+    callback show-media(int);
 }
 
 // Seitenkopf wie im Entwurf: Titel links, Knöpfe der Seite rechts
@@ -783,12 +785,12 @@ component ProjectsPane inherits VerticalLayout {
                 text: @tr("{n} of the missing files has no Avid media reference – e.g. imported via AAF. the exchange only finds it if the other system has it in Avid MediaFiles." | "{n} of the missing files have no Avid media reference – e.g. imported via AAF. the exchange only finds them if the other system has them in Avid MediaFiles." % Projects.unmanaged);
             }
                 }
-        if Projects.rows.length > 0: Section {
-            title: @tr("MISSING MEDIA FILES PER BIN");
-            MissingList {
-                rows: Projects.rows;
-                limit: 380px;
-                toggle(i) => { Projects.toggle-group(i); }
+        if Projects.rows.length > 0: HorizontalLayout {
+            alignment: start;
+            CheckButton {
+                text: @tr("Show media…");
+                primary: true;
+                clicked => { Projects.show-media(0); }
             }
         }
         StatusLine {
@@ -806,10 +808,13 @@ component ProjectsPane inherits VerticalLayout {
         Para {
             text: @tr("Where the AMA-linked clips are used. Click a clip to see its master clips, subclips and sequences. AMA files are not requested.");
         }
-        if Projects.ama-rows.length > 0: MissingList {
-            rows: Projects.ama-rows;
-            limit: 400px;
-            toggle(i) => { Projects.toggle-ama(i); }
+        if Projects.ama-rows.length > 0: HorizontalLayout {
+            alignment: start;
+            CheckButton {
+                text: @tr("Show clips…");
+                primary: true;
+                clicked => { Projects.show-media(1); }
+            }
         }
     }
 
@@ -1499,7 +1504,8 @@ export component AppWindow inherits CheckWindow {
     width: 800px;
     // nie höher als der Bildschirm (Rust: nutzbare Höhe minus Titelleiste); längere Seiten scrollen
     in property <length> screen-height: 100000px;
-    height: min(frame.preferred-height, root.screen-height);
+    // feste Größe für alle Reiter (der Nutzer wollte kein Springen); längere Seiten scrollen im Inhalt
+    height: min(600px, root.screen-height);
     // wie das Einstellungsfenster: Reiterleiste in der Farbe der Titelleiste (heller, solange das Fenster aktiv ist)
     in property <bool> active: true;
 
@@ -1545,7 +1551,8 @@ export component AppWindow inherits CheckWindow {
     }
     // Rust: „zurück zum Anfang“ = Anfang des Schritts, in dem man gerade ist
     public function home() {
-        root.page = root.start-of(root.tab, root.step);
+        // Prüfen: zurück zu den Laufwerken (der Schritt „Ergebnis“ würde wieder das Ergebnis zeigen)
+        root.page = root.tab == 1 ? Page.home : root.start-of(root.tab, root.step);
     }
     function select-tab(t: int) {
         root.tab = t;
@@ -1801,7 +1808,7 @@ export component AppWindow inherits CheckWindow {
         Rectangle { width: 1px; background: Theme.line; }
         Rectangle {
             horizontal-stretch: 1;
-            preferred-height: max(main.preferred-height, 420px);
+            vertical-stretch: 1;
     page-flick := Flickable {
         content-height: main.preferred-height;
     main := VerticalLayout {
@@ -2431,72 +2438,76 @@ export component AppWindow inherits CheckWindow {
         if root.page == Page.runs: VerticalLayout {
             spacing: Metrics.spacing;
             PageHead { title: @tr("History"); }
-            Section {
-                title: @tr("REBALANCING");
-                if root.rebalanced.length == 0: Para { text: @tr("No runs yet."); }
-                for r[i] in root.rebalanced: VerticalLayout {
-                    spacing: 8px;
-                    Text {
-                        width: Metrics.content-width - 12px;
-                        text: r.text;
-                        wrap: word-wrap;
-                        font-size: 12px;
-                        color: Theme.text;
-                    }
-                    if !r.db-done: Text {
-                        text: @tr("Databases not rewritten yet");
-                        font-size: 12px;
-                        color: Theme.warning;
-                    }
-                    HorizontalLayout {
-                        spacing: 10px;
-                        alignment: start;
-                        if !r.db-done: CheckButton {
-                            text: @tr("Rewrite databases");
-                            small: true;
-                            enabled: !root.mc-running;
-                            clicked => { root.rebalance-db(i); }
+            ScrollBox {
+                limit: 420px;
+                spacing: Metrics.spacing;
+                Section {
+                    title: @tr("REBALANCING");
+                    if root.rebalanced.length == 0: Para { text: @tr("No runs yet."); }
+                    for r[i] in root.rebalanced: VerticalLayout {
+                        spacing: 8px;
+                        Text {
+                            width: Metrics.content-width - 12px;
+                            text: r.text;
+                            wrap: word-wrap;
+                            font-size: 12px;
+                            color: Theme.text;
                         }
-                        CheckButton {
-                            text: @tr("Undo");
-                            small: true;
-                            enabled: !root.mc-running;
-                            clicked => { root.undo-rebalance(i); }
+                        if !r.db-done: Text {
+                            text: @tr("Databases not rewritten yet");
+                            font-size: 12px;
+                            color: Theme.warning;
+                        }
+                        HorizontalLayout {
+                            spacing: 10px;
+                            alignment: start;
+                            if !r.db-done: CheckButton {
+                                text: @tr("Rewrite databases");
+                                small: true;
+                                enabled: !root.mc-running;
+                                clicked => { root.rebalance-db(i); }
+                            }
+                            CheckButton {
+                                text: @tr("Undo");
+                                small: true;
+                                enabled: !root.mc-running;
+                                clicked => { root.undo-rebalance(i); }
+                            }
                         }
                     }
                 }
-            }
-            Section {
-                title: @tr("DUPLICATES");
-                if root.dup-runs.length == 0: Para { text: @tr("No runs yet."); }
-                for r[i] in root.dup-runs: VerticalLayout {
-                    spacing: 8px;
-                    Text {
-                        width: Metrics.content-width - 12px;
-                        text: r.text;
-                        wrap: word-wrap;
-                        font-size: 12px;
-                        color: Theme.text;
-                    }
-                    if !r.db-done: Text {
-                        text: @tr("Databases not rewritten yet");
-                        font-size: 12px;
-                        color: Theme.warning;
-                    }
-                    HorizontalLayout {
-                        spacing: 10px;
-                        alignment: start;
-                        if !r.db-done: CheckButton {
-                            text: @tr("Rewrite databases");
-                            small: true;
-                            enabled: !root.mc-running;
-                            clicked => { root.dup-db(i); }
+                Section {
+                    title: @tr("DUPLICATES");
+                    if root.dup-runs.length == 0: Para { text: @tr("No runs yet."); }
+                    for r[i] in root.dup-runs: VerticalLayout {
+                        spacing: 8px;
+                        Text {
+                            width: Metrics.content-width - 12px;
+                            text: r.text;
+                            wrap: word-wrap;
+                            font-size: 12px;
+                            color: Theme.text;
                         }
-                        CheckButton {
-                            text: @tr("Undo");
-                            small: true;
-                            enabled: !root.mc-running;
-                            clicked => { root.undo-dup(i); }
+                        if !r.db-done: Text {
+                            text: @tr("Databases not rewritten yet");
+                            font-size: 12px;
+                            color: Theme.warning;
+                        }
+                        HorizontalLayout {
+                            spacing: 10px;
+                            alignment: start;
+                            if !r.db-done: CheckButton {
+                                text: @tr("Rewrite databases");
+                                small: true;
+                                enabled: !root.mc-running;
+                                clicked => { root.dup-db(i); }
+                            }
+                            CheckButton {
+                                text: @tr("Undo");
+                                small: true;
+                                enabled: !root.mc-running;
+                                clicked => { root.undo-dup(i); }
+                            }
                         }
                     }
                 }
@@ -3338,3 +3349,55 @@ export component SettingsWindow inherits CheckWindow {
 
 // Avid-Projekte: Überordner wählen, Projekte einschalten, Bins lesen, fehlende Medien auflisten und für Ferry anfordern.
 // step: 0 Auswahl, 1 läuft, 2 Ergebnis
+
+// Fehlende Medien bzw. AMA-Clips pro Bin (Projekte › Medien anzeigen…): eigenes, größeres Fenster, das Hauptfenster bleibt gleich groß
+export component MediaWindow inherits CheckWindow {
+    title: root.kind == 0 ? @tr("Missing media") : @tr("AMA clips");
+    width: 900px;
+    height: 680px;
+    in property <int> kind;
+    in property <int> count;
+    in property <[MissingRow]> rows;
+    callback toggle-group(int);
+    callback save-list();
+    callback close();
+    VerticalLayout {
+        padding: 24px;
+        spacing: 14px;
+        HorizontalLayout {
+            spacing: 8px;
+            Text {
+                text: root.kind == 0 ? @tr("{n} media file missing" | "{n} media files missing" % root.count) : @tr("{n} AMA-linked file" | "{n} AMA-linked files" % root.count);
+                horizontal-stretch: 1;
+                vertical-alignment: center;
+                overflow: elide;
+                font-size: 14px;
+                font-weight: 600;
+                color: Theme.text;
+            }
+            CheckButton {
+                text: @tr("Save list…");
+                clicked => { root.save-list(); }
+            }
+            CheckButton {
+                text: @tr("Done");
+                primary: true;
+                clicked => { root.close(); }
+            }
+        }
+        Text {
+            text: root.kind == 0 ? @tr("Click a file to see where it is used: master clips, subclips and sequences.") : @tr("Where the AMA-linked clips are used. Click a clip to see its master clips, subclips and sequences. AMA files are not requested.");
+            font-size: 12px;
+            color: Theme.muted;
+        }
+        list-area := Rectangle {
+            vertical-stretch: 1;
+            MissingList {
+                y: 0;
+                rows: root.rows;
+                limit: list-area.height;
+                toggle(i) => { root.toggle-group(i); }
+            }
+        }
+    }
+}
