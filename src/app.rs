@@ -575,6 +575,8 @@ fn wire_exchange(app: &AppWindow, drives: &Drives) {
                 log::write(&format!("  collect: {:?}", result.as_ref().map(|e| e.len())));
                 let _ = slint::invoke_from_event_loop(move || {
                     let Some(app) = weak.upgrade() else { return };
+                    add_tasks(&tasks, &app.get_txt_task_for().replace("{}", &to), &fscan::computer_name());
+                    app.global::<Tasks>().invoke_reload();
                     match result {
                         Ok(errors) => show_exchange_result(&app, if errors.is_empty() { 0 } else { 1 }, Some(&dest), &errors, &tasks),
                         Err(e) => show_exchange_result(&app, 1, Some(&dest), &[e.to_string()], &tasks),
@@ -623,7 +625,7 @@ fn wire_exchange(app: &AppWindow, drives: &Drives) {
             let mut m = Mappings::load(&ferry_dir());
             i.remember(&mut m);
             m.save(&ferry_dir());
-            let (dest, map) = (i.dir.clone(), i.map());
+            let (dest, map, from, me) = (i.dir.clone(), i.map(), i.delivery.from.clone(), i.delivery.to.clone());
             log::write(&format!("import {}", dest.display()));
             start_work(&app, 1);
             let (weak, mut progress) = (weak.clone(), progress_to(&weak));
@@ -644,6 +646,10 @@ fn wire_exchange(app: &AppWindow, drives: &Drives) {
                 log::write(&format!("  import: {:?}", result.as_ref().map(|r| (r.problems.len(), r.tasks.len()))));
                 let _ = slint::invoke_from_event_loop(move || {
                     let Some(app) = weak.upgrade() else { return };
+                    if let Ok(r) = &result {
+                        add_tasks(&r.tasks, &app.get_txt_task_from().replace("{}", &from), &me);
+                        app.global::<Tasks>().invoke_reload();
+                    }
                     match result {
                         Ok(r) => show_exchange_result(&app, if r.problems.is_empty() { 2 } else { 3 }, None, &r.problems, &r.tasks),
                         Err(e) => show_exchange_result(&app, 3, None, &[e.to_string()], &[]),
@@ -680,6 +686,147 @@ fn wire_exchange(app: &AppWindow, drives: &Drives) {
             show_volumes(&app, &drives.borrow());
         }
     });
+}
+
+// ── Tasks ──
+/// A task saved from a delivery (collected here or imported here); tasks.json in the app folder.
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+struct TaskEntry {
+    text: String,
+    source: String,
+    /// for this system (its name in brackets at the start of the text)
+    mine: bool,
+    /// "Rebuild database" for a folder of this system: the folder, to check it
+    #[serde(default)]
+    folder: Option<PathBuf>,
+    done: bool,
+}
+
+fn tasks_path() -> Option<PathBuf> {
+    app_dir().map(|d| d.join("tasks.json"))
+}
+
+fn load_tasks() -> Vec<TaskEntry> {
+    tasks_path().and_then(|p| fs::read(p).ok()).and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
+}
+
+fn save_tasks(t: &[TaskEntry]) {
+    if let Some(p) = tasks_path() {
+        let _ = fs::create_dir_all(p.parent().unwrap());
+        if let Err(e) = fy::write_atomic(&p, &serde_json::to_vec_pretty(t).unwrap_or_default()) {
+            log::write(&format!("tasks.json not saved: {e}"));
+        }
+    }
+}
+
+/// Tasks of a delivery ("[system] text"), each once: the same open text is not added again. `me` = this system's
+/// name as the delivery knows it (an imported delivery names its recipient).
+fn add_tasks(texts: &[String], source: &str, me: &str) {
+    let me = format!("[{me}]");
+    let mut all = load_tasks();
+    for t in texts {
+        if all.iter().any(|x| !x.done && x.text == *t) {
+            continue;
+        }
+        let mine = t.starts_with(&me);
+        // "… : <drive>/<folder>" – a folder of this system that exists here
+        let folder = t.rsplit_once(": ").and_then(|(_, p)| p.split_once('/')).map(|(v, f)| fy::mxf_dir(&Path::new("/Volumes").join(v)).join(f)).filter(|p| mine && p.is_dir());
+        all.push(TaskEntry { text: t.clone(), source: source.to_string(), mine, folder, done: false });
+    }
+    save_tasks(&all);
+}
+
+enum TaskAct {
+    Check(PathBuf),
+    Rebalance(i32),
+    Dups(i32),
+    Renamed,
+    Nothing,
+}
+
+/// Open list = saved tasks not done, then what Maintain is waiting for (databases to rewrite, folders to rename back).
+fn show_tasks(app: &AppWindow, acts: &RefCell<Vec<TaskAct>>) {
+    let all = load_tasks();
+    let mut rows = vec![];
+    let mut a = vec![];
+    for t in all.iter().filter(|t| !t.done) {
+        rows.push(TaskRow { text: t.text.clone().into(), source: t.source.clone().into(), action: if t.folder.is_some() { app.get_txt_task_check() } else { "".into() }, stored: true, mine: t.mine });
+        a.push(t.folder.clone().map_or(TaskAct::Nothing, TaskAct::Check));
+    }
+    let live = |rows: &mut Vec<TaskRow>, text: SharedString, source: SharedString, action: SharedString| rows.push(TaskRow { text, source, action, stored: false, mine: true });
+    for (i, r) in app.get_rebalanced().iter().enumerate().filter(|(_, r)| !r.db_done) {
+        live(&mut rows, app.get_txt_task_rewrite(), format!("{} · {}", app.get_txt_task_rebalancing(), r.text).into(), app.get_txt_task_start());
+        a.push(TaskAct::Rebalance(i as i32));
+    }
+    for (i, r) in app.get_dup_runs().iter().enumerate().filter(|(_, r)| !r.db_done) {
+        live(&mut rows, app.get_txt_task_rewrite(), format!("{} · {}", app.get_txt_task_duplicates(), r.text).into(), app.get_txt_task_start());
+        a.push(TaskAct::Dups(i as i32));
+    }
+    let renamed = app.get_renamed().row_count();
+    if renamed > 0 {
+        live(&mut rows, app.get_txt_task_rename_back().replace("{}", &renamed.to_string()).into(), app.get_txt_task_maintain(), app.get_txt_task_open());
+        a.push(TaskAct::Renamed);
+    }
+    let done: Vec<TaskRow> = all.iter().filter(|t| t.done).map(|t| TaskRow { text: t.text.clone().into(), source: t.source.clone().into(), action: "".into(), stored: true, mine: t.mine }).collect();
+    let g = app.global::<Tasks>();
+    g.set_open(ModelRc::new(VecModel::from(rows)));
+    g.set_done(ModelRc::new(VecModel::from(done)));
+    *acts.borrow_mut() = a;
+}
+
+/// Wires the "Tasks" tab. Index i of `finish` counts the saved open tasks, which come first in the list.
+fn wire_tasks(app: &AppWindow, last: &Last) -> Rc<RefCell<Vec<TaskAct>>> {
+    let acts: Rc<RefCell<Vec<TaskAct>>> = Rc::default();
+    let g = app.global::<Tasks>();
+    let set_done = |i: i32, done: bool| {
+        let mut all = load_tasks();
+        if let Some(t) = all.iter_mut().filter(|t| t.done != done).nth(i as usize) {
+            t.done = done;
+        }
+        save_tasks(&all);
+    };
+    g.on_finish({
+        let (weak, acts) = (app.as_weak(), acts.clone());
+        move |i| {
+            set_done(i, true);
+            show_tasks(&weak.unwrap(), &acts);
+        }
+    });
+    g.on_reopen({
+        let (weak, acts) = (app.as_weak(), acts.clone());
+        move |i| {
+            set_done(i, false);
+            show_tasks(&weak.unwrap(), &acts);
+        }
+    });
+    g.on_clear_done({
+        let (weak, acts) = (app.as_weak(), acts.clone());
+        move || {
+            let mut all = load_tasks();
+            all.retain(|t| !t.done);
+            save_tasks(&all);
+            show_tasks(&weak.unwrap(), &acts);
+        }
+    });
+    g.on_reload({
+        let (weak, acts) = (app.as_weak(), acts.clone());
+        move || show_tasks(&weak.unwrap(), &acts)
+    });
+    g.on_action({
+        let (weak, acts, last) = (app.as_weak(), acts.clone(), last.clone());
+        move |i| {
+            let app = weak.unwrap();
+            match acts.borrow().get(i as usize) {
+                Some(TaskAct::Check(folder)) => start_check(&app, vec![folder.clone()], last.clone()),
+                Some(TaskAct::Rebalance(r)) => app.invoke_rebalance_db(*r),
+                Some(TaskAct::Dups(r)) => app.invoke_dup_db(*r),
+                Some(TaskAct::Renamed) => app.set_page(Page::Maintain),
+                _ => {}
+            }
+        }
+    });
+    show_tasks(app, &acts);
+    acts
 }
 
 /// A picture of the manual (`![…](images/<lang>/x.png)`, path relative to docs/help): in the app bundle under
@@ -2776,6 +2923,7 @@ fn main() -> Result<(), slint::PlatformError> {
     });
 
     wire_exchange(&app, &drives);
+    let task_acts = wire_tasks(&app, &last);
     let projects_state: Rc<RefCell<ProjectsState>> = Rc::default();
     wire_projects(&app, &projects_state);
 
@@ -2817,7 +2965,7 @@ fn main() -> Result<(), slint::PlatformError> {
     // shortcut: polls /Volumes every 2 s on the start page; a hanging network share could stall it – use DiskArbitration if that happens
     let timer = slint::Timer::default();
     timer.start(slint::TimerMode::Repeated, Duration::from_secs(2), {
-        let (weak, drives, renames) = (app.as_weak(), drives.clone(), renames.clone());
+        let (weak, drives, renames, task_acts) = (app.as_weak(), drives.clone(), renames.clone(), task_acts.clone());
         move || {
             let Some(app) = weak.upgrade() else { return };
             #[cfg(target_os = "macos")]
@@ -2828,6 +2976,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     show_renamed(&app, &mut renames.borrow_mut());
                     show_rebalanced(&app, &app.get_language());
                     show_dup_runs(&app, &app.get_language());
+                    show_tasks(&app, &task_acts);
                 }
                 _ => {}
             }

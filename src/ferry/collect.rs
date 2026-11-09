@@ -75,8 +75,8 @@ pub fn collect(local: &Manifest, to_system: &str, plan: &Plan, dest: &Path, lang
     let de = lang == "de";
     let mut text = if de {
         format!(
-            "MediaFiles Ferry – Lieferung von {} für {to_system}\n\n\
-             EINSPIELEN MIT FERRY: \"Prüfen & einspielen\" wählen (Media Composer vorher schließen).\n\n\
+            "MediaFiles Check – Lieferung von {} für {to_system}\n\n\
+             IMPORTIEREN MIT MEDIAFILES CHECK: Austausch › Importieren (Media Composer vorher schließen).\n\n\
              VON HAND EINSPIELEN:\n\
              1. Media Composer schließen.\n\
              2. Jeder Ordner dieser Lieferung heißt <Volume>/<Ordner>. Auf dem Volume den Ordner\n   \
@@ -89,8 +89,8 @@ pub fn collect(local: &Manifest, to_system: &str, plan: &Plan, dest: &Path, lang
         )
     } else {
         format!(
-            "MediaFiles Ferry – delivery from {} for {to_system}\n\n\
-             IMPORT WITH FERRY: choose \"Verify & import\" (quit Media Composer first).\n\n\
+            "MediaFiles Check – delivery from {} for {to_system}\n\n\
+             IMPORT WITH MEDIAFILES CHECK: Exchange › Import (quit Media Composer first).\n\n\
              IMPORT BY HAND:\n\
              1. Quit Media Composer.\n\
              2. Every folder of this delivery is named <volume>/<folder>. On that volume open\n   \

@@ -8,6 +8,65 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+msgid "Check…"
+msgstr "Comprobar…"
+
+msgid "If you are asked to replace .mxf files: don't – cancel and check."
+msgstr "Si se te pregunta si reemplazar archivos .mxf: no lo hagas; cancela y comprueba."
+
+msgid "Clear list"
+msgstr "Vaciar la lista"
+
+msgid "Maintain › Duplicates"
+msgstr "Mantenimiento › Duplicados"
+
+msgid "Maintain › Rebalancing"
+msgstr "Mantenimiento › Reequilibrado"
+
+msgid "Maintain › Rename"
+msgstr "Mantenimiento › Renombrar"
+
+msgid "Copy only the contents of the delivery folder into it – never drag the whole folder onto an existing folder: the Finder would replace it with all its media files."
+msgstr "Copia solo el contenido de la carpeta de entrega; nunca arrastres la carpeta entera sobre una existente: el Finder la reemplazaría con todos sus archivos de medios."
+
+msgid "Delivery for {}"
+msgstr "Entrega para {}"
+
+msgid "Nothing completed yet."
+msgstr "Aún no hay nada hecho."
+
+msgid "Import a delivery by hand"
+msgstr "Importar una entrega a mano"
+
+msgid "instructions"
+msgstr "instrucciones"
+
+msgid "Replace msmFMID.pmr and msmMMOB.mdb only in the folders listed in the delivery's Tasks.txt."
+msgstr "Reemplaza msmFMID.pmr y msmMMOB.mdb solo en las carpetas que indica el Tasks.txt de la entrega."
+
+msgid "Rename {} folders back after Media Composer has written their databases"
+msgstr "Devolver el nombre a {} carpetas cuando Media Composer haya escrito sus bases de datos"
+
+msgid "Quit Media Composer."
+msgstr "Cierra Media Composer."
+
+msgid "Reopen"
+msgstr "Reabrir"
+
+msgid "Easier and safe: Exchange › Import verifies everything and imports only a complete delivery."
+msgstr "Más fácil y seguro: Intercambio › Importar lo verifica todo e importa solo una entrega completa."
+
+msgid "Every folder of the delivery is named <drive>/<folder>. On that drive open “Avid MediaFiles/MXF/<folder>” (create it if it is missing)."
+msgstr "Cada carpeta de la entrega se llama <unidad>/<carpeta>. En esa unidad abre «Avid MediaFiles/MXF/<carpeta>» (créala si falta)."
+
+msgid "Tasks come from deliveries (Exchange) and from Maintain. A yellow dot is for this system; the others go with a delivery to the other system."
+msgstr "Las tareas vienen de las entregas (Intercambio) y de Mantenimiento. Un punto amarillo es para este puesto; las demás van con una entrega al otro puesto."
+
+msgid "{n} open task"
+msgid_plural "{n} open tasks"
+msgstr[0] "{n} tarea pendiente"
+msgstr[1] "{n} tareas pendientes"
+
 msgid "Scanning{} {}"
 msgstr "Analizando{} {}"
 
@@ -346,9 +405,6 @@ msgstr "Importar a mano"
 
 msgid "Completed"
 msgstr "Hechas"
-
-msgid "OPEN TASKS"
-msgstr "TAREAS PENDIENTES"
 
 msgid "Nothing to do by hand right now."
 msgstr "Ahora no hay nada que hacer a mano."

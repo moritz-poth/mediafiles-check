@@ -8,6 +8,65 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+msgid "Check…"
+msgstr "Prüfen…"
+
+msgid "If you are asked to replace .mxf files: don't – cancel and check."
+msgstr "Fragt der Finder, ob .mxf-Dateien ersetzt werden sollen: nicht ersetzen – abbrechen und prüfen."
+
+msgid "Clear list"
+msgstr "Liste leeren"
+
+msgid "Maintain › Duplicates"
+msgstr "Pflegen › Duplikate"
+
+msgid "Maintain › Rebalancing"
+msgstr "Pflegen › Rebalancing"
+
+msgid "Maintain › Rename"
+msgstr "Pflegen › Umbenennen"
+
+msgid "Copy only the contents of the delivery folder into it – never drag the whole folder onto an existing folder: the Finder would replace it with all its media files."
+msgstr "Nur den Inhalt des Lieferordners hineinkopieren – nie den ganzen Ordner auf einen bestehenden ziehen: Der Finder würde ihn samt allen Mediendateien ersetzen."
+
+msgid "Delivery for {}"
+msgstr "Lieferung für {}"
+
+msgid "Nothing completed yet."
+msgstr "Noch nichts erledigt."
+
+msgid "Import a delivery by hand"
+msgstr "Lieferung von Hand importieren"
+
+msgid "instructions"
+msgstr "Anleitung"
+
+msgid "Replace msmFMID.pmr and msmMMOB.mdb only in the folders listed in the delivery's Tasks.txt."
+msgstr "msmFMID.pmr und msmMMOB.mdb nur in den Ordnern ersetzen, die in der Aufgaben.txt der Lieferung stehen."
+
+msgid "Rename {} folders back after Media Composer has written their databases"
+msgstr "{} Ordner zurückbenennen, sobald Media Composer ihre Datenbanken geschrieben hat"
+
+msgid "Quit Media Composer."
+msgstr "Media Composer beenden."
+
+msgid "Reopen"
+msgstr "Wieder öffnen"
+
+msgid "Easier and safe: Exchange › Import verifies everything and imports only a complete delivery."
+msgstr "Einfacher und sicher: Austausch › Importieren prüft alles und importiert nur eine vollständige Lieferung."
+
+msgid "Every folder of the delivery is named <drive>/<folder>. On that drive open “Avid MediaFiles/MXF/<folder>” (create it if it is missing)."
+msgstr "Jeder Ordner der Lieferung heißt <Laufwerk>/<Ordner>. Auf diesem Laufwerk „Avid MediaFiles/MXF/<Ordner>“ öffnen (fehlt er, neu anlegen)."
+
+msgid "Tasks come from deliveries (Exchange) and from Maintain. A yellow dot is for this system; the others go with a delivery to the other system."
+msgstr "Aufgaben kommen aus Lieferungen (Austausch) und aus Pflegen. Ein gelber Punkt gilt für diesen Schnittplatz; die anderen gehen mit einer Lieferung an den anderen."
+
+msgid "{n} open task"
+msgid_plural "{n} open tasks"
+msgstr[0] "{n} offene Aufgabe"
+msgstr[1] "{n} offene Aufgaben"
+
 msgid "Scanning{} {}"
 msgstr "Scanne{} {}"
 
@@ -346,9 +405,6 @@ msgstr "Von Hand importieren"
 
 msgid "Completed"
 msgstr "Erledigt"
-
-msgid "OPEN TASKS"
-msgstr "OFFENE AUFGABEN"
 
 msgid "Nothing to do by hand right now."
 msgstr "Gerade gibt es nichts von Hand zu tun."

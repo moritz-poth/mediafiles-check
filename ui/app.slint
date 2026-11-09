@@ -1277,6 +1277,135 @@ component ExchangePane inherits VerticalLayout {
     }
 }
 
+// Aufgaben: alles, was Handarbeit braucht (aus Lieferungen gespeichert, Datenbank-Runden und Umbenennungen live)
+export struct TaskRow {
+    text: string,
+    source: string,
+    // Knopf für den nächsten Schritt ("" = keiner)
+    action: string,
+    // gespeicherte Aufgabe (abhakbar) oder live aus dem Zustand der App
+    stored: bool,
+    // für diesen Schnittplatz (sonst geht sie mit einer Lieferung an den anderen)
+    mine: bool,
+}
+
+export global Tasks {
+    // 0 Offen, 1 Von Hand importieren, 2 Erledigt
+    in-out property <int> view;
+    in property <[TaskRow]> open;
+    in property <[TaskRow]> done;
+    callback action(int);
+    callback finish(int);
+    callback reopen(int);
+    callback clear-done();
+    // Rust intern: Liste neu aufbauen
+    callback reload();
+}
+
+component TaskList inherits ScrollBox {
+    in property <[TaskRow]> rows;
+    in property <bool> finished;
+    limit: 380px;
+    spacing: 0px;
+    for t[i] in root.rows: VerticalLayout {
+        padding-top: 7px;
+        padding-bottom: 7px;
+        spacing: 4px;
+        HorizontalLayout {
+            spacing: 8px;
+            Dot { color: root.finished ? Theme.online : t.mine ? Theme.warning : Theme.line; }
+            Text {
+                text: t.text;
+                width: Metrics.content-width - 44px;
+                wrap: word-wrap;
+                font-size: 12px;
+                color: root.finished ? Theme.muted : Theme.text;
+            }
+        }
+        HorizontalLayout {
+            padding-left: 16px;
+            spacing: 8px;
+            Text {
+                text: t.source;
+                horizontal-stretch: 1;
+                vertical-alignment: center;
+                font-size: 11px;
+                overflow: elide;
+                color: Theme.faint;
+            }
+            if t.action != "" && !root.finished: CheckButton {
+                text: t.action;
+                small: true;
+                clicked => { Tasks.action(i); }
+            }
+            if t.stored && !root.finished: CheckButton {
+                text: @tr("Done");
+                small: true;
+                clicked => { Tasks.finish(i); }
+            }
+            if root.finished: CheckButton {
+                text: @tr("Reopen");
+                small: true;
+                clicked => { Tasks.reopen(i); }
+            }
+        }
+        Rectangle { height: 1px; background: Theme.line; }
+    }
+}
+
+component TasksPane inherits VerticalLayout {
+    spacing: 14px;
+    if Tasks.view == 0: VerticalLayout {
+        spacing: 14px;
+        PageHead {
+            title: Tasks.open.length == 0 ? @tr("Nothing to do by hand right now.") : @tr("{n} open task" | "{n} open tasks" % Tasks.open.length);
+        }
+        if Tasks.open.length > 0: TaskList { rows: Tasks.open; }
+        Para {
+            text: @tr("Tasks come from deliveries (Exchange) and from Maintain. A yellow dot is for this system; the others go with a delivery to the other system.");
+            color: Theme.faint;
+        }
+    }
+    if Tasks.view == 1: VerticalLayout {
+        spacing: 10px;
+        PageHead { title: @tr("Import a delivery by hand"); }
+        for t[i] in [
+            @tr("Quit Media Composer."),
+            @tr("Every folder of the delivery is named <drive>/<folder>. On that drive open “Avid MediaFiles/MXF/<folder>” (create it if it is missing)."),
+            @tr("Copy only the contents of the delivery folder into it – never drag the whole folder onto an existing folder: the Finder would replace it with all its media files."),
+            @tr("If you are asked to replace .mxf files: don't – cancel and check."),
+            @tr("Replace msmFMID.pmr and msmMMOB.mdb only in the folders listed in the delivery's Tasks.txt."),
+        ]: HorizontalLayout {
+            spacing: 10px;
+            Text { text: i + 1; font-size: 12px; color: Theme.faint; }
+            Text {
+                text: t;
+                width: Metrics.content-width - 40px;
+                wrap: word-wrap;
+                font-size: 12px;
+                font-weight: i == 2 ? 700 : 400;
+                color: i == 2 ? Theme.warning : Theme.text;
+            }
+        }
+        Para {
+            text: @tr("Easier and safe: Exchange › Import verifies everything and imports only a complete delivery.");
+            color: Theme.faint;
+        }
+    }
+    if Tasks.view == 2: VerticalLayout {
+        spacing: 14px;
+        PageHead {
+            title: @tr("Completed");
+            if Tasks.done.length > 0: CheckButton {
+                text: @tr("Clear list");
+                clicked => { Tasks.clear-done(); }
+            }
+        }
+        if Tasks.done.length == 0: Para { text: @tr("Nothing completed yet."); }
+        if Tasks.done.length > 0: TaskList { rows: Tasks.done; finished: true; }
+    }
+}
+
 // Seiten des Hauptfensters; jede gehört zu einem Reiter (tab-of) und einem Schritt der Seitenleiste (step-of)
 export enum Page { home, working, result, rename, question, notice, rebalance, rebalanced, runs, askname, dups, dupsdone,
     maintain, rebalstart, dupsstart, exchange, projects, tasks }
@@ -1447,9 +1576,9 @@ export component AppWindow inherits CheckWindow {
             { name: @tr("Duplicates"), status: root.dup-pending > 0 ? @tr("databases pending") : "", enabled: true },
             { name: @tr("History"), status: root.rebalanced.length + root.dup-runs.length == 0 ? "" : @tr("{n} run" | "{n} runs" % (root.rebalanced.length + root.dup-runs.length)), enabled: true },
         ] : [
-            { name: @tr("Open"), status: "", enabled: true },
-            { name: @tr("Import by hand"), status: "", enabled: false },
-            { name: @tr("Completed"), status: "", enabled: false },
+            { name: @tr("Open"), status: Tasks.open.length == 0 ? "" : Tasks.open.length, enabled: true },
+            { name: @tr("Import by hand"), status: @tr("instructions"), enabled: true },
+            { name: @tr("Completed"), status: Tasks.done.length == 0 ? "" : Tasks.done.length, enabled: true },
         ];
     in property <[DriveRow]> drives;
     in property <int> selected-count;
@@ -1494,6 +1623,16 @@ export component AppWindow inherits CheckWindow {
     out property <string> txt-choose-target: @tr("Choose where to create the delivery folder");
     out property <string> txt-choose-delivery: @tr("Choose the delivery folder");
     out property <string> txt-quit-mc: @tr("Quit Media Composer first.");
+    out property <string> txt-task-check: @tr("Check…");
+    out property <string> txt-task-rewrite: @tr("Rewrite databases");
+    out property <string> txt-task-rebalancing: @tr("Maintain › Rebalancing");
+    out property <string> txt-task-duplicates: @tr("Maintain › Duplicates");
+    out property <string> txt-task-start: @tr("Start");
+    out property <string> txt-task-rename-back: @tr("Rename {} folders back after Media Composer has written their databases", "{}");
+    out property <string> txt-task-maintain: @tr("Maintain › Rename");
+    out property <string> txt-task-open: @tr("Open");
+    out property <string> txt-task-for: @tr("Delivery for {}", "{}");
+    out property <string> txt-task-from: @tr("Delivery from {}", "{}");
     out property <string> txt-reading-drives: @tr("Reading the media databases of the drives…");
     out property <string> txt-one-file: @tr("1 file");
     out property <string> txt-relink: @tr("on the drives – relink");
@@ -1586,6 +1725,7 @@ export component AppWindow inherits CheckWindow {
                     icon: @image-url("../assets/tabs/tasks.png");
                     text: @tr("Tasks");
                     selected: root.tab == 4;
+                    attention: Tasks.open.length > 0;
                     clicked => { root.select-tab(4); }
                 }
             }
@@ -1641,8 +1781,9 @@ export component AppWindow inherits CheckWindow {
                 alignment: start;
                 for st[i] in root.steps: SideItem {
                     step: st;
-                    selected: i == (root.tab == 2 ? Projects.view : root.tab == 0 ? Exchange.view : root.step);
+                    selected: i == (root.tab == 2 ? Projects.view : root.tab == 0 ? Exchange.view : root.tab == 4 ? Tasks.view : root.step);
                     clicked => {
+                        if root.tab == 4 { Tasks.view = i; }
                         if root.tab == 2 { Projects.view = i; }
                         if root.tab == 0 { Exchange.view = i; }
                         root.page = root.start-of(root.tab, i);
@@ -1848,13 +1989,7 @@ export component AppWindow inherits CheckWindow {
 
         if root.page == Page.exchange: ExchangePane { }
 
-        if root.page == Page.tasks: VerticalLayout {
-            spacing: Metrics.spacing;
-            Section {
-                title: @tr("OPEN TASKS");
-                Para { text: @tr("Nothing to do by hand right now."); }
-            }
-        }
+        if root.page == Page.tasks: TasksPane { }
 
         // ── Fortschritt ────────────────────────────────────────
         if root.page == Page.working: Section {
