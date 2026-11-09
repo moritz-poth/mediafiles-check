@@ -8,6 +8,219 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+msgid "Scanning{} {}"
+msgstr "Analizando{} {}"
+
+msgid "Not scanned yet"
+msgstr "Aún no analizado"
+
+msgid "Last scan: just now"
+msgstr "Último análisis: ahora mismo"
+
+msgid "Last scan: {n} minute ago"
+msgid_plural "Last scan: {n} minutes ago"
+msgstr[0] "Último análisis: hace {n} minuto"
+msgstr[1] "Último análisis: hace {n} minutos"
+
+msgid "Last scan: {n} hour ago"
+msgid_plural "Last scan: {n} hours ago"
+msgstr[0] "Último análisis: hace {n} hora"
+msgstr[1] "Último análisis: hace {n} horas"
+
+msgid "Last scan: {n} day ago"
+msgid_plural "Last scan: {n} days ago"
+msgstr[0] "Último análisis: hace {n} día"
+msgstr[1] "Último análisis: hace {n} días"
+
+msgid "{n} warning"
+msgid_plural "{n} warnings"
+msgstr[0] "{n} aviso"
+msgstr[1] "{n} avisos"
+
+msgid "Save manifest…"
+msgstr "Guardar manifiesto…"
+
+msgid "Open manifest…"
+msgstr "Abrir manifiesto…"
+
+msgid "Other manifest…"
+msgstr "Otro manifiesto…"
+
+msgid "not scanned yet"
+msgstr "aún no analizado"
+
+msgid "not connected"
+msgstr "no conectada"
+
+msgid "Manifest from {}"
+msgstr "Manifiesto del {}"
+
+msgid "Request from {}"
+msgstr "Solicitud de {}"
+
+msgid "ASSIGN DRIVES"
+msgstr "ASIGNAR UNIDADES"
+
+msgid "These drives have no drive with the same name on the other system."
+msgstr "Estas unidades no tienen ninguna con el mismo nombre en el otro sistema."
+
+msgid "FOLDERS ON BOTH SIDES"
+msgstr "CARPETAS EN AMBOS LADOS"
+
+msgid "These folders exist on both systems with files of their own."
+msgstr "Estas carpetas existen en los dos sistemas, cada una con sus propios archivos."
+
+msgid "Merge"
+msgstr "Unir"
+
+msgid "Merge: same folder, the database must be rebuilt. Rename: new folder with a unique name."
+msgstr "Unir: la misma carpeta, hay que reconstruir la base de datos. Renombrar: carpeta nueva con un nombre único."
+
+msgid "FOR {}"
+msgstr "PARA {}"
+
+msgid "Nothing to collect – the other system has everything."
+msgstr "Nada que reunir: el otro sistema lo tiene todo."
+
+msgid "{n} file to collect ({})"
+msgid_plural "{n} files to collect ({})"
+msgstr[0] "{n} archivo para reunir ({})"
+msgstr[1] "{n} archivos para reunir ({})"
+
+msgid "TASKS"
+msgstr "TAREAS"
+
+msgid "Collect…"
+msgstr "Reunir…"
+
+msgid "PROBLEMS"
+msgstr "PROBLEMAS"
+
+msgid "Show in Finder"
+msgstr "Mostrar en el Finder"
+
+msgid "{n} file ({})"
+msgid_plural "{n} files ({})"
+msgstr[0] "{n} archivo ({})"
+msgstr[1] "{n} archivos ({})"
+
+msgid "Verify & import"
+msgstr "Verificar e importar"
+
+msgid "Collecting for {}"
+msgstr "Reuniendo para {}"
+
+msgid "Verifying the delivery"
+msgstr "Verificando la entrega"
+
+msgid "Importing the delivery"
+msgstr "Importando la entrega"
+
+msgid "Delivery ready"
+msgstr "Entrega lista"
+
+msgid "Delivery ready – some files could not be copied"
+msgstr "Entrega lista: algunos archivos no se pudieron copiar"
+
+msgid "Delivery imported"
+msgstr "Entrega importada"
+
+msgid "Delivery imported with problems"
+msgstr "Entrega importada con problemas"
+
+msgid "Delivery is incomplete or damaged – nothing was imported"
+msgstr "La entrega está incompleta o dañada: no se importó nada"
+
+msgid "Give this folder to {} (e.g. on a drive); there it is imported with Exchange › Import. Instructions for importing by hand are inside."
+msgstr "Pasa esta carpeta a {} (por ejemplo, en un disco); allí se importa con Intercambio › Importar. Dentro están las instrucciones para importar a mano."
+
+msgid "Ask {} for a new delivery or copy the folder again."
+msgstr "Pide a {} una entrega nueva o vuelve a copiar la carpeta."
+
+msgid "Scan again so that the manifest is up to date."
+msgstr "Vuelve a analizar para que el manifiesto esté al día."
+
+msgid "Choose…"
+msgstr "Elegir…"
+
+msgid "Don't send"
+msgstr "No enviar"
+
+msgid "this manifest is from this system"
+msgstr "este manifiesto es de este sistema"
+
+msgid "Choose where to create the delivery folder"
+msgstr "Elige dónde crear la carpeta de entrega"
+
+msgid "Choose the delivery folder"
+msgstr "Elige la carpeta de entrega"
+
+msgid "Scan this system"
+msgstr "Analizar este puesto"
+
+msgid "Checksums are remembered – only new or changed files are read. The manifest lists what this system has; the other system opens it under Exchange › Compare."
+msgstr "Las sumas de comprobación se recuerdan: solo se leen los archivos nuevos o modificados. El manifiesto indica lo que tiene este puesto; el otro lo abre en Intercambio › Comparar."
+
+msgid "The switches apply to Check › Drives too."
+msgstr "Los interruptores también valen para Comprobar › Unidades."
+
+msgid "Compare with another system"
+msgstr "Comparar con otro puesto"
+
+msgid "Compare with {}"
+msgstr "Comparar con {}"
+
+msgid "Open the manifest of the other system, or a request saved under Projects › Request."
+msgstr "Abre el manifiesto del otro puesto o una solicitud guardada en Proyectos › Solicitar."
+
+msgid "Scan this system first (Exchange › Scan)."
+msgstr "Analiza primero este puesto (Intercambio › Analizar)."
+
+msgid "Every file is compared with its checksum after copying. Interrupted? Collect again continues where it stopped."
+msgstr "Cada archivo se compara con su suma de comprobación tras copiarlo. ¿Interrumpido? Reunir de nuevo continúa donde se quedó."
+
+msgid "Adds files only and never overwrites a media file. Replaced databases go to Ferry-Backup."
+msgstr "Solo añade y nunca sobrescribe un archivo de medios. Las bases de datos reemplazadas van a Ferry-Backup."
+
+msgid "Collect a delivery"
+msgstr "Reunir una entrega"
+
+msgid "Collect… is under Exchange › Compare."
+msgstr "Reunir… está en Intercambio › Comparar."
+
+msgid "Compare with the other system first: Exchange › Compare. Collecting copies the files it is missing, with checksums, into a delivery folder."
+msgstr "Compara primero con el otro puesto: Intercambio › Comparar. Reunir copia los archivos que le faltan, con sumas de comprobación, en una carpeta de entrega."
+
+msgid "Import a delivery"
+msgstr "Importar una entrega"
+
+msgid "Delivery from {}"
+msgstr "Entrega de {}"
+
+msgid "Choose delivery…"
+msgstr "Elegir entrega…"
+
+msgid "Choose the delivery folder another system collected for this one. Everything is verified first; only a complete delivery is imported."
+msgstr "Elige la carpeta de entrega que otro puesto reunió para este. Primero se verifica todo; solo se importa una entrega completa."
+
+msgid "Quit Media Composer before importing. Every file is verified first, and only a complete delivery is imported. A media file is never overwritten."
+msgstr "Cierra Media Composer antes de importar. Primero se verifica cada archivo y solo se importa una entrega completa. Nunca se sobrescribe un archivo de medios."
+
+msgid "scanning…"
+msgstr "analizando…"
+
+msgid "scanned"
+msgstr "analizado"
+
+msgid "collecting…"
+msgstr "reuniendo…"
+
+msgid "delivery ready"
+msgstr "entrega lista"
+
+msgid "importing…"
+msgstr "importando…"
+
 msgid "current step"
 msgstr "paso actual"
 
@@ -55,9 +268,6 @@ msgstr[1] "{n} archivos"
 
 msgid "Exchange"
 msgstr "Intercambio"
-
-msgid "EXCHANGE"
-msgstr "INTERCAMBIO"
 
 msgid "Check"
 msgstr "Comprobar"
@@ -142,9 +352,6 @@ msgstr "TAREAS PENDIENTES"
 
 msgid "Nothing to do by hand right now."
 msgstr "Ahora no hay nada que hacer a mano."
-
-msgid "This part is being moved here from MediaFiles Ferry."
-msgstr "Esta parte se está trasladando aquí desde MediaFiles Ferry."
 
 msgid "No runs yet."
 msgstr "Aún no hay operaciones."

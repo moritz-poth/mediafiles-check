@@ -7,8 +7,10 @@ description = "Checks whether every Avid MXF folder matches its Avid database"
 
 [dependencies]
 base64 = "0.22"
+blake3 = "1.8.7"
 chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 ed25519-dalek = "2"
+gethostname = "1.1.0"
 libc = "0.2.191"
 rfd = "0.17.2"
 serde = { version = "1.0.229", features = ["derive"] }

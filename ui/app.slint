@@ -857,6 +857,426 @@ component ProjectsPane inherits VerticalLayout {
     }
 }
 
+// Austausch (früher MediaFiles Ferry): Rust füllt diesen Zustand, die Seite zeigt ihn je Schritt (view)
+export struct VolumeRow {
+    name: string,
+    files: string,
+    online: bool,
+    selected: bool,
+}
+// Zuordnung eines Laufwerks: options[0] = „Wählen…“ (noch offen)
+export struct MapRow {
+    name: string,
+    options: [string],
+    selected: int,
+}
+// Ordner auf beiden Seiten: -1 offen, 0 zusammenführen, 1 umbenennen
+export struct ChoiceRow {
+    name: string,
+    choice: int,
+}
+
+export global Exchange {
+    // Schritt in der Seitenleiste: 0 Scannen, 1 Vergleichen, 2 Sammeln, 3 Importieren
+    in-out property <int> view;
+    in property <string> system-name;
+    in property <[VolumeRow]> volumes;
+    in property <int> selected-count;
+    in property <int> minutes-since-scan: -1;
+    in property <bool> scanning;
+    in property <string> progress;
+    in property <int> warnings;
+    in property <string> error;
+    in property <bool> has-manifest;
+    // Vergleichen
+    in property <bool> has-compare;
+    in property <string> remote-name;
+    in property <string> remote-date;
+    in property <bool> is-request;
+    in property <[MapRow]> maps;
+    in property <[ChoiceRow]> collisions;
+    in property <int> copy-files;
+    in property <string> copy-size;
+    in property <[string]> tasks;
+    in property <bool> can-collect;
+    // Fortschritt (busy): 0 sammeln, 1 prüfen, 2 einspielen
+    in property <bool> busy;
+    in property <int> work-kind;
+    in property <string> work-text;
+    in property <float> work-value;
+    // Ergebnis: -1 keins, 0 gesammelt, 1 gesammelt mit Fehlern, 2 eingespielt, 3 eingespielt mit Problemen, 4 Prüfung fehlgeschlagen
+    in property <int> result-kind: -1;
+    in property <string> result-path;
+    in property <[string]> result-problems;
+    in property <[string]> result-tasks;
+    // Lieferung einspielen
+    in property <bool> has-delivery;
+    in property <string> delivery-from;
+    in property <int> delivery-files;
+    in property <string> delivery-size;
+    in property <[MapRow]> delivery-maps;
+    in property <bool> can-import;
+    callback scan();
+    callback toggle-volume(int);
+    callback save-manifest();
+    callback open-manifest();
+    callback map-changed(int, int);
+    callback choice-changed(int, int);
+    callback collect();
+    callback choose-delivery();
+    callback delivery-map-changed(int, int);
+    callback start-import();
+    callback show-result();
+    callback close-result();
+    // Rust intern: Laufwerksliste neu aufbauen (nach dem Scannen)
+    callback rescanned();
+}
+
+component MapList inherits VerticalLayout {
+    in property <[MapRow]> rows;
+    callback changed(int, int);
+    spacing: 8px;
+    for r[i] in root.rows: HorizontalLayout {
+        spacing: 10px;
+        Text {
+            text: r.name;
+            width: 180px;
+            overflow: elide;
+            vertical-alignment: center;
+            color: Theme.text;
+        }
+        Text {
+            text: "→";
+            vertical-alignment: center;
+            color: Theme.muted;
+        }
+        Dropdown {
+            items: r.options;
+            current: r.selected;
+            selected(index) => { root.changed(i, index); }
+        }
+        Rectangle { horizontal-stretch: 1; }
+    }
+}
+
+component LineList inherits ScrollBox {
+    in property <[string]> lines;
+    in property <color> text-color: Theme.text;
+    limit: 200px;
+    spacing: 6px;
+    for l in root.lines: Text {
+        width: Metrics.content-width - 24px;
+        text: l;
+        font-size: 12px;
+        wrap: word-wrap;
+        color: root.text-color;
+    }
+}
+
+component ExchangePane inherits VerticalLayout {
+    spacing: Metrics.spacing;
+    property <int> dot-count;
+    property <string> dots: root.dot-count == 1 ? ".  " : root.dot-count == 2 ? ".. " : root.dot-count == 3 ? "..." : "   ";
+    Timer {
+        interval: 400ms;
+        running: Exchange.scanning || Exchange.busy;
+        triggered => { root.dot-count = Math.mod(root.dot-count + 1, 4); }
+    }
+    property <int> hours: Exchange.minutes-since-scan / 60;
+    property <int> days: root.hours / 24;
+    property <string> scan-status: Exchange.scanning ? @tr("Scanning{} {}", root.dots, Exchange.progress)
+        : Exchange.minutes-since-scan < 0 ? @tr("Not scanned yet")
+        : Exchange.minutes-since-scan < 1 ? @tr("Last scan: just now")
+        : Exchange.minutes-since-scan < 60 ? @tr("Last scan: {n} minute ago" | "Last scan: {n} minutes ago" % Exchange.minutes-since-scan)
+        : root.hours < 24 ? @tr("Last scan: {n} hour ago" | "Last scan: {n} hours ago" % root.hours)
+        : @tr("Last scan: {n} day ago" | "Last scan: {n} days ago" % root.days);
+    property <string> work-title: Exchange.work-kind == 0 ? @tr("Collecting for {}", Exchange.remote-name)
+        : Exchange.work-kind == 1 ? @tr("Verifying the delivery") : @tr("Importing the delivery");
+    property <bool> result-ok: Exchange.result-kind == 0 || Exchange.result-kind == 2;
+    property <string> result-title: Exchange.result-kind == 0 ? @tr("Delivery ready")
+        : Exchange.result-kind == 1 ? @tr("Delivery ready – some files could not be copied")
+        : Exchange.result-kind == 2 ? @tr("Delivery imported")
+        : Exchange.result-kind == 3 ? @tr("Delivery imported with problems") : @tr("Delivery is incomplete or damaged – nothing was imported");
+    property <string> result-hint: Exchange.result-kind <= 1 ? @tr("Give this folder to {} (e.g. on a drive); there it is imported with Exchange › Import. Instructions for importing by hand are inside.", Exchange.remote-name)
+        : Exchange.result-kind == 4 ? @tr("Ask {} for a new delivery or copy the folder again.", Exchange.delivery-from)
+        : @tr("Scan again so that the manifest is up to date.");
+    // Ergebnis gehört zu Sammeln (0, 1) oder Importieren (2–4)
+    property <bool> show-result: Exchange.result-kind >= 0 && !Exchange.busy && (Exchange.result-kind <= 1 ? Exchange.view == 2 : Exchange.view == 3);
+    property <bool> show-busy: Exchange.busy && (Exchange.work-kind == 0 ? Exchange.view == 2 : Exchange.view == 3);
+
+    // ── Scannen ──
+    if Exchange.view == 0: VerticalLayout {
+        spacing: 14px;
+        PageHead {
+            title: @tr("Scan this system");
+            CheckButton {
+                text: @tr("Save manifest…");
+                enabled: Exchange.has-manifest && !Exchange.scanning;
+                clicked => { Exchange.save-manifest(); }
+            }
+            CheckButton {
+                text: @tr("Scan");
+                primary: true;
+                enabled: !Exchange.scanning && Exchange.selected-count > 0;
+                clicked => { Exchange.scan(); }
+            }
+        }
+        Para {
+            text: @tr("Checksums are remembered – only new or changed files are read. The manifest lists what this system has; the other system opens it under Exchange › Compare.");
+        }
+        Section {
+            title: Exchange.system-name;
+            if Exchange.volumes.length == 0: Text {
+                text: @tr("No drive with “Avid MediaFiles/MXF” found.");
+                overflow: elide;
+                color: Theme.muted;
+            }
+            if Exchange.volumes.length > 0: ScrollBox {
+                limit: 6 * 22px + 5 * 10px;
+                spacing: 10px;
+                for v[i] in Exchange.volumes: HorizontalLayout {
+                    spacing: 10px;
+                    height: 22px;
+                    Dot { color: v.online ? Theme.online : Theme.line; }
+                    Text {
+                        text: v.name;
+                        horizontal-stretch: 1;
+                        overflow: elide;
+                        vertical-alignment: center;
+                        color: v.online && v.selected ? Theme.text : Theme.muted;
+                    }
+                    Text {
+                        text: !v.online ? @tr("not connected") : v.files == "" ? @tr("not scanned yet") : @tr("{} files", v.files);
+                        font-size: 12px;
+                        vertical-alignment: center;
+                        color: v.files == "" ? Theme.faint : Theme.muted;
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        width: 34px;
+                        if v.online: Switch {
+                            on: v.selected;
+                            label: v.name;
+                            toggled => { Exchange.toggle-volume(i); }
+                        }
+                    }
+                }
+            }
+        }
+        StatusLine {
+            text: root.scan-status;
+            color: Theme.muted;
+        }
+        if Exchange.error != "" || (Exchange.warnings > 0 && !Exchange.scanning): Para {
+            text: Exchange.error != "" ? Exchange.error : @tr("{n} warning" | "{n} warnings" % Exchange.warnings);
+            color: Exchange.error != "" ? Theme.error : Theme.warning;
+        }
+        Para {
+            text: @tr("The switches apply to Check › Drives too.");
+            color: Theme.faint;
+        }
+    }
+
+    // ── Vergleichen ──
+    if Exchange.view == 1: VerticalLayout {
+        spacing: 14px;
+        PageHead {
+            title: !Exchange.has-compare ? @tr("Compare with another system")
+                : Exchange.is-request ? @tr("Request from {}", Exchange.remote-name) : @tr("Compare with {}", Exchange.remote-name);
+            CheckButton {
+                text: Exchange.has-compare ? @tr("Other manifest…") : @tr("Open manifest…");
+                primary: !Exchange.has-compare;
+                enabled: Exchange.has-manifest && !Exchange.scanning;
+                clicked => { Exchange.open-manifest(); }
+            }
+            if Exchange.has-compare: CheckButton {
+                text: @tr("Collect…");
+                primary: true;
+                enabled: Exchange.can-collect && Exchange.copy-files > 0 && !Exchange.busy;
+                clicked => { Exchange.collect(); }
+            }
+        }
+        if !Exchange.has-compare: Para {
+            text: Exchange.has-manifest ? @tr("Open the manifest of the other system, or a request saved under Projects › Request.") : @tr("Scan this system first (Exchange › Scan).");
+        }
+        if Exchange.has-compare: Text {
+            text: Exchange.is-request ? @tr("Request from {}", Exchange.remote-date) : @tr("Manifest from {}", Exchange.remote-date);
+            font-size: 12px;
+            color: Theme.muted;
+        }
+        if Exchange.has-compare && Exchange.maps.length > 0: Section {
+            title: @tr("ASSIGN DRIVES");
+            Para { text: @tr("These drives have no drive with the same name on the other system."); }
+            MapList {
+                rows: Exchange.maps;
+                changed(i, v) => { Exchange.map-changed(i, v); }
+            }
+        }
+        if Exchange.has-compare && Exchange.collisions.length > 0: Section {
+            title: @tr("FOLDERS ON BOTH SIDES");
+            Para { text: @tr("These folders exist on both systems with files of their own."); }
+            for c[i] in Exchange.collisions: HorizontalLayout {
+                spacing: 8px;
+                Text {
+                    text: c.name;
+                    horizontal-stretch: 1;
+                    overflow: elide;
+                    vertical-alignment: center;
+                    color: Theme.text;
+                }
+                CheckButton {
+                    text: @tr("Merge");
+                    small: true;
+                    primary: c.choice == 0;
+                    clicked => { Exchange.choice-changed(i, 0); }
+                }
+                CheckButton {
+                    text: @tr("Rename");
+                    small: true;
+                    primary: c.choice == 1;
+                    clicked => { Exchange.choice-changed(i, 1); }
+                }
+            }
+            Para {
+                text: @tr("Merge: same folder, the database must be rebuilt. Rename: new folder with a unique name.");
+                font-size: 11px;
+                color: Theme.faint;
+            }
+        }
+        if Exchange.has-compare: Section {
+            title: @tr("FOR {}", Exchange.remote-name);
+            Para {
+                text: Exchange.copy-files == 0 ? @tr("Nothing to collect – the other system has everything.")
+                    : @tr("{n} file to collect ({})" | "{n} files to collect ({})" % Exchange.copy-files, Exchange.copy-size);
+                font-size: 13px;
+                color: Theme.text;
+            }
+        }
+        if Exchange.has-compare && Exchange.tasks.length > 0: Section {
+            title: @tr("TASKS");
+            LineList { lines: Exchange.tasks; }
+        }
+        if Exchange.error != "": Para {
+            text: Exchange.error;
+            color: Theme.error;
+        }
+    }
+
+    // ── Sammeln / Importieren: Fortschritt ──
+    if root.show-busy: VerticalLayout {
+        spacing: 14px;
+        PageHead { title: root.work-title; }
+        ProgressBar { value: Exchange.work-value; }
+        StatusLine {
+            text: Exchange.work-text;
+            color: Theme.muted;
+        }
+        Text {
+            text: @tr("Please wait{}", root.dots);
+            font-size: 12px;
+            color: Theme.faint;
+        }
+        Para {
+            text: Exchange.work-kind == 0 ? @tr("Every file is compared with its checksum after copying. Interrupted? Collect again continues where it stopped.") : @tr("Adds files only and never overwrites a media file. Replaced databases go to Ferry-Backup.");
+        }
+    }
+
+    // ── Sammeln / Importieren: Ergebnis ──
+    if root.show-result: VerticalLayout {
+        spacing: 14px;
+        PageHead {
+            title: root.result-title;
+            if Exchange.result-path != "": CheckButton {
+                text: @tr("Show in Finder");
+                clicked => { Exchange.show-result(); }
+            }
+            CheckButton {
+                text: @tr("Done");
+                primary: true;
+                clicked => { Exchange.close-result(); }
+            }
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            Dot { color: root.result-ok ? Theme.online : Theme.error; }
+            Para {
+                width: Metrics.content-width - 30px;
+                text: root.result-hint;
+                color: Theme.text;
+            }
+        }
+        if Exchange.result-path != "": Para {
+            text: Exchange.result-path;
+            font-size: 11px;
+            color: Theme.faint;
+        }
+        if Exchange.result-problems.length > 0: Section {
+            title: @tr("PROBLEMS");
+            LineList {
+                lines: Exchange.result-problems;
+                text-color: Theme.error;
+            }
+        }
+        if Exchange.result-tasks.length > 0: Section {
+            title: @tr("TASKS");
+            LineList { lines: Exchange.result-tasks; }
+        }
+    }
+
+    // ── Sammeln: noch nichts ──
+    if Exchange.view == 2 && !root.show-busy && !root.show-result: VerticalLayout {
+        spacing: 14px;
+        PageHead { title: @tr("Collect a delivery"); }
+        Para {
+            text: Exchange.has-compare ? @tr("{n} file to collect ({})" | "{n} files to collect ({})" % Exchange.copy-files, Exchange.copy-size) + " " + @tr("Collect… is under Exchange › Compare.")
+                : @tr("Compare with the other system first: Exchange › Compare. Collecting copies the files it is missing, with checksums, into a delivery folder.");
+        }
+    }
+
+    // ── Importieren ──
+    if Exchange.view == 3 && !root.show-busy && !root.show-result: VerticalLayout {
+        spacing: 14px;
+        PageHead {
+            title: Exchange.has-delivery ? @tr("Delivery from {}", Exchange.delivery-from) : @tr("Import a delivery");
+            CheckButton {
+                text: @tr("Choose delivery…");
+                primary: !Exchange.has-delivery;
+                enabled: !Exchange.busy;
+                clicked => { Exchange.choose-delivery(); }
+            }
+            if Exchange.has-delivery: CheckButton {
+                text: @tr("Verify & import");
+                primary: true;
+                enabled: Exchange.can-import && !Exchange.busy;
+                clicked => { Exchange.start-import(); }
+            }
+        }
+        if !Exchange.has-delivery: Para {
+            text: @tr("Choose the delivery folder another system collected for this one. Everything is verified first; only a complete delivery is imported.");
+        }
+        if Exchange.has-delivery: Text {
+            text: @tr("{n} file ({})" | "{n} files ({})" % Exchange.delivery-files, Exchange.delivery-size);
+            font-size: 12px;
+            color: Theme.muted;
+        }
+        if Exchange.has-delivery: Section {
+            title: @tr("ASSIGN DRIVES");
+            MapList {
+                rows: Exchange.delivery-maps;
+                changed(i, v) => { Exchange.delivery-map-changed(i, v); }
+            }
+        }
+        if Exchange.has-delivery: Para {
+            text: @tr("Quit Media Composer before importing. Every file is verified first, and only a complete delivery is imported. A media file is never overwritten.");
+            color: Theme.warning;
+        }
+        if Exchange.error != "": Para {
+            text: Exchange.error;
+            color: Theme.error;
+        }
+    }
+}
+
 // Seiten des Hauptfensters; jede gehört zu einem Reiter (tab-of) und einem Schritt der Seitenleiste (step-of)
 export enum Page { home, working, result, rename, question, notice, rebalance, rebalanced, runs, askname, dups, dupsdone,
     maintain, rebalstart, dupsstart, exchange, projects, tasks }
@@ -1009,10 +1429,10 @@ export component AppWindow inherits CheckWindow {
     }
     property <int> runs-open: root.rebalance-pending + root.dup-pending;
     property <[SideStep]> steps: root.tab == 0 ? [
-            { name: @tr("Scan"), status: "", enabled: true },
-            { name: @tr("Compare"), status: "", enabled: false },
-            { name: @tr("Collect"), status: "", enabled: false },
-            { name: @tr("Import"), status: "", enabled: false },
+            { name: @tr("Scan"), status: Exchange.scanning ? @tr("scanning…") : Exchange.has-manifest ? @tr("scanned") : "", enabled: true },
+            { name: @tr("Compare"), status: Exchange.has-compare ? Exchange.remote-name : "", enabled: true },
+            { name: @tr("Collect"), status: Exchange.busy && Exchange.work-kind == 0 ? @tr("collecting…") : Exchange.result-kind == 0 ? @tr("delivery ready") : "", enabled: true },
+            { name: @tr("Import"), status: Exchange.busy && Exchange.work-kind > 0 ? @tr("importing…") : Exchange.has-delivery ? Exchange.delivery-from : "", enabled: true },
         ] : root.tab == 1 ? [
             { name: @tr("Drives"), status: @tr("{} of {} on", root.selected-count, root.drives.length), enabled: true },
             { name: @tr("Result"), status: !root.has-result ? "" : root.bad-folders == 0 ? @tr("all match") : @tr("{n} folder differs" | "{n} folders differ" % root.bad-folders), enabled: root.has-result },
@@ -1068,6 +1488,12 @@ export component AppWindow inherits CheckWindow {
     out property <string> txt-mc-not-started: @tr("Media Composer could not be started.");
     out property <string> txt-choose-folder: @tr("Choose a drive or MXF folder");
     out property <string> txt-choose: @tr("Choose the folder with your Avid projects");
+    out property <string> txt-choose-drive: @tr("Choose…");
+    out property <string> txt-skip: @tr("Don't send");
+    out property <string> txt-same-system: @tr("this manifest is from this system");
+    out property <string> txt-choose-target: @tr("Choose where to create the delivery folder");
+    out property <string> txt-choose-delivery: @tr("Choose the delivery folder");
+    out property <string> txt-quit-mc: @tr("Quit Media Composer first.");
     out property <string> txt-reading-drives: @tr("Reading the media databases of the drives…");
     out property <string> txt-one-file: @tr("1 file");
     out property <string> txt-relink: @tr("on the drives – relink");
@@ -1215,9 +1641,10 @@ export component AppWindow inherits CheckWindow {
                 alignment: start;
                 for st[i] in root.steps: SideItem {
                     step: st;
-                    selected: i == (root.tab == 2 ? Projects.view : root.step);
+                    selected: i == (root.tab == 2 ? Projects.view : root.tab == 0 ? Exchange.view : root.step);
                     clicked => {
                         if root.tab == 2 { Projects.view = i; }
+                        if root.tab == 0 { Exchange.view = i; }
                         root.page = root.start-of(root.tab, i);
                     }
                 }
@@ -1419,13 +1846,7 @@ export component AppWindow inherits CheckWindow {
 
         if root.page == Page.projects: ProjectsPane { }
 
-        if root.page == Page.exchange: VerticalLayout {
-            spacing: Metrics.spacing;
-            Section {
-                title: @tr("EXCHANGE");
-                Para { text: @tr("This part is being moved here from MediaFiles Ferry."); }
-            }
-        }
+        if root.page == Page.exchange: ExchangePane { }
 
         if root.page == Page.tasks: VerticalLayout {
             spacing: Metrics.spacing;

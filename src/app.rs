@@ -5,11 +5,13 @@
 use mediafiles_check::rename::{self, Added, Journal, Renamed, Status};
 use mediafiles_check::projects::{self, ClipKind, MissingGroup, ScanResult};
 use mediafiles_check::duplicates;
+use mediafiles_check::ferry::flow::{self as exflow, Choice, Compare, Incoming, Mappings};
+use mediafiles_check::ferry::{self as fy, Manifest, collect as fcollect, scan as fscan};
 use mediafiles_check::rebalance::{self, Plan, Rebalanced};
 use mediafiles_check::report::{self, Outcome, Report};
 use mediafiles_check::{FolderReport, UPDATE_APP, check, find_volumes, log, pick, report_text, selftest, update};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
-use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
+use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -212,17 +214,472 @@ fn show_drives(app: &AppWindow, drives: &[(PathBuf, bool)]) {
 }
 
 /// Picks up drives that were connected or ejected; ticks stay, new drives come ticked.
+fn drives_off_path() -> Option<PathBuf> {
+    app_dir().map(|d| d.join("drives-off.txt"))
+}
+
+/// Drives switched off for checking and scanning (`key` of the name), remembered across launches. The first time,
+/// MediaFiles Ferry's list (its settings.json "skip") is taken over.
+fn drives_off() -> Vec<String> {
+    if let Some(text) = drives_off_path().and_then(|p| fs::read_to_string(p).ok()) {
+        return text.lines().filter(|l| !l.is_empty()).map(String::from).collect();
+    }
+    #[derive(serde::Deserialize, Default)]
+    struct FerrySettings {
+        #[serde(default)]
+        skip: Vec<String>,
+    }
+    fscan::app_dir()
+        .and_then(|d| fs::read(d.join("settings.json")).ok())
+        .and_then(|b| serde_json::from_slice::<FerrySettings>(&b).ok())
+        .unwrap_or_default()
+        .skip
+}
+
+fn save_drives_off(drives: &[(PathBuf, bool)]) {
+    let mut off = drives_off();
+    for (p, on) in drives {
+        let k = fy::key(&volume_name(p));
+        off.retain(|x| *x != k);
+        if !on {
+            off.push(k);
+        }
+    }
+    if let Some(p) = drives_off_path() {
+        let _ = fs::create_dir_all(p.parent().unwrap());
+        let _ = fy::write_atomic(&p, off.join("\n").as_bytes());
+    }
+}
+
 fn sync_drives(app: &AppWindow, drives: &Drives) {
     let found = find_volumes();
     let mut d = drives.borrow_mut();
     if found.iter().eq(d.iter().map(|x| &x.0)) {
         return;
     }
+    let off = drives_off();
     *d = found.into_iter().map(|p| {
-        let selected = d.iter().find(|x| x.0 == p).is_none_or(|x| x.1);
+        let selected = d.iter().find(|x| x.0 == p).map_or_else(|| !off.contains(&fy::key(&volume_name(&p))), |x| x.1);
         (p, selected)
     }).collect();
     show_drives(app, &d);
+    show_volumes(app, &d);
+}
+
+fn toggle_drive(app: &AppWindow, drives: &Drives, i: i32) {
+    let mut d = drives.borrow_mut();
+    if let Some(x) = d.get_mut(i as usize) {
+        x.1 = !x.1;
+    }
+    save_drives_off(&d);
+    show_drives(app, &d);
+    show_volumes(app, &d);
+}
+
+// ── Exchange (formerly MediaFiles Ferry) ──
+// Characters that fit the content column (monospaced font: characters = width)
+const NAME_CHARS: usize = 30;
+const LINE_CHARS: usize = 64;
+const TITLE_CHARS: usize = 40;
+
+/// Ferry's own folder (checksum cache, last manifest, drive mappings) – kept, so Ferry's users keep their cache.
+fn ferry_dir() -> PathBuf {
+    fscan::app_dir().unwrap_or_else(|| PathBuf::from("."))
+}
+
+fn manifest_path() -> PathBuf {
+    ferry_dir().join("last-manifest.json")
+}
+
+fn minutes_since_scan() -> i32 {
+    fs::metadata(manifest_path()).and_then(|m| m.modified()).ok().and_then(|t| t.elapsed().ok()).map_or(-1, |d| (d.as_secs() / 60) as i32)
+}
+
+fn group_digits(n: usize, lang: &str) -> String {
+    let sep = match lang {
+        "en" => ',',
+        "fr" => '\u{202f}',
+        _ => '.',
+    };
+    let digits = n.to_string();
+    let mut out = String::new();
+    for (i, c) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i) % 3 == 0 {
+            out.push(sep);
+        }
+        out.push(c);
+    }
+    out
+}
+
+/// Scan list: the connected drives (same switches as Check › Drives) plus the drives of the last scan that are missing.
+fn show_volumes(app: &AppWindow, drives: &[(PathBuf, bool)]) {
+    let lang = app.get_language().to_string();
+    let manifest = Manifest::load(&manifest_path()).ok();
+    let scanned = |name: &str| {
+        manifest.as_ref().and_then(|m| m.volumes.iter().find(|v| fy::key(&v.name) == fy::key(name))).map(|v| v.folders.iter().map(|f| f.files.len()).sum::<usize>())
+    };
+    let files = |n: Option<usize>| n.map(|n| group_digits(n, &lang)).unwrap_or_default().into();
+    let online: Vec<(String, bool)> = drives.iter().map(|(p, on)| (volume_name(p), *on)).collect();
+    let offline = manifest.iter().flat_map(|m| &m.volumes).map(|v| &v.name).filter(|n| !online.iter().any(|o| fy::key(&o.0) == fy::key(n)));
+    let rows: Vec<VolumeRow> = online
+        .iter()
+        .map(|(n, on)| VolumeRow { name: shorten(n, NAME_CHARS).into(), files: files(scanned(n)), online: true, selected: *on })
+        .chain(offline.map(|n| VolumeRow { name: shorten(n, NAME_CHARS).into(), files: files(scanned(n)), online: false, selected: false }))
+        .collect();
+    let x = app.global::<Exchange>();
+    x.set_selected_count(drives.iter().filter(|d| d.1).count() as i32);
+    x.set_volumes(ModelRc::new(VecModel::from(rows)));
+    x.set_has_manifest(manifest.is_some());
+    x.set_minutes_since_scan(minutes_since_scan());
+}
+
+fn map_rows(app: &AppWindow, drives: &[Choice], with_skip: bool) -> ModelRc<MapRow> {
+    let rows: Vec<MapRow> = drives
+        .iter()
+        .map(|d| {
+            let mut options = vec![app.get_txt_choose_drive()];
+            options.extend(d.options.iter().map(|o| SharedString::from(shorten(o, NAME_CHARS))));
+            if with_skip {
+                options.push(app.get_txt_skip());
+            }
+            MapRow { name: shorten(&d.name, NAME_CHARS).into(), options: ModelRc::new(VecModel::from(options)), selected: d.selected as i32 }
+        })
+        .collect();
+    ModelRc::new(VecModel::from(rows))
+}
+
+fn strings(v: &[String], max: usize) -> ModelRc<SharedString> {
+    ModelRc::new(VecModel::from(v.iter().map(|s| SharedString::from(shorten(s, max))).collect::<Vec<_>>()))
+}
+
+fn show_compare(app: &AppWindow, c: &Compare) {
+    let lang = app.get_language().to_string();
+    let plan = c.plan();
+    let (files, bytes) = exflow::media(&plan);
+    let x = app.global::<Exchange>();
+    x.set_remote_name(shorten(&c.remote.system, TITLE_CHARS).into());
+    let fmt = if lang == "en" { "%Y-%m-%d %H:%M" } else { "%d.%m.%Y %H:%M" };
+    x.set_remote_date(fy::local_time(c.remote.created, fmt).into());
+    x.set_maps(map_rows(app, &c.drives, true));
+    let rows: Vec<ChoiceRow> = c.collisions.iter().map(|(id, ch)| ChoiceRow { name: shorten(id, NAME_CHARS + 10).into(), choice: *ch }).collect();
+    x.set_collisions(ModelRc::new(VecModel::from(rows)));
+    x.set_copy_files(files as i32);
+    x.set_copy_size(exflow::format_size(bytes, &lang).into());
+    let tasks: Vec<String> = plan.tasks.iter().map(|t| t.describe(&lang)).collect();
+    x.set_tasks(strings(&tasks, 400));
+    x.set_can_collect(c.ready());
+    x.set_has_compare(true);
+    x.set_view(1);
+}
+
+fn show_incoming(app: &AppWindow, i: &Incoming) {
+    let (files, bytes) = i.media();
+    let x = app.global::<Exchange>();
+    x.set_delivery_from(shorten(&i.delivery.from, TITLE_CHARS).into());
+    x.set_delivery_files(files as i32);
+    x.set_delivery_size(exflow::format_size(bytes, &app.get_language()).into());
+    x.set_delivery_maps(map_rows(app, &i.drives, false));
+    x.set_can_import(i.ready());
+    x.set_has_delivery(true);
+    x.set_view(3);
+}
+
+/// Progress from a worker thread to the page.
+fn progress_to(weak: &slint::Weak<AppWindow>) -> impl FnMut(&str) + Send + 'static {
+    let weak = weak.clone();
+    move |line: &str| {
+        let (text, value) = (line.to_string(), exflow::progress_value(line));
+        let w = weak.clone();
+        let _ = slint::invoke_from_event_loop(move || {
+            if let Some(a) = w.upgrade() {
+                let x = a.global::<Exchange>();
+                x.set_work_text(shorten(&text, LINE_CHARS).into());
+                x.set_work_value(value);
+            }
+        });
+    }
+}
+
+fn show_exchange_result(app: &AppWindow, kind: i32, path: Option<&Path>, problems: &[String], tasks: &[String]) {
+    let x = app.global::<Exchange>();
+    x.set_busy(false);
+    x.set_result_kind(kind);
+    x.set_result_path(path.map(|p| p.display().to_string()).unwrap_or_default().into());
+    x.set_result_problems(strings(problems, 400));
+    x.set_result_tasks(strings(tasks, 400));
+    x.set_view(if kind <= 1 { 2 } else { 3 });
+    app.set_page(Page::Exchange);
+}
+
+fn start_work(app: &AppWindow, kind: i32) {
+    let x = app.global::<Exchange>();
+    x.set_work_kind(kind);
+    x.set_work_value(0.0);
+    x.set_work_text("".into());
+    x.set_result_kind(-1);
+    x.set_busy(true);
+    x.set_view(if kind == 0 { 2 } else { 3 });
+}
+
+/// Wires the "Exchange" tab (scan, compare, collect, import – MediaFiles Ferry's flow).
+fn wire_exchange(app: &AppWindow, drives: &Drives) {
+    let x = app.global::<Exchange>();
+    x.set_system_name(shorten(&fscan::computer_name(), TITLE_CHARS).into());
+    show_volumes(app, &drives.borrow());
+    let compare: Rc<RefCell<Option<Compare>>> = Rc::default();
+    let incoming: Rc<RefCell<Option<Incoming>>> = Rc::default();
+    let err = |app: &AppWindow, e: String| app.global::<Exchange>().set_error(shorten(&e, LINE_CHARS * 2).into());
+
+    x.on_toggle_volume({
+        let (weak, drives) = (app.as_weak(), drives.clone());
+        // connected drives come first, in the order of Check's list
+        move |i| toggle_drive(&weak.unwrap(), &drives, i)
+    });
+
+    x.on_scan({
+        let (weak, drives) = (app.as_weak(), drives.clone());
+        move || {
+            let app = weak.unwrap();
+            let x = app.global::<Exchange>();
+            x.set_scanning(true);
+            x.set_warnings(0);
+            x.set_error("".into());
+            let vols: Vec<PathBuf> = drives.borrow().iter().filter(|d| d.1).map(|d| d.0.clone()).collect();
+            log::write(&format!("exchange scan: {}", vols.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(", ")));
+            let weak = weak.clone();
+            let progress = weak.clone();
+            std::thread::spawn(move || {
+                let result = fscan::scan(&vols, false, Some(&ferry_dir().join("cache")), &mut |p| {
+                    let (p, w) = (p.to_string(), progress.clone());
+                    let _ = slint::invoke_from_event_loop(move || w.upgrade().into_iter().for_each(|a| a.global::<Exchange>().set_progress(shorten(&p, LINE_CHARS - 20).into())));
+                })
+                .and_then(|r| {
+                    let _ = fs::create_dir_all(ferry_dir());
+                    r.manifest.save(&manifest_path()).map(|_| r.warnings)
+                });
+                if let Ok(w) = &result {
+                    w.iter().for_each(|w| log::write(&format!("  scan warning: {w}")));
+                }
+                let _ = slint::invoke_from_event_loop(move || {
+                    let Some(app) = weak.upgrade() else { return };
+                    let x = app.global::<Exchange>();
+                    x.set_scanning(false);
+                    match result {
+                        Ok(warnings) => x.set_warnings(warnings.len() as i32),
+                        Err(e) => {
+                            log::write(&format!("  scan failed: {e}"));
+                            x.set_error(shorten(&e.to_string(), LINE_CHARS * 2).into())
+                        }
+                    }
+                    // the drives may be gone meanwhile: the list is rebuilt from the current state
+                    x.invoke_rescanned();
+                });
+            });
+        }
+    });
+
+    x.on_rescanned({
+        let (weak, drives) = (app.as_weak(), drives.clone());
+        move || show_volumes(&weak.unwrap(), &drives.borrow())
+    });
+
+    x.on_save_manifest({
+        let weak = app.as_weak();
+        move || {
+            let Ok(m) = Manifest::load(&manifest_path()) else { return };
+            let dialog = rfd::FileDialog::new().set_file_name(fy::manifest_file_name(&m)).add_filter("MediaFiles Manifest", &[fy::MANIFEST_EXT]);
+            if let Some(target) = dialog.save_file()
+                && let Err(e) = fs::copy(manifest_path(), &target)
+            {
+                err(&weak.unwrap(), format!("{}: {e}", target.display()));
+            }
+        }
+    });
+
+    x.on_open_manifest({
+        let (weak, compare) = (app.as_weak(), compare.clone());
+        move || {
+            let app = weak.unwrap();
+            let x = app.global::<Exchange>();
+            let Some(file) = rfd::FileDialog::new().add_filter("MediaFiles Manifest", &[fy::MANIFEST_EXT]).pick_file() else { return };
+            x.set_view(1);
+            // a request saved under Projects › Request: files wanted by their Avid IDs
+            if fy::request::is_request(&file) {
+                match Manifest::load(&manifest_path()).and_then(|l| fy::request::Request::load(&file).map(|r| (l, r))) {
+                    Ok((local, req)) => {
+                        let c = Compare::from_request(local, &req);
+                        x.set_error("".into());
+                        x.set_is_request(true);
+                        show_compare(&app, &c);
+                        *compare.borrow_mut() = Some(c);
+                    }
+                    Err(e) => err(&app, e.to_string()),
+                }
+                return;
+            }
+            match Manifest::load(&manifest_path()).and_then(|l| Manifest::load(&file).map(|r| (l, r))) {
+                Ok((local, remote)) if fy::key(&local.system) == fy::key(&remote.system) => {
+                    err(&app, format!("{}: {}", remote.system, app.get_txt_same_system()));
+                }
+                Ok((local, remote)) => {
+                    let c = Compare::new(local, remote, &Mappings::load(&ferry_dir()));
+                    x.set_error("".into());
+                    x.set_is_request(false);
+                    show_compare(&app, &c);
+                    *compare.borrow_mut() = Some(c);
+                }
+                Err(e) => err(&app, e.to_string()),
+            }
+        }
+    });
+
+    x.on_map_changed({
+        let (weak, compare) = (app.as_weak(), compare.clone());
+        move |row, value| {
+            let mut c = compare.borrow_mut();
+            let Some(c) = c.as_mut() else { return };
+            c.drives[row as usize].selected = value as usize;
+            c.refresh_collisions();
+            show_compare(&weak.unwrap(), c);
+        }
+    });
+
+    x.on_choice_changed({
+        let (weak, compare) = (app.as_weak(), compare.clone());
+        move |row, value| {
+            let mut c = compare.borrow_mut();
+            let Some(c) = c.as_mut() else { return };
+            c.collisions[row as usize].1 = value;
+            show_compare(&weak.unwrap(), c);
+        }
+    });
+
+    x.on_collect({
+        let (weak, compare) = (app.as_weak(), compare.clone());
+        move || {
+            let app = weak.unwrap();
+            let c = compare.borrow();
+            let Some(c) = c.as_ref() else { return };
+            let Some(parent) = rfd::FileDialog::new().set_title(app.get_txt_choose_target()).pick_folder() else { return };
+            let mut m = Mappings::load(&ferry_dir());
+            c.remember(&mut m);
+            m.save(&ferry_dir());
+            let (local, to, plan, dest, lang) = (c.local.clone(), c.remote.system.clone(), c.plan(), c.delivery_dir(&parent), app.get_language().to_string());
+            let tasks: Vec<String> = plan.tasks.iter().map(|t| t.describe(&lang)).collect();
+            log::write(&format!("collect for {to} into {}", dest.display()));
+            start_work(&app, 0);
+            let (weak, mut progress) = (weak.clone(), progress_to(&weak));
+            std::thread::spawn(move || {
+                let result = fcollect::collect(&local, &to, &plan, &dest, &lang, &mut progress);
+                log::write(&format!("  collect: {:?}", result.as_ref().map(|e| e.len())));
+                let _ = slint::invoke_from_event_loop(move || {
+                    let Some(app) = weak.upgrade() else { return };
+                    match result {
+                        Ok(errors) => show_exchange_result(&app, if errors.is_empty() { 0 } else { 1 }, Some(&dest), &errors, &tasks),
+                        Err(e) => show_exchange_result(&app, 1, Some(&dest), &[e.to_string()], &tasks),
+                    }
+                });
+            });
+        }
+    });
+
+    x.on_choose_delivery({
+        let (weak, incoming) = (app.as_weak(), incoming.clone());
+        move || {
+            let app = weak.unwrap();
+            let Some(folder) = rfd::FileDialog::new().set_title(app.get_txt_choose_delivery()).pick_folder() else { return };
+            match Incoming::open(folder, &Mappings::load(&ferry_dir())) {
+                Ok(i) => {
+                    app.global::<Exchange>().set_error("".into());
+                    show_incoming(&app, &i);
+                    *incoming.borrow_mut() = Some(i);
+                }
+                Err(e) => err(&app, e.to_string()),
+            }
+        }
+    });
+
+    x.on_delivery_map_changed({
+        let (weak, incoming) = (app.as_weak(), incoming.clone());
+        move |row, value| {
+            let mut i = incoming.borrow_mut();
+            let Some(i) = i.as_mut() else { return };
+            i.drives[row as usize].selected = value as usize;
+            show_incoming(&weak.unwrap(), i);
+        }
+    });
+
+    x.on_start_import({
+        let (weak, incoming) = (app.as_weak(), incoming.clone());
+        move || {
+            let app = weak.unwrap();
+            if media_composer_running() {
+                err(&app, app.get_txt_quit_mc().to_string());
+                return;
+            }
+            let i = incoming.borrow();
+            let Some(i) = i.as_ref() else { return };
+            let mut m = Mappings::load(&ferry_dir());
+            i.remember(&mut m);
+            m.save(&ferry_dir());
+            let (dest, map) = (i.dir.clone(), i.map());
+            log::write(&format!("import {}", dest.display()));
+            start_work(&app, 1);
+            let (weak, mut progress) = (weak.clone(), progress_to(&weak));
+            std::thread::spawn(move || {
+                // everything is verified first; only a complete delivery is imported
+                let problems = match fcollect::verify(&dest, &mut progress) {
+                    Ok(p) => p,
+                    Err(e) => vec![e.to_string()],
+                };
+                if !problems.is_empty() {
+                    log::write(&format!("  verify failed: {} problems", problems.len()));
+                    let _ = slint::invoke_from_event_loop(move || weak.upgrade().into_iter().for_each(|a| show_exchange_result(&a, 4, Some(&dest), &problems, &[])));
+                    return;
+                }
+                let w = weak.clone();
+                let _ = slint::invoke_from_event_loop(move || w.upgrade().into_iter().for_each(|a| { a.global::<Exchange>().set_work_kind(2); a.global::<Exchange>().set_work_value(0.0); }));
+                let result = fcollect::import(&dest, &map, &mut progress);
+                log::write(&format!("  import: {:?}", result.as_ref().map(|r| (r.problems.len(), r.tasks.len()))));
+                let _ = slint::invoke_from_event_loop(move || {
+                    let Some(app) = weak.upgrade() else { return };
+                    match result {
+                        Ok(r) => show_exchange_result(&app, if r.problems.is_empty() { 2 } else { 3 }, None, &r.problems, &r.tasks),
+                        Err(e) => show_exchange_result(&app, 3, None, &[e.to_string()], &[]),
+                    }
+                });
+            });
+        }
+    });
+
+    x.on_show_result({
+        let weak = app.as_weak();
+        move || {
+            let path = weak.unwrap().global::<Exchange>().get_result_path().to_string();
+            let _ = std::process::Command::new("open").arg(path).spawn();
+        }
+    });
+
+    x.on_close_result({
+        let (weak, compare, incoming, drives) = (app.as_weak(), compare.clone(), incoming.clone(), drives.clone());
+        move || {
+            let app = weak.unwrap();
+            let x = app.global::<Exchange>();
+            // a finished import ends the delivery; a finished collection the comparison
+            if x.get_result_kind() >= 2 {
+                *incoming.borrow_mut() = None;
+                x.set_has_delivery(false);
+                x.set_view(0);
+            } else {
+                *compare.borrow_mut() = None;
+                x.set_has_compare(false);
+                x.set_view(1);
+            }
+            x.set_result_kind(-1);
+            show_volumes(&app, &drives.borrow());
+        }
+    });
 }
 
 /// A picture of the manual (`![…](images/<lang>/x.png)`, path relative to docs/help): in the app bundle under
@@ -1801,13 +2258,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     app.on_toggle_drive({
         let (weak, drives) = (app.as_weak(), drives.clone());
-        move |i| {
-            let mut d = drives.borrow_mut();
-            if let Some(x) = d.get_mut(i as usize) {
-                x.1 = !x.1;
-            }
-            show_drives(&weak.unwrap(), &d);
-        }
+        move |i| toggle_drive(&weak.unwrap(), &drives, i)
     });
 
     app.on_check_drives({
@@ -2324,6 +2775,7 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
 
+    wire_exchange(&app, &drives);
     let projects_state: Rc<RefCell<ProjectsState>> = Rc::default();
     wire_projects(&app, &projects_state);
 

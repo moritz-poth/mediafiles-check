@@ -9,6 +9,7 @@
 //! a wrong report.
 pub mod avb;
 pub mod duplicates;
+pub mod ferry;
 pub mod log;
 pub mod mxf;
 pub mod projects;
