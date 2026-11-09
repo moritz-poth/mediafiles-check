@@ -37,35 +37,20 @@ pub enum Task {
 }
 
 impl Task {
-    /// Text in der gewünschten Sprache ("de", sonst Englisch); landet in der App und in der Aufgabendatei der Lieferung.
+    /// Text in the app's language (en, de, fr, es); shown in the app and written to the delivery's task file.
     pub fn describe(&self, lang: &str) -> String {
-        let de = lang == "de";
+        let t = |a: [&'static str; 4]| crate::pick(lang, a);
         match self {
-            Task::RebuildDb { system, volume, folder } => match de {
-                true => format!("[{system}] Datenbank neu schreiben: {volume}/{folder}"),
-                false => format!("[{system}] Rebuild database: {volume}/{folder}"),
-            },
-            Task::Rebalance { system, volume, folder, files } => match de {
-                true => format!("[{system}] Ordner aufteilen (rebalancen): {volume}/{folder} hat {files} Dateien"),
-                false => format!("[{system}] Rebalance folder: {volume}/{folder} has {files} files"),
-            },
-            Task::Conflict { system, volume, folder, name } => match de {
-                true => format!("[{system}] Gleicher Name, anderer Inhalt – nicht kopiert, bitte prüfen: {volume}/{folder}/{name}"),
-                false => format!("[{system}] Same name, different content – not copied, please check: {volume}/{folder}/{name}"),
-            },
-            Task::Duplicates { system, places, files } => match de {
-                true => format!("[{system}] {files} doppelte Dateien in: {}", places.join(", ")),
-                false => format!("[{system}] {files} duplicate files in: {}", places.join(", ")),
-            },
+            Task::RebuildDb { system, volume, folder } => format!("[{system}] {}: {volume}/{folder}", t(["Rebuild database", "Datenbank neu schreiben", "Reconstruire la base de données", "Reconstruir la base de datos"])),
+            Task::Rebalance { system, volume, folder, files } => format!("[{system}] {}", t(["Rebalance folder: {f} has {n} files", "Ordner aufteilen (rebalancen): {f} hat {n} Dateien", "Rééquilibrer le dossier : {f} a {n} fichiers", "Reequilibrar la carpeta: {f} tiene {n} archivos"]).replace("{f}", &format!("{volume}/{folder}")).replace("{n}", &files.to_string())),
+            Task::Conflict { system, volume, folder, name } => format!("[{system}] {}: {volume}/{folder}/{name}", t(["Same name, different content – not copied, please check", "Gleicher Name, anderer Inhalt – nicht kopiert, bitte prüfen", "Même nom, contenu différent – pas copié, à vérifier", "Mismo nombre, contenido distinto: no se copió, compruébalo"])),
+            Task::Duplicates { system, places, files } => format!("[{system}] {}: {}", t(["{n} duplicate files in", "{n} doppelte Dateien in", "{n} fichiers en double dans", "{n} archivos duplicados en"]).replace("{n}", &files.to_string()), places.join(", ")),
             Task::NotFound { system, files, clips } => {
                 let mut shown = clips.iter().take(10).cloned().collect::<Vec<_>>().join(", ");
                 if clips.len() > 10 {
-                    shown += &if de { format!(" und {} weitere", clips.len() - 10) } else { format!(" and {} more", clips.len() - 10) };
+                    shown += &t([" and {n} more", " und {n} weitere", " et {n} autres", " y {n} más"]).replace("{n}", &(clips.len() - 10).to_string());
                 }
-                match de {
-                    true => format!("[{system}] {files} angeforderte Dateien hier nicht gefunden (Scan aktuell?) – Clips: {shown}"),
-                    false => format!("[{system}] {files} requested files not found here (scan up to date?) – clips: {shown}"),
-                }
+                format!("[{system}] {}{shown}", t(["{n} requested files not found here (scan up to date?) – clips: ", "{n} angeforderte Dateien hier nicht gefunden (Scan aktuell?) – Clips: ", "{n} fichiers demandés introuvables ici (analyse à jour ?) – clips : ", "{n} archivos solicitados no encontrados aquí (¿análisis al día?): clips: "]).replace("{n}", &files.to_string()))
             }
         }
     }

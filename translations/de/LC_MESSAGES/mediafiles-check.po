@@ -8,6 +8,48 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+msgid "Welcome to MediaFiles Check"
+msgstr "Willkommen bei MediaFiles Check"
+
+msgid "Get started"
+msgstr "Los geht’s"
+
+msgid "MediaFiles Check never deletes or overwrites a media file. Still, keep a backup of your media – you use it at your own risk."
+msgstr "MediaFiles Check löscht und überschreibt nie eine Mediendatei. Trotzdem: Halte ein Backup deiner Medien bereit – die Nutzung erfolgt auf eigenes Risiko."
+
+msgid "lists everything that has to be done by hand."
+msgstr "listet alles, was von Hand zu tun ist."
+
+msgid "keeps the media of two edit systems in step – formerly MediaFiles Ferry."
+msgstr "gleicht die Medien zweier Schnittplätze ab – früher MediaFiles Ferry."
+
+msgid "When macOS asks whether MediaFiles Check may access files on removable or network volumes, allow it – until then reading such a drive waits."
+msgstr "Fragt macOS, ob MediaFiles Check auf Dateien auf Wechsel- oder Netzwerk-Volumes zugreifen darf, erlaube es – bis dahin wartet das Lesen solcher Laufwerke."
+
+msgid "renames folders for Media Composer, rebalances full folders, sets duplicates aside."
+msgstr "benennt Ordner für Media Composer um, verteilt volle Ordner, legt Duplikate zur Seite."
+
+msgid "finds the media your bins need that are on none of the drives."
+msgstr "findet die Medien, die deine Bins brauchen und die auf keinem Laufwerk liegen."
+
+msgid "Connect a drive with Avid media. If macOS asks whether MediaFiles Check may access files on removable or network volumes, allow it."
+msgstr "Schließ ein Laufwerk mit Avid-Medien an. Fragt macOS, ob MediaFiles Check auf Dateien auf Wechsel- oder Netzwerk-Volumes zugreifen darf, erlaube es."
+
+msgid "compares every MXF folder with its Avid database."
+msgstr "vergleicht jeden MXF-Ordner mit seiner Avid-Datenbank."
+
+msgid "Rebalanced"
+msgstr "Rebalancing erledigt"
+
+msgid "Rename back: {} → {}"
+msgstr "Zurückbenennen: {} → {}"
+
+msgid "Copies set aside"
+msgstr "Kopien zur Seite gelegt"
+
+msgid "Rename folder?"
+msgstr "Ordner umbenennen?"
+
 msgid "Check…"
 msgstr "Prüfen…"
 
@@ -424,9 +466,6 @@ msgstr "Rebalancing"
 msgid "REBALANCING"
 msgstr "REBALANCING"
 
-msgid "REBALANCED"
-msgstr "REBALANCING ERLEDIGT"
-
 msgid "Rebalance"
 msgstr "Rebalancing starten"
 
@@ -468,9 +507,6 @@ msgstr "Das nächste „Volle Ordner suchen…“ verteilt jeden rebalanced-Ordn
 msgid "New name"
 msgstr "Neuer Name"
 
-msgid "RENAME FOLDER?"
-msgstr "ORDNER UMBENENNEN?"
-
 msgid "“{}” is a folder Media Composer creates and fills itself. We recommend giving it a name of its own before rebalancing – the folder and its rebalanced folders then carry that name, and Media Composer starts a new folder for new media."
 msgstr "„{}“ ist ein Ordner, den Media Composer selbst anlegt und füllt. Wir empfehlen, ihm vor dem Rebalancing einen eigenen Namen zu geben – der Ordner und seine rebalanced-Ordner tragen dann diesen Namen, und Media Composer legt für neue Medien einen neuen Ordner an."
 
@@ -491,9 +527,6 @@ msgstr "Zur Seite legen"
 
 msgid "DUPLICATES"
 msgstr "DUPLIKATE"
-
-msgid "SET ASIDE"
-msgstr "ZUR SEITE GELEGT"
 
 msgid "Find duplicates…"
 msgstr "Duplikate suchen…"
@@ -700,9 +733,6 @@ msgstr "PRÜFE"
 msgid "Please wait{}"
 msgstr "Bitte warten{}"
 
-msgid "RESULT"
-msgstr "ERGEBNIS"
-
 msgid "No MXF folders found"
 msgstr "Keine MXF-Ordner gefunden"
 
@@ -820,9 +850,6 @@ msgstr[1] "{n} dieser Ordner haben Namen, die Media Composer nicht aktualisiert.
 msgid "Rename for Media Composer…"
 msgstr "Für Media Composer umbenennen…"
 
-msgid "RENAME FOR MEDIA COMPOSER"
-msgstr "FÜR MEDIA COMPOSER UMBENENNEN"
-
 msgid "The original names and all media files are remembered. Once Media Composer has rebuilt the databases, rename the folders back under Maintain › Rename."
 msgstr "Die Originalnamen und alle Mediendateien werden gemerkt. Sobald Media Composer die Datenbanken neu aufgebaut hat, benennst du die Ordner unter Pflegen › Umbenennen zurück."
 
@@ -837,9 +864,6 @@ msgstr "Zurück"
 
 msgid "Rename"
 msgstr "Umbenennen"
-
-msgid "RENAME BACK: {} → {}"
-msgstr "ZURÜCKBENENNEN: {} → {}"
 
 msgid "{n} new file since renaming"
 msgid_plural "{n} new files since renaming"

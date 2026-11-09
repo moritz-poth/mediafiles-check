@@ -1031,6 +1031,10 @@ component ExchangePane inherits VerticalLayout {
                 overflow: elide;
                 color: Theme.muted;
             }
+            if Exchange.volumes.length == 0: Para {
+                text: @tr("Connect a drive with Avid media. If macOS asks whether MediaFiles Check may access files on removable or network volumes, allow it.");
+                color: Theme.faint;
+            }
             if Exchange.volumes.length > 0: ScrollBox {
                 limit: 6 * 22px + 5 * 10px;
                 spacing: 10px;
@@ -1510,6 +1514,9 @@ export component AppWindow inherits CheckWindow {
     property <Page> page3: Page.maintain;
     property <Page> page4: Page.tasks;
     in-out property <bool> has-result;
+    // erster Start: Überblick über die Reiter (Rust merkt sich das Schließen in welcome-seen)
+    in-out property <bool> show-welcome;
+    callback welcome-done();
 
     // -1: Seite gehört zu keinem bestimmten Reiter (Fortschritt, Hinweis) – sie bleibt im aktuellen
     pure function tab-of(p: Page) -> int {
@@ -1828,6 +1835,10 @@ export component AppWindow inherits CheckWindow {
                 overflow: elide;
                 color: Theme.muted;
             }
+            if root.drives.length == 0: Para {
+                text: @tr("Connect a drive with Avid media. If macOS asks whether MediaFiles Check may access files on removable or network volumes, allow it.");
+                color: Theme.faint;
+            }
             if root.drives.length > 0: ScrollBox {
                 limit: 6 * 22px + 5 * 10px;
                 spacing: 10px;
@@ -2009,21 +2020,18 @@ export component AppWindow inherits CheckWindow {
         // ── Ergebnis ───────────────────────────────────────────
         if root.page == Page.result: VerticalLayout {
             spacing: Metrics.spacing;
-            Section {
-                title: @tr("RESULT");
-                HorizontalLayout {
-                    spacing: 10px;
-                    Dot { color: root.bad-folders == 0 ? Theme.online : Theme.warning; }
-                    Text {
-                        text: root.checked-folders == 0 ? @tr("No MXF folders found")
+            PageHead {
+                title: root.checked-folders == 0 ? @tr("No MXF folders found")
                             : root.bad-folders == 0 ? @tr("{n} folder matches its database" | "All {n} folders match their database" % root.checked-folders)
                             : @tr("{n} folder of {} differs from its database" | "{n} folders of {} differ from their database" % root.bad-folders, root.checked-folders);
-                        width: Metrics.content-width - 18px;
-                        font-size: 15px;
-                        font-weight: 600;
-                        wrap: word-wrap;
-                        color: Theme.text;
-                    }
+                if root.bad-folders > 0: CheckButton {
+                    text: @tr("Save report…");
+                    clicked => { root.save-report(); }
+                }
+                CheckButton {
+                    text: @tr("Done");
+                    primary: true;
+                    clicked => { root.back(); }
                 }
             }
             if root.rows.length > 0: Section {
@@ -2048,27 +2056,26 @@ export component AppWindow inherits CheckWindow {
                     }
                 }
             }
-            Divider { }
-            HorizontalLayout {
-                spacing: 10px;
-                if root.bad-folders > 0: CheckButton {
-                    text: @tr("Save report…");
-                    clicked => { root.save-report(); }
-                }
-                Rectangle { horizontal-stretch: 1; }
-                CheckButton {
-                    text: @tr("Done");
-                    primary: true;
-                    clicked => { root.back(); }
-                }
-            }
         }
 
         // ── Umbenennen ─────────────────────────────────────────
         if root.page == Page.rename: VerticalLayout {
             spacing: Metrics.spacing;
-            Section {
-                title: @tr("RENAME FOR MEDIA COMPOSER");
+            PageHead {
+                title: @tr("Rename for Media Composer");
+                CheckButton {
+                    text: @tr("Back");
+                    clicked => { root.page = Page.result; }
+                }
+                CheckButton {
+                    text: @tr("Rename");
+                    primary: true;
+                    enabled: !root.mc-running;
+                    clicked => { root.rename(); }
+                }
+            }
+            VerticalLayout {
+                spacing: 10px;
                 Rectangle {
                     height: min(rl.preferred-height, 240px);
                     rf := Flickable {
@@ -2101,28 +2108,16 @@ export component AppWindow inherits CheckWindow {
                     color: Theme.warning;
                 }
             }
-            Divider { }
-            HorizontalLayout {
-                spacing: 10px;
-                CheckButton {
-                    text: @tr("Back");
-                    clicked => { root.page = Page.result; }
-                }
-                Rectangle { horizontal-stretch: 1; }
-                CheckButton {
-                    text: @tr("Rename");
-                    primary: true;
-                    enabled: !root.mc-running;
-                    clicked => { root.rename(); }
-                }
-            }
         }
 
         // ── Frage beim Zurückbenennen ─────────────────────────
         if root.page == Page.question: VerticalLayout {
             spacing: Metrics.spacing;
-            Section {
-                title: @tr("RENAME BACK: {} → {}", root.q-folder, root.q-original);
+            PageHead {
+                title: @tr("Rename back: {} → {}", root.q-folder, root.q-original);
+            }
+            VerticalLayout {
+                spacing: 10px;
                 Text {
                     text: root.q-kind == 0 ? @tr("{n} new file since renaming" | "{n} new files since renaming" % root.q-count)
                         : root.q-kind == 1 ? @tr("{n} file missing or changed since renaming" | "{n} files missing or changed since renaming" % root.q-count)
@@ -2172,8 +2167,21 @@ export component AppWindow inherits CheckWindow {
         // ── Rebalancing: Auswahl ──────────────────────────────
         if root.page == Page.rebalance: VerticalLayout {
             spacing: Metrics.spacing;
-            Section {
-                title: @tr("REBALANCING");
+            PageHead {
+                title: @tr("Rebalancing");
+                CheckButton {
+                    text: @tr("Back");
+                    clicked => { root.back(); }
+                }
+                if root.rebalance-rows.length > 0: CheckButton {
+                    text: @tr("Rebalance");
+                    primary: true;
+                    enabled: !root.mc-running && root.rebalance-selected > 0;
+                    clicked => { root.rebalance(); }
+                }
+            }
+            VerticalLayout {
+                spacing: 10px;
                 if root.rebalance-rows.length == 0: Para {
                     text: @tr("No folder on the selected drives has more than {} files, the two database files included.", Shared.limit);
                 }
@@ -2219,28 +2227,26 @@ export component AppWindow inherits CheckWindow {
                     color: Theme.warning;
                 }
             }
-            Divider { }
-            HorizontalLayout {
-                spacing: 10px;
-                CheckButton {
-                    text: @tr("Back");
-                    clicked => { root.back(); }
-                }
-                Rectangle { horizontal-stretch: 1; }
-                if root.rebalance-rows.length > 0: CheckButton {
-                    text: @tr("Rebalance");
-                    primary: true;
-                    enabled: !root.mc-running && root.rebalance-selected > 0;
-                    clicked => { root.rebalance(); }
-                }
-            }
         }
 
         // ── Rebalancing: danach Datenbanken neu schreiben ─────
         if root.page == Page.rebalanced: VerticalLayout {
             spacing: Metrics.spacing;
-            Section {
-                title: @tr("REBALANCED");
+            PageHead {
+                title: @tr("Rebalanced");
+                CheckButton {
+                    text: @tr("Cancel");
+                    clicked => { root.back(); }
+                }
+                CheckButton {
+                    text: @tr("Start");
+                    primary: true;
+                    enabled: !root.mc-running;
+                    clicked => { root.rebalance-db(-1); }
+                }
+            }
+            VerticalLayout {
+                spacing: 10px;
                 ScrollBox {
                     limit: 200px;
                     Para { text: root.rebalance-summary; color: Theme.text; }
@@ -2256,28 +2262,25 @@ export component AppWindow inherits CheckWindow {
                     color: Theme.warning;
                 }
             }
-            Divider { }
-            HorizontalLayout {
-                spacing: 10px;
-                CheckButton {
-                    text: @tr("Cancel");
-                    clicked => { root.back(); }
-                }
-                Rectangle { horizontal-stretch: 1; }
-                CheckButton {
-                    text: @tr("Start");
-                    primary: true;
-                    enabled: !root.mc-running;
-                    clicked => { root.rebalance-db(-1); }
-                }
-            }
         }
 
         // ── Rebalancing: Media-Composer-Ordner umbenennen? ──
         if root.page == Page.askname: VerticalLayout {
             spacing: Metrics.spacing;
-            Section {
-                title: @tr("RENAME FOLDER?");
+            PageHead {
+                title: @tr("Rename folder?");
+                CheckButton {
+                    text: @tr("Keep the name");
+                    clicked => { root.keep-main(); }
+                }
+                CheckButton {
+                    text: @tr("Rename");
+                    primary: true;
+                    clicked => { root.rename-main(root.ask-name); }
+                }
+            }
+            VerticalLayout {
+                spacing: 10px;
                 Para {
                     text: @tr("“{}” is a folder Media Composer creates and fills itself. We recommend giving it a name of its own before rebalancing – the folder and its rebalanced folders then carry that name, and Media Composer starts a new folder for new media.", root.ask-folder);
                     color: Theme.text;
@@ -2304,27 +2307,30 @@ export component AppWindow inherits CheckWindow {
                 }
                 if root.ask-error != "": StatusLine { text: root.ask-error; color: Theme.error; }
             }
-            Divider { }
-            HorizontalLayout {
-                spacing: 10px;
-                CheckButton {
-                    text: @tr("Keep the name");
-                    clicked => { root.keep-main(); }
-                }
-                Rectangle { horizontal-stretch: 1; }
-                CheckButton {
-                    text: @tr("Rename");
-                    primary: true;
-                    clicked => { root.rename-main(root.ask-name); }
-                }
-            }
         }
 
         // ── Duplikate: Ergebnis ──
         if root.page == Page.dups: VerticalLayout {
             spacing: Metrics.spacing;
-            Section {
-                title: @tr("DUPLICATES");
+            PageHead {
+                title: @tr("Duplicates");
+                CheckButton {
+                    text: @tr("Save report…");
+                    clicked => { root.save-dups(); }
+                }
+                CheckButton {
+                    text: @tr("Back");
+                    clicked => { root.back(); }
+                }
+                if root.dup-groups.length > 0: CheckButton {
+                    text: @tr("Set aside");
+                    primary: true;
+                    enabled: !root.mc-running && root.dup-selected > 0;
+                    clicked => { root.set-aside-dups(); }
+                }
+            }
+            VerticalLayout {
+                spacing: 10px;
                 Para { text: root.dup-summary; color: Theme.text; }
                 if root.dup-groups.length > 0: ScrollBox {
                     limit: 300px;
@@ -2382,37 +2388,27 @@ export component AppWindow inherits CheckWindow {
                     text: root.mc-running ? @tr("Quit Media Composer first.") : @tr("Media Composer must stay closed while moving – on network drives on every workstation.");
                     color: Theme.warning;
                 }
-                HorizontalLayout {
-                    alignment: start;
-                    CheckButton {
-                        text: @tr("Save report…");
-                        small: true;
-                        clicked => { root.save-dups(); }
-                    }
-                }
-            }
-            Divider { }
-            HorizontalLayout {
-                spacing: 10px;
-                CheckButton {
-                    text: @tr("Back");
-                    clicked => { root.back(); }
-                }
-                Rectangle { horizontal-stretch: 1; }
-                if root.dup-groups.length > 0: CheckButton {
-                    text: @tr("Set aside");
-                    primary: true;
-                    enabled: !root.mc-running && root.dup-selected > 0;
-                    clicked => { root.set-aside-dups(); }
-                }
             }
         }
 
         // ── Duplikate: danach Datenbanken neu schreiben ──
         if root.page == Page.dupsdone: VerticalLayout {
             spacing: Metrics.spacing;
-            Section {
-                title: @tr("SET ASIDE");
+            PageHead {
+                title: @tr("Copies set aside");
+                CheckButton {
+                    text: @tr("Cancel");
+                    clicked => { root.back(); }
+                }
+                CheckButton {
+                    text: @tr("Start");
+                    primary: true;
+                    enabled: !root.mc-running;
+                    clicked => { root.dup-db(-1); }
+                }
+            }
+            VerticalLayout {
+                spacing: 10px;
                 ScrollBox {
                     limit: 200px;
                     Para { text: root.dup-done-summary; color: Theme.text; }
@@ -2426,21 +2422,6 @@ export component AppWindow inherits CheckWindow {
                 Para {
                     text: root.mc-running ? @tr("Quit Media Composer first.") : "";
                     color: Theme.warning;
-                }
-            }
-            Divider { }
-            HorizontalLayout {
-                spacing: 10px;
-                CheckButton {
-                    text: @tr("Cancel");
-                    clicked => { root.back(); }
-                }
-                Rectangle { horizontal-stretch: 1; }
-                CheckButton {
-                    text: @tr("Start");
-                    primary: true;
-                    enabled: !root.mc-running;
-                    clicked => { root.dup-db(-1); }
                 }
             }
         }
@@ -2528,8 +2509,16 @@ export component AppWindow inherits CheckWindow {
 
         if root.page == Page.notice: VerticalLayout {
             spacing: Metrics.spacing;
-            Section {
-                title: @tr("RESULT");
+            PageHead {
+                title: @tr("Result");
+                CheckButton {
+                    text: @tr("Done");
+                    primary: true;
+                    clicked => { root.back(); }
+                }
+            }
+            VerticalLayout {
+                spacing: 10px;
                 ScrollBox {
                     limit: 360px;
                     spacing: 10px;
@@ -2550,20 +2539,68 @@ export component AppWindow inherits CheckWindow {
                     }
                 }
             }
-            Divider { }
-            HorizontalLayout {
-                Rectangle { horizontal-stretch: 1; }
-                CheckButton {
-                    text: @tr("Done");
-                    primary: true;
-                    clicked => { root.back(); }
-                }
-            }
         }
     }
     }
     ScrollThumb { x: parent.width - self.width - 2px; view: page-flick.height; content: main.preferred-height; offset: page-flick.content-y; }
         }
+        }
+    }
+
+    // ── Erster Start ──
+    if root.show-welcome: Rectangle {
+        background: #00000080;
+        TouchArea { }
+        Rectangle {
+            width: 520px;
+            height: card.preferred-height;
+            border-radius: 10px;
+            border-width: 1px;
+            border-color: Theme.line;
+            background: Theme.background;
+            card := VerticalLayout {
+                padding: 24px;
+                spacing: 12px;
+                Text {
+                    text: @tr("Welcome to MediaFiles Check");
+                    font-size: 16px;
+                    font-weight: 600;
+                    color: Theme.text;
+                }
+                for t[i] in [
+                    { a: @tr("Exchange"), b: @tr("keeps the media of two edit systems in step – formerly MediaFiles Ferry.") },
+                    { a: @tr("Check"), b: @tr("compares every MXF folder with its Avid database.") },
+                    { a: @tr("Projects"), b: @tr("finds the media your bins need that are on none of the drives.") },
+                    { a: @tr("Maintain"), b: @tr("renames folders for Media Composer, rebalances full folders, sets duplicates aside.") },
+                    { a: @tr("Tasks"), b: @tr("lists everything that has to be done by hand.") },
+                ]: HorizontalLayout {
+                    spacing: 10px;
+                    Text { text: t.a; width: 90px; font-size: 12px; font-weight: 600; color: Theme.text; }
+                    Text { text: t.b; width: 520px - 48px - 100px; wrap: word-wrap; font-size: 12px; color: Theme.muted; }
+                }
+                Text {
+                    width: 520px - 48px;
+                    wrap: word-wrap;
+                    font-size: 12px;
+                    color: Theme.text;
+                    text: @tr("MediaFiles Check never deletes or overwrites a media file. Still, keep a backup of your media – you use it at your own risk.");
+                }
+                Text {
+                    width: 520px - 48px;
+                    wrap: word-wrap;
+                    font-size: 12px;
+                    color: Theme.faint;
+                    text: @tr("When macOS asks whether MediaFiles Check may access files on removable or network volumes, allow it – until then reading such a drive waits.");
+                }
+                HorizontalLayout {
+                    alignment: end;
+                    CheckButton {
+                        text: @tr("Get started");
+                        primary: true;
+                        clicked => { root.welcome-done(); }
+                    }
+                }
+            }
         }
     }
 }

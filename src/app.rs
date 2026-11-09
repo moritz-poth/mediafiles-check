@@ -2923,6 +2923,18 @@ fn main() -> Result<(), slint::PlatformError> {
     });
 
     wire_exchange(&app, &drives);
+    let welcome_seen = || app_dir().map(|d| d.join("welcome-seen"));
+    app.set_show_welcome(welcome_seen().is_some_and(|p| !p.exists()));
+    app.on_welcome_done({
+        let weak = app.as_weak();
+        move || {
+            if let Some(p) = welcome_seen() {
+                let _ = fs::create_dir_all(p.parent().unwrap());
+                let _ = fs::write(p, env!("CARGO_PKG_VERSION"));
+            }
+            weak.unwrap().set_show_welcome(false);
+        }
+    });
     let task_acts = wire_tasks(&app, &last);
     let projects_state: Rc<RefCell<ProjectsState>> = Rc::default();
     wire_projects(&app, &projects_state);

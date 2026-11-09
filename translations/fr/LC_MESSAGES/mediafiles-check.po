@@ -8,6 +8,48 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 
+msgid "Welcome to MediaFiles Check"
+msgstr "Bienvenue dans MediaFiles Check"
+
+msgid "Get started"
+msgstr "Commencer"
+
+msgid "MediaFiles Check never deletes or overwrites a media file. Still, keep a backup of your media – you use it at your own risk."
+msgstr "MediaFiles Check ne supprime ni n’écrase jamais un fichier média. Gardez quand même une sauvegarde de vos médias – l’utilisation est à vos risques."
+
+msgid "lists everything that has to be done by hand."
+msgstr "liste tout ce qu’il faut faire à la main."
+
+msgid "keeps the media of two edit systems in step – formerly MediaFiles Ferry."
+msgstr "synchronise les médias de deux postes – anciennement MediaFiles Ferry."
+
+msgid "When macOS asks whether MediaFiles Check may access files on removable or network volumes, allow it – until then reading such a drive waits."
+msgstr "Quand macOS demande si MediaFiles Check peut accéder aux fichiers des volumes amovibles ou réseau, autorisez-le – jusque-là, la lecture de ces disques attend."
+
+msgid "renames folders for Media Composer, rebalances full folders, sets duplicates aside."
+msgstr "renomme des dossiers pour Media Composer, rééquilibre les dossiers pleins, met les doublons de côté."
+
+msgid "finds the media your bins need that are on none of the drives."
+msgstr "trouve les médias dont vos chutiers ont besoin et qui ne sont sur aucun disque."
+
+msgid "Connect a drive with Avid media. If macOS asks whether MediaFiles Check may access files on removable or network volumes, allow it."
+msgstr "Connectez un disque avec des médias Avid. Si macOS demande si MediaFiles Check peut accéder aux fichiers des volumes amovibles ou réseau, autorisez-le."
+
+msgid "compares every MXF folder with its Avid database."
+msgstr "compare chaque dossier MXF à sa base de données Avid."
+
+msgid "Rebalanced"
+msgstr "Rééquilibrage terminé"
+
+msgid "Rename back: {} → {}"
+msgstr "Renommer à l’origine : {} → {}"
+
+msgid "Copies set aside"
+msgstr "Copies mises de côté"
+
+msgid "Rename folder?"
+msgstr "Renommer le dossier ?"
+
 msgid "Check…"
 msgstr "Vérifier…"
 
@@ -424,9 +466,6 @@ msgstr "Rééquilibrage"
 msgid "REBALANCING"
 msgstr "RÉÉQUILIBRAGE"
 
-msgid "REBALANCED"
-msgstr "RÉÉQUILIBRÉ"
-
 msgid "Rebalance"
 msgstr "Rééquilibrer"
 
@@ -468,9 +507,6 @@ msgstr "La prochaine recherche « Chercher les dossiers pleins… » répartit �
 msgid "New name"
 msgstr "Nouveau nom"
 
-msgid "RENAME FOLDER?"
-msgstr "RENOMMER LE DOSSIER ?"
-
 msgid "“{}” is a folder Media Composer creates and fills itself. We recommend giving it a name of its own before rebalancing – the folder and its rebalanced folders then carry that name, and Media Composer starts a new folder for new media."
 msgstr "« {} » est un dossier que Media Composer crée et remplit lui-même. Nous recommandons de lui donner un nom propre avant le rééquilibrage – le dossier et ses dossiers rééquilibrés portent alors ce nom, et Media Composer crée un nouveau dossier pour les nouveaux médias."
 
@@ -491,9 +527,6 @@ msgstr "Mettre de côté"
 
 msgid "DUPLICATES"
 msgstr "DOUBLONS"
-
-msgid "SET ASIDE"
-msgstr "MIS DE CÔTÉ"
 
 msgid "Find duplicates…"
 msgstr "Chercher les doublons…"
@@ -700,9 +733,6 @@ msgstr "VÉRIFICATION"
 msgid "Please wait{}"
 msgstr "Veuillez patienter{}"
 
-msgid "RESULT"
-msgstr "RÉSULTAT"
-
 msgid "No MXF folders found"
 msgstr "Aucun dossier MXF trouvé"
 
@@ -820,9 +850,6 @@ msgstr[1] "{n} de ces dossiers portent des noms que Media Composer ne met pas à
 msgid "Rename for Media Composer…"
 msgstr "Renommer pour Media Composer…"
 
-msgid "RENAME FOR MEDIA COMPOSER"
-msgstr "RENOMMER POUR MEDIA COMPOSER"
-
 msgid "The original names and all media files are remembered. Once Media Composer has rebuilt the databases, rename the folders back under Maintain › Rename."
 msgstr "Les noms d'origine et tous les fichiers médias sont mémorisés. Dès que Media Composer a reconstruit les bases de données, rendez aux dossiers leur nom sous Entretien › Renommer."
 
@@ -837,9 +864,6 @@ msgstr "Retour"
 
 msgid "Rename"
 msgstr "Renommer"
-
-msgid "RENAME BACK: {} → {}"
-msgstr "RENOMMER À L'ORIGINE : {} → {}"
 
 msgid "{n} new file since renaming"
 msgid_plural "{n} new files since renaming"

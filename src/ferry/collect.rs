@@ -72,48 +72,63 @@ pub fn collect(local: &Manifest, to_system: &str, plan: &Plan, dest: &Path, lang
 
     fs::create_dir_all(dest)?;
     let tasks: Vec<String> = plan.tasks.iter().map(|t| t.describe(lang)).collect();
-    let de = lang == "de";
-    let mut text = if de {
-        format!(
-            "MediaFiles Check – Lieferung von {} für {to_system}\n\n\
-             IMPORTIEREN MIT MEDIAFILES CHECK: Austausch › Importieren (Media Composer vorher schließen).\n\n\
-             VON HAND EINSPIELEN:\n\
-             1. Media Composer schließen.\n\
-             2. Jeder Ordner dieser Lieferung heißt <Volume>/<Ordner>. Auf dem Volume den Ordner\n   \
-                \"Avid MediaFiles/MXF/<Ordner>\" öffnen (fehlt er, neu anlegen).\n\
-             3. NUR DEN INHALT des Lieferordners hineinkopieren – NIEMALS den ganzen Ordner auf einen\n   \
-                bestehenden Ordner ziehen! Finder und Explorer ersetzen ihn sonst samt allen Mediendateien.\n\
-             4. Fragt das System, ob .mxf-Dateien ersetzt werden sollen: NICHT ersetzen, abbrechen und prüfen.\n\
-             5. msmFMID.pmr und msmMMOB.mdb nur in diesen Ordnern ersetzen:\n",
-            local.system
-        )
-    } else {
-        format!(
-            "MediaFiles Check – delivery from {} for {to_system}\n\n\
-             IMPORT WITH MEDIAFILES CHECK: Exchange › Import (quit Media Composer first).\n\n\
-             IMPORT BY HAND:\n\
-             1. Quit Media Composer.\n\
-             2. Every folder of this delivery is named <volume>/<folder>. On that volume open\n   \
-                \"Avid MediaFiles/MXF/<folder>\" (create it if it is missing).\n\
-             3. Copy ONLY THE CONTENTS of the delivery folder into it – NEVER drag the whole folder onto an\n   \
-                existing folder! Finder and Explorer would replace it including all media files.\n\
-             4. If you are asked to replace .mxf files: DON'T – cancel and check.\n\
-             5. Replace msmFMID.pmr and msmMMOB.mdb only in these folders:\n",
-            local.system
-        )
-    };
+    let t = |a: [&'static str; 4]| crate::pick(lang, a);
+    let mut text = t([
+        "MediaFiles Check – delivery from {from} for {to}\n\n\
+         IMPORT WITH MEDIAFILES CHECK: Exchange › Import (quit Media Composer first).\n\n\
+         IMPORT BY HAND:\n\
+         1. Quit Media Composer.\n\
+         2. Every folder of this delivery is named <volume>/<folder>. On that volume open\n   \
+            \"Avid MediaFiles/MXF/<folder>\" (create it if it is missing).\n\
+         3. Copy ONLY THE CONTENTS of the delivery folder into it – NEVER drag the whole folder onto an\n   \
+            existing folder! Finder and Explorer would replace it including all media files.\n\
+         4. If you are asked to replace .mxf files: DON'T – cancel and check.\n\
+         5. Replace msmFMID.pmr and msmMMOB.mdb only in these folders:\n",
+        "MediaFiles Check – Lieferung von {from} für {to}\n\n\
+         IMPORTIEREN MIT MEDIAFILES CHECK: Austausch › Importieren (Media Composer vorher schließen).\n\n\
+         VON HAND IMPORTIEREN:\n\
+         1. Media Composer schließen.\n\
+         2. Jeder Ordner dieser Lieferung heißt <Volume>/<Ordner>. Auf dem Volume den Ordner\n   \
+            \"Avid MediaFiles/MXF/<Ordner>\" öffnen (fehlt er, neu anlegen).\n\
+         3. NUR DEN INHALT des Lieferordners hineinkopieren – NIEMALS den ganzen Ordner auf einen\n   \
+            bestehenden Ordner ziehen! Finder und Explorer ersetzen ihn sonst samt allen Mediendateien.\n\
+         4. Fragt das System, ob .mxf-Dateien ersetzt werden sollen: NICHT ersetzen, abbrechen und prüfen.\n\
+         5. msmFMID.pmr und msmMMOB.mdb nur in diesen Ordnern ersetzen:\n",
+        "MediaFiles Check – livraison de {from} pour {to}\n\n\
+         IMPORTER AVEC MEDIAFILES CHECK : Échange › Importer (quittez d’abord Media Composer).\n\n\
+         IMPORTER À LA MAIN :\n\
+         1. Quittez Media Composer.\n\
+         2. Chaque dossier de cette livraison s’appelle <volume>/<dossier>. Sur ce volume, ouvrez\n   \
+            « Avid MediaFiles/MXF/<dossier> » (créez-le s’il manque).\n\
+         3. Copiez SEULEMENT LE CONTENU du dossier de livraison – ne glissez JAMAIS le dossier entier sur un\n   \
+            dossier existant ! Le Finder et l’Explorateur le remplaceraient avec tous les fichiers média.\n\
+         4. Si l’on vous demande de remplacer des fichiers .mxf : NE LE FAITES PAS – annulez et vérifiez.\n\
+         5. Remplacez msmFMID.pmr et msmMMOB.mdb seulement dans ces dossiers :\n",
+        "MediaFiles Check – entrega de {from} para {to}\n\n\
+         IMPORTAR CON MEDIAFILES CHECK: Intercambio › Importar (cierra antes Media Composer).\n\n\
+         IMPORTAR A MANO:\n\
+         1. Cierra Media Composer.\n\
+         2. Cada carpeta de esta entrega se llama <volumen>/<carpeta>. En ese volumen abre\n   \
+            «Avid MediaFiles/MXF/<carpeta>» (créala si falta).\n\
+         3. Copia SOLO EL CONTENIDO de la carpeta de entrega; NUNCA arrastres la carpeta entera sobre una\n   \
+            carpeta existente. El Finder y el Explorador la reemplazarían con todos los archivos de medios.\n\
+         4. Si se te pregunta si reemplazar archivos .mxf: NO lo hagas; cancela y comprueba.\n\
+         5. Reemplaza msmFMID.pmr y msmMMOB.mdb solo en estas carpetas:\n",
+    ])
+    .replace("{from}", &local.system)
+    .replace("{to}", to_system);
     for k in db_folders.keys() {
         text += &format!("   - {k}\n");
     }
     if db_folders.is_empty() {
-        text += if de { "   (keine)\n" } else { "   (none)\n" };
+        text += t(["   (none)\n", "   (keine)\n", "   (aucun)\n", "   (ninguna)\n"]);
     }
-    text += if de { "\nAUFGABEN:\n" } else { "\nTASKS:\n" };
-    for t in &tasks {
-        text += &format!("[ ] {t}\n");
+    text += t(["\nTASKS:\n", "\nAUFGABEN:\n", "\nTÂCHES :\n", "\nTAREAS:\n"]);
+    for task in &tasks {
+        text += &format!("[ ] {task}\n");
     }
     for e in &errors {
-        text += &format!("[ ] {} {e}\n", if de { "Nicht kopiert:" } else { "Not copied:" });
+        text += &format!("[ ] {} {e}\n", t(["Not copied:", "Nicht kopiert:", "Pas copié :", "No copiado:"]));
     }
     fs::write(dest.join(tasks_file(lang)), text)?;
     let delivery = Delivery {
