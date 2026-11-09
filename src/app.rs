@@ -1894,7 +1894,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let Some(target) = rfd::FileDialog::new().set_file_name(name).add_filter("Text", &["txt"]).save_file() else { return };
             if let Err(e) = fs::write(&target, report_text(&last.lock().unwrap().reports, &lang)) {
                 app.set_error(format!("{}: {e}", target.display()).into());
-                app.set_page(Page::Home);
+                app.invoke_home();
             }
         }
     });
@@ -1905,7 +1905,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let app = weak.unwrap();
             sync_drives(&app, &drives);
             show_renamed(&app, &mut renames.borrow_mut());
-            app.set_page(Page::Home);
+            app.invoke_home();
         }
     });
 
@@ -2357,7 +2357,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 .collect();
             show_renamed(&app, &mut st);
             if errors.is_empty() {
-                app.set_page(Page::Home);
+                app.set_page(Page::Maintain);
             } else {
                 app.set_notice(ModelRc::new(VecModel::from(errors)));
                 app.set_page(Page::Notice);
@@ -2435,14 +2435,16 @@ fn main() -> Result<(), slint::PlatformError> {
             #[cfg(target_os = "macos")]
             mac_menu::ensure();
             match app.get_page() {
-                Page::Home => {
+                Page::Home | Page::Maintain | Page::Rebalstart | Page::Dupsstart | Page::Runs | Page::Exchange | Page::Projects | Page::Tasks => {
                     sync_drives(&app, &drives);
                     show_renamed(&app, &mut renames.borrow_mut());
                     show_rebalanced(&app, &app.get_language());
                     show_dup_runs(&app, &app.get_language());
                 }
-                Page::Rename | Page::Runs | Page::Dups => app.set_mc_running(media_composer_running()),
                 _ => {}
+            }
+            if app.get_page() != Page::Working {
+                app.set_mc_running(media_composer_running());
             }
         }
     });
@@ -2468,8 +2470,13 @@ fn main() -> Result<(), slint::PlatformError> {
             mac_window::appearance_all(settings.borrow().dark);
             // the main window never grows past the screen (minus its title bar); longer pages scroll
             let h = mac_window::screen_height();
-            if let Some(app) = weak.upgrade() && h > 0.0 {
-                app.set_screen_height((h - 28.0) as f32);
+            if let Some(app) = weak.upgrade() {
+                if h > 0.0 {
+                    app.set_screen_height((h - 28.0) as f32);
+                }
+                // tab bar and title bar are one surface, as in the settings window
+                let size = app.window().size().to_logical(app.window().scale_factor());
+                mac_window::unify_titlebar(app.window(), size.width as f64, size.height as f64);
             }
             if let Some(w) = win.borrow().as_ref() {
                 // the NSWindow exists only once the event loop has run after show(); only changes it once
@@ -2479,11 +2486,17 @@ fn main() -> Result<(), slint::PlatformError> {
     });
     #[cfg(target_os = "macos")]
     mac_window::on_key_change({
-        let win = others.settings.clone();
+        let (win, weak) = (others.settings.clone(), app.as_weak());
         Box::new(move || {
             // called from inside AppKit (also while show() holds the window's RefCell): update on the next turn
-            let win = win.clone();
+            let (win, weak) = (win.clone(), weak.clone());
             slint::Timer::single_shot(Duration::ZERO, move || {
+                if let Some(app) = weak.upgrade() {
+                    let key = mac_window::is_key(app.window());
+                    if app.get_active() != key {
+                        app.set_active(key);
+                    }
+                }
                 if let Some(w) = win.borrow().as_ref() {
                     let key = mac_window::is_key(w.window());
                     if w.get_active() != key {

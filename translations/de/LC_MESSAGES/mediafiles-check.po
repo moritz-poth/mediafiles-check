@@ -8,6 +8,108 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+msgid "Exchange"
+msgstr "Austausch"
+
+msgid "EXCHANGE"
+msgstr "AUSTAUSCH"
+
+msgid "Check"
+msgstr "Prüfen"
+
+msgid "Projects"
+msgstr "Projekte"
+
+msgid "Maintain"
+msgstr "Pflegen"
+
+msgid "Tasks"
+msgstr "Aufgaben"
+
+msgid "needs attention"
+msgstr "braucht Aufmerksamkeit"
+
+msgid "Compare"
+msgstr "Vergleichen"
+
+msgid "Collect"
+msgstr "Sammeln"
+
+msgid "Import"
+msgstr "Importieren"
+
+msgid "Drives"
+msgstr "Laufwerke"
+
+msgid "Result"
+msgstr "Ergebnis"
+
+msgid "{} of {} on"
+msgstr "{} von {} an"
+
+msgid "all match"
+msgstr "alle stimmen"
+
+msgid "{n} folder differs"
+msgid_plural "{n} folders differ"
+msgstr[0] "{n} Ordner weicht ab"
+msgstr[1] "{n} Ordner weichen ab"
+
+msgid "Choose projects"
+msgstr "Projekte wählen"
+
+msgid "Missing media"
+msgstr "Fehlende Medien"
+
+msgid "AMA clips"
+msgstr "AMA-Clips"
+
+msgid "Request"
+msgstr "Anfordern"
+
+msgid "Duplicates"
+msgstr "Duplikate"
+
+msgid "{n} folder renamed"
+msgid_plural "{n} folders renamed"
+msgstr[0] "{n} Ordner umbenannt"
+msgstr[1] "{n} Ordner umbenannt"
+
+msgid "databases pending"
+msgstr "Datenbanken offen"
+
+msgid "{n} run"
+msgid_plural "{n} runs"
+msgstr[0] "{n} Lauf"
+msgstr[1] "{n} Läufe"
+
+msgid "Open"
+msgstr "Offen"
+
+msgid "Import by hand"
+msgstr "Von Hand importieren"
+
+msgid "Completed"
+msgstr "Erledigt"
+
+msgid "OPEN TASKS"
+msgstr "OFFENE AUFGABEN"
+
+msgid "Nothing to do by hand right now."
+msgstr "Gerade gibt es nichts von Hand zu tun."
+
+msgid "This part is being moved here from MediaFiles Ferry."
+msgstr "Dieser Teil zieht gerade aus MediaFiles Ferry hierher um."
+
+msgid "No runs yet."
+msgstr "Noch keine Läufe."
+
+msgid "The switches apply to Exchange › Scan too."
+msgstr "Die Schalter gelten auch für Austausch › Scannen."
+
+msgid "No folder is renamed right now. Folders are renamed for Media Composer from a check result (Check › Result) or when rebalancing and setting duplicates aside."
+msgstr "Gerade ist kein Ordner umbenannt. Ordner werden aus einem Prüfergebnis (Prüfen › Ergebnis) oder beim Rebalancing und Beiseitelegen von Duplikaten für Media Composer umbenannt."
+
 msgid "Rebalancing"
 msgstr "Rebalancing"
 
@@ -23,20 +125,14 @@ msgstr "Rebalancing starten"
 msgid "Find full folders…"
 msgstr "Volle Ordner suchen…"
 
-msgid "REBALANCING HISTORY"
-msgstr "REBALANCING-VERLAUF"
-
-msgid "History ({})…"
-msgstr "Verlauf ({})…"
-
 msgid "Databases not rewritten yet"
 msgstr "Datenbanken noch nicht neu geschrieben"
 
 msgid "Rewrite databases"
 msgstr "Datenbanken neu schreiben"
 
-msgid "Cancel leaves the databases as they are – you can start it later on the start page under Rebalancing → History."
-msgstr "„Abbrechen“ lässt die Datenbanken, wie sie sind – starten kannst du es später auf der Startseite unter Rebalancing → Verlauf."
+msgid "Cancel leaves the databases as they are – you can start it later under Maintain › History."
+msgstr "„Abbrechen“ lässt die Datenbanken, wie sie sind – starten kannst du es später unter Pflegen › Verlauf."
 
 msgid "{n} run is waiting for new databases (History)."
 msgid_plural "{n} runs are waiting for new databases (History)."
@@ -73,8 +169,8 @@ msgstr "„{}“ ist ein Ordner, den Media Composer selbst anlegt und füllt. Wi
 msgid "The oldest media files go into the rebalanced folders, the youngest stay in the main folder; nothing is copied or deleted. Afterwards the databases of the changed folders have to be rewritten. You can undo it under History."
 msgstr "Die ältesten Mediendateien kommen in die rebalanced-Ordner, die jüngsten bleiben im Hauptordner; nichts wird kopiert oder gelöscht. Danach müssen die Datenbanken der geänderten Ordner neu geschrieben werden. Rückgängig machen kannst du es im Verlauf."
 
-msgid "Now the databases of the changed folders have to be rewritten. Start sets their databases aside (Media Composer writes new ones) and renames the folders Media Composer does not update itself – then go on as for renamed folders on the start page."
-msgstr "Jetzt müssen die Datenbanken der geänderten Ordner neu geschrieben werden. „Starten“ legt ihre Datenbanken zur Seite (Media Composer schreibt neue) und benennt die Ordner, die Media Composer nicht selbst aktualisiert, für Media Composer um – danach geht es auf der Startseite weiter wie bei umbenannten Ordnern."
+msgid "Now the databases of the changed folders have to be rewritten. Start sets their databases aside (Media Composer writes new ones) and renames the folders Media Composer does not update itself – then go on under Maintain › Rename."
+msgstr "Jetzt müssen die Datenbanken der geänderten Ordner neu geschrieben werden. „Starten“ legt ihre Datenbanken zur Seite (Media Composer schreibt neue) und benennt die Ordner, die Media Composer nicht selbst aktualisiert, für Media Composer um – danach geht es unter Pflegen › Umbenennen weiter."
 
 msgid "set aside"
 msgstr "zur Seite"
@@ -88,23 +184,17 @@ msgstr "Zur Seite legen"
 msgid "DUPLICATES"
 msgstr "DUPLIKATE"
 
-msgid "DUPLICATES HISTORY"
-msgstr "DUPLIKATE-VERLAUF"
-
 msgid "SET ASIDE"
 msgstr "ZUR SEITE GELEGT"
 
 msgid "Find duplicates…"
 msgstr "Duplikate suchen…"
 
-msgid "Cancel leaves the databases as they are – you can start it later on the start page under Duplicates → History."
-msgstr "„Abbrechen“ lässt die Datenbanken, wie sie sind – starten kannst du es später auf der Startseite unter Duplikate → Verlauf."
-
 msgid "Finds media files that are on the selected drives more than once – by their Media Composer ID, also when renamed."
 msgstr "Findet Mediendateien, die es auf den gewählten Laufwerken mehrfach gibt – an ihrer Media-Composer-ID, auch wenn sie umbenannt wurden."
 
-msgid "Click a copy to keep it. The others go into “MediaFiles Check Duplicates” on their drive – nothing is deleted, you can undo it under History."
-msgstr "Klick auf eine Kopie, um sie zu behalten. Die anderen kommen nach „MediaFiles Check Duplicates“ auf ihrem Laufwerk – nichts wird gelöscht, rückgängig machen kannst du es im Verlauf."
+msgid "Click a copy to keep it. The others go into “MediaFiles Check Duplicates” on their drive – nothing is deleted, you can undo it under Maintain › History."
+msgstr "Klick auf eine Kopie, um sie zu behalten. Die anderen kommen nach „MediaFiles Check Duplicates“ auf ihrem Laufwerk – nichts wird gelöscht, rückgängig machen kannst du es unter Pflegen › Verlauf."
 
 msgid "History"
 msgstr "Verlauf"
@@ -431,8 +521,8 @@ msgstr "Für Media Composer umbenennen…"
 msgid "RENAME FOR MEDIA COMPOSER"
 msgstr "FÜR MEDIA COMPOSER UMBENENNEN"
 
-msgid "The original names and all media files are remembered. Once Media Composer has rebuilt the databases, rename the folders back on the start page."
-msgstr "Die Originalnamen und alle Mediendateien werden gemerkt. Sobald Media Composer die Datenbanken neu aufgebaut hat, benennst du die Ordner auf der Startseite zurück."
+msgid "The original names and all media files are remembered. Once Media Composer has rebuilt the databases, rename the folders back under Maintain › Rename."
+msgstr "Die Originalnamen und alle Mediendateien werden gemerkt. Sobald Media Composer die Datenbanken neu aufgebaut hat, benennst du die Ordner unter Pflegen › Umbenennen zurück."
 
 msgid "Quit Media Composer first."
 msgstr "Zuerst Media Composer beenden."
