@@ -8,6 +8,51 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+msgid "current step"
+msgstr "aktueller Schritt"
+
+msgid "Media Composer writes"
+msgstr "Media Composer schreibt"
+
+msgid "Rename for Media Composer"
+msgstr "Für Media Composer umbenennen"
+
+msgid "Show AMA clips"
+msgstr "AMA-Clips zeigen"
+
+msgid "Request missing media"
+msgstr "Fehlendes anfordern"
+
+msgid "Nothing to request – all media files are on the drives."
+msgstr "Nichts anzufordern – alle Mediendateien sind auf den Laufwerken."
+
+msgid "{n} media file will be requested."
+msgid_plural "{n} media files will be requested."
+msgstr[0] "{n} Mediendatei wird angefordert."
+msgstr[1] "{n} Mediendateien werden angefordert."
+
+msgid "Files to relink are not part of it."
+msgstr "Dateien zum Neuverknüpfen sind nicht dabei."
+
+msgid "Send the request file to the system that has the media (mail, USB stick)."
+msgstr "Die Anforderung an den Schnittplatz schicken, der die Medien hat (Mail, USB-Stick)."
+
+msgid "There: Exchange › Compare, open the file, then Collect."
+msgstr "Dort: Austausch › Vergleichen, die Datei öffnen, dann Sammeln."
+
+msgid "Here: Exchange › Import the delivery."
+msgstr "Hier: Austausch › Importieren der Lieferung."
+
+msgid "{n} AMA-linked file"
+msgid_plural "{n} AMA-linked files"
+msgstr[0] "{n} AMA-verknüpfte Datei"
+msgstr[1] "{n} AMA-verknüpfte Dateien"
+
+msgid "{n} file"
+msgid_plural "{n} files"
+msgstr[0] "{n} Datei"
+msgstr[1] "{n} Dateien"
+
 msgid "Exchange"
 msgstr "Austausch"
 
@@ -374,9 +419,6 @@ msgstr "Laufwerk oder MXF-Ordner wählen"
 msgid "… and {} more (see report)"
 msgstr "… und {} weitere (siehe Bericht)"
 
-msgid "DRIVES"
-msgstr "LAUFWERKE"
-
 msgid "No drive with “Avid MediaFiles/MXF” found."
 msgstr "Kein Laufwerk mit „Avid MediaFiles/MXF“ gefunden."
 
@@ -482,9 +524,6 @@ msgstr "Schrift JetBrains Mono – SIL Open Font License 1.1. Slint UI-Toolkit �
 
 msgid "Avid and Media Composer are trademarks of Avid Technology, Inc. MediaFiles Check is not affiliated with Avid."
 msgstr "Avid und Media Composer sind Marken von Avid Technology, Inc. MediaFiles Check steht in keiner Verbindung zu Avid."
-
-msgid "RENAMED FOR MEDIA COMPOSER"
-msgstr "FÜR MEDIA COMPOSER UMBENANNT"
 
 msgid "{} (was {})"
 msgstr "{} (war {})"
@@ -599,18 +638,6 @@ msgstr "Media Composer starten"
 msgid "Media Composer could not be started."
 msgstr "Media Composer konnte nicht gestartet werden."
 
-msgid "AVID PROJECTS"
-msgstr "AVID-PROJEKTE"
-
-msgid "Avid Projects"
-msgstr "Avid-Projekte"
-
-msgid "Find the media files the bins of your Avid projects need that are on none of the drives, and request them with MediaFiles Ferry."
-msgstr "Findet die Mediendateien, die die Bins deiner Avid-Projekte brauchen und die auf keinem Laufwerk liegen, und fordert sie mit MediaFiles Ferry an."
-
-msgid "Open projects…"
-msgstr "Projekte öffnen…"
-
 msgid "Choose the folder with your Avid projects"
 msgstr "Ordner mit deinen Avid-Projekten wählen"
 
@@ -658,10 +685,10 @@ msgid_plural "{n} references without a media file left out – e.g. camera sound
 msgstr[0] "{n} Verweis ohne Mediendatei ausgelassen – z. B. nie importierter Kameraton; Media Composer zeigt solche Clips online."
 msgstr[1] "{n} Verweise ohne Mediendatei ausgelassen – z. B. nie importierter Kameraton; Media Composer zeigt solche Clips online."
 
-msgid "{n} of the missing files has no Avid media reference – e.g. imported via AAF. Ferry only finds it if the other system has it in Avid MediaFiles."
-msgid_plural "{n} of the missing files have no Avid media reference – e.g. imported via AAF. Ferry only finds them if the other system has them in Avid MediaFiles."
-msgstr[0] "{n} der fehlenden Dateien hat keinen Avid-Medienverweis – z. B. über AAF importiert. Ferry findet sie nur, wenn das andere System sie in Avid MediaFiles hat."
-msgstr[1] "{n} der fehlenden Dateien haben keinen Avid-Medienverweis – z. B. über AAF importiert. Ferry findet sie nur, wenn das andere System sie in Avid MediaFiles hat."
+msgid "{n} of the missing files has no Avid media reference – e.g. imported via AAF. the exchange only finds it if the other system has it in Avid MediaFiles."
+msgid_plural "{n} of the missing files have no Avid media reference – e.g. imported via AAF. the exchange only finds them if the other system has them in Avid MediaFiles."
+msgstr[0] "{n} der fehlenden Dateien hat keinen Avid-Medienverweis – z. B. über AAF importiert. der Austausch findet sie nur, wenn das andere System sie in Avid MediaFiles hat."
+msgstr[1] "{n} der fehlenden Dateien haben keinen Avid-Medienverweis – z. B. über AAF importiert. der Austausch findet sie nur, wenn das andere System sie in Avid MediaFiles hat."
 
 msgid "{n} missing file is on the drives as another media file of the same source (camera clip or tape) – the clip only lost its link: relink it in Media Composer. Not requested."
 msgid_plural "{n} missing files are on the drives as other media files of the same source (camera clip or tape) – the clips only lost their link: relink them in Media Composer. Not requested."
@@ -678,17 +705,8 @@ msgid_plural "{n} AMA-linked files have a master clip of the same name with its 
 msgstr[0] "{n} AMA-verlinkte Datei hat einen gleichnamigen Masterclip mit Medien auf den Laufwerken – ausgelassen."
 msgstr[1] "{n} AMA-verlinkte Dateien haben einen gleichnamigen Masterclip mit Medien auf den Laufwerken – ausgelassen."
 
-msgid "Show AMA clips…"
-msgstr "AMA-Clips anzeigen…"
-
-msgid "AMA-Linked Clips"
-msgstr "AMA-verlinkte Clips"
-
 msgid "Where the AMA-linked clips are used. Click a clip to see its master clips, subclips and sequences. AMA files are not requested."
 msgstr "Wo die AMA-verlinkten Clips benutzt werden. Ein Klick auf einen Clip zeigt seine Masterclips, Subclips und Sequenzen. AMA-Dateien werden nicht angefordert."
-
-msgid "AMA-LINKED CLIPS PER BIN"
-msgstr "AMA-VERLINKTE CLIPS PRO BIN"
 
 msgid "on the drives – relink"
 msgstr "auf den Laufwerken – neu verlinken"
@@ -715,9 +733,6 @@ msgstr "Sequenz"
 
 msgid "… more in the saved list"
 msgstr "… weitere in der gesicherten Liste"
-
-msgid "Save the request and open it in MediaFiles Ferry on the system that has the media (Open manifest…). Ferry collects the files into a delivery you import here."
-msgstr "Sichere die Anforderung und öffne sie in MediaFiles Ferry auf dem System, das die Medien hat (Manifest öffnen …). Ferry sammelt die Dateien in eine Lieferung, die du hier einspielst."
 
 msgid "Reading the media databases of the drives…"
 msgstr "Lese die Mediendatenbanken der Laufwerke…"

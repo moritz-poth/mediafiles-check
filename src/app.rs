@@ -461,16 +461,12 @@ type Win<T> = Rc<RefCell<Option<T>>>;
 struct Others {
     help: Win<HelpWindow>,
     settings: Win<SettingsWindow>,
-    projects: Win<ProjectsWindow>,
-    ama: Win<AmaWindow>,
 }
 
 /// Language or appearance changed: every open window follows.
 fn apply_all(app: &AppWindow, others: &Others, s: &Settings) {
     apply_menus(&app.global::<Shared>(), s);
     others.settings.borrow().iter().for_each(|w| apply_menus(&w.global::<Shared>(), s));
-    others.projects.borrow().iter().for_each(|w| apply_menus(&w.global::<Shared>(), s));
-    others.ama.borrow().iter().for_each(|w| apply_menus(&w.global::<Shared>(), s));
     others.help.borrow().iter().for_each(|h| update_help(h, s));
     #[cfg(target_os = "macos")]
     {
@@ -578,15 +574,13 @@ fn shorten(s: &str, max: usize) -> String {
     c[..head].iter().chain(['…'].iter()).chain(c[c.len() - (max - 1 - head)..].iter()).collect()
 }
 
-/// Avid projects window: chosen folder, projects with their switch, last scan.
+/// Avid projects (tab "Projects"): chosen folder, projects with their switch, last scan.
 #[derive(Default)]
 struct ProjectsState {
     projects: Vec<(PathBuf, bool)>,
     result: Arc<Mutex<Option<ScanResult>>>,
-    /// opened media file groups in the result list
+    /// opened media file groups in the result list and in the AMA list
     open: HashSet<usize>,
-    /// the AMA window (same as `Others::ama`) and its opened groups
-    ama: Win<AmaWindow>,
     ama_open: HashSet<usize>,
 }
 
@@ -595,38 +589,33 @@ fn projects_folder_file() -> Option<PathBuf> {
 }
 
 /// Projects below the folder, all switched off (the user picks what to scan).
-fn load_projects(w: &ProjectsWindow, st: &mut ProjectsState, folder: &Path) {
+fn load_projects(w: &AppWindow, st: &mut ProjectsState, folder: &Path) {
     st.projects = projects::find_projects(folder).into_iter().map(|p| (p, false)).collect();
-    w.set_folder(shorten(&folder.display().to_string(), 60).into());
+    w.global::<Projects>().set_folder(shorten(&folder.display().to_string(), 60).into());
     show_projects(w, st);
 }
 
-fn show_projects(w: &ProjectsWindow, st: &ProjectsState) {
+fn show_projects(w: &AppWindow, st: &ProjectsState) {
     let rows: Vec<DriveRow> = st.projects.iter().map(|(p, on)| DriveRow { name: volume_name(p).into(), selected: *on }).collect();
-    w.set_selected_count(st.projects.iter().filter(|p| p.1).count() as i32);
-    w.set_projects(ModelRc::new(VecModel::from(rows)));
+    let p = w.global::<Projects>();
+    p.set_selected_count(st.projects.iter().filter(|p| p.1).count() as i32);
+    p.set_projects(ModelRc::new(VecModel::from(rows)));
 }
 
-/// Rows of the result: per bin its missing media files; an open file shows where it is used in the bin.
+/// The lists of missing media files and of AMA clips (an open file shows where it is used in the bin).
+fn show_rows(w: &AppWindow, r: &ScanResult, st: &ProjectsState) {
+    let p = w.global::<Projects>();
+    p.set_rows(ModelRc::new(VecModel::from(project_rows(w, &r.by_bin, &st.open))));
+    p.set_ama_rows(ModelRc::new(VecModel::from(project_rows(w, &r.ama_by_bin, &st.ama_open))));
+}
+
 /// Capped at whole bins (the saved list has all); group indexes count over all bins, so they stay stable.
-/// The list of missing media files.
-fn show_rows(w: &ProjectsWindow, r: &ScanResult, open: &HashSet<usize>) {
-    w.set_rows(ModelRc::new(VecModel::from(project_rows(w, &r.by_bin, open, 0))));
-}
-
-/// The AMA window (if open) shows the clips of the last result; texts come from the projects window.
-fn show_ama(w: &ProjectsWindow, st: &ProjectsState) {
-    if let (Some(a), Some(r)) = (st.ama.borrow().as_ref(), st.result.lock().unwrap().as_ref()) {
-        a.set_rows(ModelRc::new(VecModel::from(project_rows(w, &r.ama_by_bin, &st.ama_open, 0))));
-    }
-}
-
-fn project_rows(w: &ProjectsWindow, by_bin: &BTreeMap<(String, String), Vec<MissingGroup>>, open: &HashSet<usize>, first: usize) -> Vec<MissingRow> {
+fn project_rows(w: &AppWindow, by_bin: &BTreeMap<(String, String), Vec<MissingGroup>>, open: &HashSet<usize>) -> Vec<MissingRow> {
     const MAX_ROWS: usize = 1000;
     let files = |n: usize| if n == 1 { w.get_txt_one_file() } else { w.get_txt_files_n().replace("{}", &n.to_string()).into() };
     let row = |level, text: String, note: SharedString, open, index| MissingRow { level, text: text.into(), note, open, index };
     let mut rows = vec![];
-    let mut index = first;
+    let mut index = 0;
     for ((project, bin), groups) in by_bin {
         if rows.len() >= MAX_ROWS {
             rows.push(row(2, w.get_txt_more_rows().into(), "".into(), false, -1));
@@ -658,19 +647,16 @@ fn project_rows(w: &ProjectsWindow, by_bin: &BTreeMap<(String, String), Vec<Miss
     rows
 }
 
-fn start_project_scan(w: &ProjectsWindow, st: &mut ProjectsState) {
+fn start_project_scan(w: &AppWindow, st: &mut ProjectsState) {
     st.open.clear();
     st.ama_open.clear();
-    // its list belongs to the previous result
-    if let Some(a) = st.ama.borrow().as_ref() {
-        let _ = a.hide();
-    }
     let chosen: Vec<PathBuf> = st.projects.iter().filter(|p| p.1).map(|p| p.0.clone()).collect();
     log::write(&format!("project scan: {}", chosen.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(", ")));
-    w.set_error("".into());
-    w.set_work_value(0.0);
-    w.set_work_text(w.get_txt_reading_drives());
-    w.set_step(1);
+    let p = w.global::<Projects>();
+    p.set_error("".into());
+    p.set_work_value(0.0);
+    p.set_work_text(w.get_txt_reading_drives());
+    p.set_step(1);
     let (weak, result) = (w.as_weak(), st.result.clone());
     std::thread::spawn(move || {
         let drives = find_volumes();
@@ -686,8 +672,9 @@ fn start_project_scan(w: &ProjectsWindow, st: &mut ProjectsState) {
             let (bin, w) = (bin.to_string(), progress.clone());
             let _ = slint::invoke_from_event_loop(move || {
                 if let Some(w) = w.upgrade() {
-                    w.set_work_text(bin.into());
-                    w.set_work_value(i as f32 / n.max(1) as f32);
+                    let p = w.global::<Projects>();
+                    p.set_work_text(bin.into());
+                    p.set_work_value(i as f32 / n.max(1) as f32);
                 }
             });
         });
@@ -697,152 +684,107 @@ fn start_project_scan(w: &ProjectsWindow, st: &mut ProjectsState) {
         }
         let _ = slint::invoke_from_event_loop(move || {
             let Some(w) = weak.upgrade() else { return };
-            w.set_missing(r.missing.len() as i32);
-            w.set_unmanaged(r.missing.iter().filter(|m| m.unmanaged).count() as i32);
-            w.set_bins(r.bins as i32);
-            w.set_clips(r.clips as i32);
-            w.set_failed(r.failed.len() as i32);
-            w.set_unknown(unknown as i32);
-            w.set_skipped(skipped.join(", ").into());
-            w.set_renders(r.renders as i32);
-            w.set_relink(r.relink as i32);
-            w.set_ama(r.ama as i32);
-            w.set_ama_covered(r.ama_covered as i32);
-            w.set_no_media(r.no_media as i32);
-            show_rows(&w, &r, &HashSet::new());
+            let p = w.global::<Projects>();
+            p.set_missing(r.missing.len() as i32);
+            p.set_unmanaged(r.missing.iter().filter(|m| m.unmanaged).count() as i32);
+            p.set_bins(r.bins as i32);
+            p.set_clips(r.clips as i32);
+            p.set_failed(r.failed.len() as i32);
+            p.set_unknown(unknown as i32);
+            p.set_skipped(skipped.join(", ").into());
+            p.set_renders(r.renders as i32);
+            p.set_relink(r.relink as i32);
+            p.set_ama(r.ama as i32);
+            p.set_ama_covered(r.ama_covered as i32);
+            p.set_no_media(r.no_media as i32);
+            show_rows(&w, &r, &ProjectsState::default());
             *result.lock().unwrap() = Some(r);
-            w.set_step(2);
+            p.set_step(2);
+            p.set_view(1);
         });
     });
 }
 
-fn open_projects(weak: &slint::Weak<AppWindow>, win: &Win<ProjectsWindow>, st: &Rc<RefCell<ProjectsState>>, settings: &Rc<RefCell<Settings>>) {
-    let mut win = win.borrow_mut();
-    if win.is_none() {
-        *win = ProjectsWindow::new().ok();
-        if let Some(w) = win.as_ref() {
-            repaint_on_resize!(w);
-            forward_menu(&w.global::<Shared>(), weak);
-            let saved = projects_folder_file().and_then(|f| fs::read_to_string(f).ok()).map(|s| PathBuf::from(s.trim()));
-            if let Some(folder) = saved.filter(|f| f.is_dir()) {
-                load_projects(w, &mut st.borrow_mut(), &folder);
+/// Wires the "Projects" tab; the saved projects folder is loaded at once.
+fn wire_projects(app: &AppWindow, st: &Rc<RefCell<ProjectsState>>) {
+    let p = app.global::<Projects>();
+    let saved = projects_folder_file().and_then(|f| fs::read_to_string(f).ok()).map(|s| PathBuf::from(s.trim()));
+    if let Some(folder) = saved.filter(|f| f.is_dir()) {
+        load_projects(app, &mut st.borrow_mut(), &folder);
+    }
+    p.on_choose_folder({
+        let (ww, st) = (app.as_weak(), st.clone());
+        move || {
+            let w = ww.unwrap();
+            let Some(folder) = rfd::FileDialog::new().set_title(w.get_txt_choose()).pick_folder() else { return };
+            if let Some(f) = projects_folder_file() {
+                let _ = fs::create_dir_all(f.parent().unwrap());
+                let _ = fs::write(f, folder.display().to_string());
             }
-            w.on_choose_folder({
-                let (ww, st) = (w.as_weak(), st.clone());
-                move || {
-                    let w = ww.unwrap();
-                    let Some(folder) = rfd::FileDialog::new().set_title(w.get_txt_choose()).pick_folder() else { return };
-                    if let Some(f) = projects_folder_file() {
-                        let _ = fs::create_dir_all(f.parent().unwrap());
-                        let _ = fs::write(f, folder.display().to_string());
-                    }
-                    load_projects(&w, &mut st.borrow_mut(), &folder);
-                }
-            });
-            w.on_toggle({
-                let (ww, st) = (w.as_weak(), st.clone());
-                move |i| {
-                    let mut st = st.borrow_mut();
-                    if let Some(p) = st.projects.get_mut(i as usize) {
-                        p.1 = !p.1;
-                    }
-                    show_projects(&ww.unwrap(), &st);
-                }
-            });
-            w.on_scan({
-                let (ww, st) = (w.as_weak(), st.clone());
-                move || start_project_scan(&ww.unwrap(), &mut st.borrow_mut())
-            });
-            w.on_toggle_group({
-                let (ww, st) = (w.as_weak(), st.clone());
-                move |i| {
-                    let w = ww.unwrap();
-                    let mut st = st.borrow_mut();
-                    let i = i as usize;
-                    if !st.open.remove(&i) {
-                        st.open.insert(i);
-                    }
-                    if let Some(r) = st.result.lock().unwrap().as_ref() {
-                        show_rows(&w, r, &st.open);
-                    }
-                        }
-            });
-            w.on_back({
-                let ww = w.as_weak();
-                move || {
-                    let w = ww.unwrap();
-                    w.set_step(0);
-                        }
-            });
-            w.on_save_list({
-                let (ww, st) = (w.as_weak(), st.clone());
-                move || {
-                    let w = ww.unwrap();
-                    let lang = w.global::<Shared>().get_language_index();
-                    let lang = LANGUAGES.get(lang as usize).map_or("en", |l| l.0);
-                    let name = format!("MediaFiles Check Projects {}.txt", chrono::Local::now().format("%Y-%m-%d"));
-                    let Some(target) = rfd::FileDialog::new().set_file_name(name).add_filter("Text", &["txt"]).save_file() else { return };
-                    let text = st.borrow().result.lock().unwrap().as_ref().map(|r| projects::list_text(r, lang)).unwrap_or_default();
-                    if let Err(e) = fs::write(&target, text) {
-                        log::write(&format!("save list {}: {e}", target.display()));
-                        w.set_error(format!("{}: {e}", target.display()).into());
-                    }
-                }
-            });
-            w.on_show_ama({
-                let (ww, st, weak, settings) = (w.as_weak(), st.clone(), weak.clone(), settings.clone());
-                move || {
-                    let w = ww.unwrap();
-                    let ama = st.borrow().ama.clone();
-                    if ama.borrow().is_none() {
-                        *ama.borrow_mut() = AmaWindow::new().ok();
-                        if let Some(a) = ama.borrow().as_ref() {
-                            repaint_on_resize!(a);
-                            forward_menu(&a.global::<Shared>(), &weak);
-                            a.on_toggle_group({
-                                let (ww, st) = (ww.clone(), st.clone());
-                                move |i| {
-                                    let mut s = st.borrow_mut();
-                                    let i = i as usize;
-                                    if !s.ama_open.remove(&i) {
-                                        s.ama_open.insert(i);
-                                    }
-                                    show_ama(&ww.unwrap(), &s);
-                                }
-                            });
-                            let aw = a.as_weak();
-                            a.on_close(move || { let _ = aw.unwrap().hide(); });
-                        }
-                    }
-                    show_ama(&w, &st.borrow());
-                    if let Some(a) = ama.borrow().as_ref() {
-                        apply_menus(&a.global::<Shared>(), &settings.borrow());
-                        let _ = a.show();
-                    }
-                }
-            });
-            w.on_save_request({
-                let (ww, st) = (w.as_weak(), st.clone());
-                move || {
-                    let w = ww.unwrap();
-                    let system = rename::computer_name();
-                    let name = format!("{}_{}_Request.ferry", chrono::Local::now().format("%y%m%d-%H%M"), system.replace(['/', '\\', ':'], "_"));
-                    let Some(target) = rfd::FileDialog::new().set_file_name(name).add_filter("MediaFiles Ferry", &["ferry"]).save_file() else { return };
-                    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
-                    let data = st.borrow().result.lock().unwrap().as_ref().map(|r| projects::request_json(&system, now, &r.missing)).unwrap_or_default();
-                    let result = fs::write(&target, data);
-                    log::write(&format!("request saved {}: {result:?}", target.display()));
-                    if let Err(e) = result {
-                        w.set_error(format!("{}: {e}", target.display()).into());
-                    }
-                }
-            });
+            load_projects(&w, &mut st.borrow_mut(), &folder);
         }
-    }
-    if let Some(w) = win.as_ref() {
-        apply_menus(&w.global::<Shared>(), &settings.borrow());
-        let _ = w.show();
-    }
+    });
+    p.on_toggle({
+        let (ww, st) = (app.as_weak(), st.clone());
+        move |i| {
+            let mut st = st.borrow_mut();
+            if let Some(p) = st.projects.get_mut(i as usize) {
+                p.1 = !p.1;
+            }
+            show_projects(&ww.unwrap(), &st);
+        }
+    });
+    p.on_scan({
+        let (ww, st) = (app.as_weak(), st.clone());
+        move || start_project_scan(&ww.unwrap(), &mut st.borrow_mut())
+    });
+    let toggle = |ama: bool| {
+        let (ww, st) = (app.as_weak(), st.clone());
+        move |i: i32| {
+            let w = ww.unwrap();
+            let mut st = st.borrow_mut();
+            let set = if ama { &mut st.ama_open } else { &mut st.open };
+            if !set.remove(&(i as usize)) {
+                set.insert(i as usize);
+            }
+            if let Some(r) = st.result.lock().unwrap().as_ref() {
+                show_rows(&w, r, &st);
+            }
+        }
+    };
+    p.on_toggle_group(toggle(false));
+    p.on_toggle_ama(toggle(true));
+    p.on_save_list({
+        let (ww, st) = (app.as_weak(), st.clone());
+        move || {
+            let w = ww.unwrap();
+            let lang = w.global::<Shared>().get_language_index();
+            let lang = LANGUAGES.get(lang as usize).map_or("en", |l| l.0);
+            let name = format!("MediaFiles Check Projects {}.txt", chrono::Local::now().format("%Y-%m-%d"));
+            let Some(target) = rfd::FileDialog::new().set_file_name(name).add_filter("Text", &["txt"]).save_file() else { return };
+            let text = st.borrow().result.lock().unwrap().as_ref().map(|r| projects::list_text(r, lang)).unwrap_or_default();
+            if let Err(e) = fs::write(&target, text) {
+                log::write(&format!("save list {}: {e}", target.display()));
+                w.global::<Projects>().set_error(format!("{}: {e}", target.display()).into());
+            }
+        }
+    });
+    p.on_save_request({
+        let (ww, st) = (app.as_weak(), st.clone());
+        move || {
+            let w = ww.unwrap();
+            let system = rename::computer_name();
+            let name = format!("{}_{}_Request.ferry", chrono::Local::now().format("%y%m%d-%H%M"), system.replace(['/', '\\', ':'], "_"));
+            let Some(target) = rfd::FileDialog::new().set_file_name(name).add_filter("MediaFiles Ferry", &["ferry"]).save_file() else { return };
+            let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
+            let data = st.borrow().result.lock().unwrap().as_ref().map(|r| projects::request_json(&system, now, &r.missing)).unwrap_or_default();
+            let result = fs::write(&target, data);
+            log::write(&format!("request saved {}: {result:?}", target.display()));
+            if let Err(e) = result {
+                w.global::<Projects>().set_error(format!("{}: {e}", target.display()).into());
+            }
+        }
+    });
 }
 
 fn notice(kind: i32, a: &str, b: &str, n: usize) -> NoticeRow {
@@ -1318,6 +1260,7 @@ fn show_renamed(app: &AppWindow, st: &mut Renames) {
         })
         .collect();
     app.set_mc_running(!rows.is_empty() && media_composer_running());
+    app.set_ready_count(rows.iter().filter(|r| r.status == 2).count() as i32);
     app.set_renamed(ModelRc::new(VecModel::from(rows)));
 }
 
@@ -2382,14 +2325,7 @@ fn main() -> Result<(), slint::PlatformError> {
     });
 
     let projects_state: Rc<RefCell<ProjectsState>> = Rc::default();
-    projects_state.borrow_mut().ama = others.ama.clone();
-    app.on_open_projects({
-        let (weak, win, st, settings) = (app.as_weak(), others.projects.clone(), projects_state.clone(), settings.clone());
-        move || {
-            let (weak, win, st, settings) = (weak.clone(), win.clone(), st.clone(), settings.clone());
-            slint::Timer::single_shot(Duration::ZERO, move || open_projects(&weak, &win, &st, &settings));
-        }
-    });
+    wire_projects(&app, &projects_state);
 
     app.on_start_media_composer({
         let weak = app.as_weak();

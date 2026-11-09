@@ -9,6 +9,19 @@ PLURAL = {"de": "nplurals=2; plural=(n != 1);", "fr": "nplurals=2; plural=(n > 1
 
 # English: (German, French, Spanish). Plural entries: (singular, plural) -> ((de1, de2), (fr1, fr2), (es1, es2))
 T = {
+    "current step": ("aktueller Schritt", "étape en cours", "paso actual"),
+    "Media Composer writes": ("Media Composer schreibt", "Media Composer écrit", "Media Composer escribe"),
+    "Rename for Media Composer": ("Für Media Composer umbenennen", "Renommer pour Media Composer", "Renombrar para Media Composer"),
+    "Show AMA clips": ("AMA-Clips zeigen", "Afficher les clips AMA", "Mostrar clips AMA"),
+    "Request missing media": ("Fehlendes anfordern", "Demander les médias manquants", "Solicitar los medios que faltan"),
+    "Nothing to request – all media files are on the drives.": ("Nichts anzufordern – alle Mediendateien sind auf den Laufwerken.", "Rien à demander – tous les fichiers média sont sur les disques.", "Nada que solicitar: todos los archivos de medios están en las unidades."),
+    ("{n} media file will be requested.", "{n} media files will be requested."): (("{n} Mediendatei wird angefordert.", "{n} Mediendateien werden angefordert."), ("{n} fichier média sera demandé.", "{n} fichiers média seront demandés."), ("Se solicitará {n} archivo de medios.", "Se solicitarán {n} archivos de medios.")),
+    "Files to relink are not part of it.": ("Dateien zum Neuverknüpfen sind nicht dabei.", "Les fichiers à reconnecter n’en font pas partie.", "Los archivos que hay que volver a vincular no se incluyen."),
+    "Send the request file to the system that has the media (mail, USB stick).": ("Die Anforderung an den Schnittplatz schicken, der die Medien hat (Mail, USB-Stick).", "Envoyez le fichier de demande au poste qui a les médias (e-mail, clé USB).", "Envía el archivo de solicitud al puesto que tiene los medios (correo, memoria USB)."),
+    "There: Exchange › Compare, open the file, then Collect.": ("Dort: Austausch › Vergleichen, die Datei öffnen, dann Sammeln.", "Là-bas : Échange › Comparer, ouvrez le fichier, puis Rassembler.", "Allí: Intercambio › Comparar, abre el archivo y luego Reunir."),
+    "Here: Exchange › Import the delivery.": ("Hier: Austausch › Importieren der Lieferung.", "Ici : Échange › Importer la livraison.", "Aquí: Intercambio › Importar la entrega."),
+    ("{n} AMA-linked file", "{n} AMA-linked files"): (("{n} AMA-verknüpfte Datei", "{n} AMA-verknüpfte Dateien"), ("{n} fichier lié en AMA", "{n} fichiers liés en AMA"), ("{n} archivo vinculado por AMA", "{n} archivos vinculados por AMA")),
+    ("{n} file", "{n} files"): (("{n} Datei", "{n} Dateien"), ("{n} fichier", "{n} fichiers"), ("{n} archivo", "{n} archivos")),
     # Hauptfenster: Reiter und Schritte (one app with Ferry, 2026-11-09)
     "Exchange": ("Austausch", "Échange", "Intercambio"),
     "EXCHANGE": ("AUSTAUSCH", "ÉCHANGE", "INTERCAMBIO"),
@@ -131,7 +144,6 @@ T = {
     "MediaFiles Check Manual": ("MediaFiles Check Anleitung", "Manuel de MediaFiles Check", "Manual de MediaFiles Check"),
     "Choose a drive or MXF folder": ("Laufwerk oder MXF-Ordner wählen", "Choisir un disque ou un dossier MXF", "Elegir un disco o una carpeta MXF"),
     "… and {} more (see report)": ("… und {} weitere (siehe Bericht)", "… et {} de plus (voir le rapport)", "… y {} más (ver informe)"),
-    "DRIVES": ("LAUFWERKE", "DISQUES", "DISCOS"),
     "No drive with “Avid MediaFiles/MXF” found.": ("Kein Laufwerk mit „Avid MediaFiles/MXF“ gefunden.", "Aucun disque avec « Avid MediaFiles/MXF » trouvé.", "No se encontró ningún disco con «Avid MediaFiles/MXF»."),
     "Compares the MXF files in every folder with the folder's Avid database and lists every difference. Nothing is changed.": (
         "Vergleicht die MXF-Dateien jedes Ordners mit seiner Avid-Datenbank und listet jede Abweichung auf. Es wird nichts verändert.",
@@ -191,7 +203,6 @@ T = {
         "Avid et Media Composer sont des marques d'Avid Technology, Inc. MediaFiles Check n'est pas affilié à Avid.",
         "Avid y Media Composer son marcas de Avid Technology, Inc. MediaFiles Check no está afiliado a Avid."),
     # renaming for Media Composer
-    "RENAMED FOR MEDIA COMPOSER": ("FÜR MEDIA COMPOSER UMBENANNT", "RENOMMÉS POUR MEDIA COMPOSER", "RENOMBRADAS PARA MEDIA COMPOSER"),
     "{} (was {})": ("{} (war {})", "{} (était {})", "{} (era {})"),
     "ready": ("bereit", "prêt", "lista"),
     "waiting": ("wartet", "en attente", "esperando"),
@@ -256,13 +267,6 @@ T = {
     "Start Media Composer": ("Media Composer starten", "Lancer Media Composer", "Abrir Media Composer"),
     "Media Composer could not be started.": ("Media Composer konnte nicht gestartet werden.", "Impossible de lancer Media Composer.", "No se pudo abrir Media Composer."),
     # Avid projects
-    "AVID PROJECTS": ("AVID-PROJEKTE", "PROJETS AVID", "PROYECTOS DE AVID"),
-    "Avid Projects": ("Avid-Projekte", "Projets Avid", "Proyectos de Avid"),
-    "Find the media files the bins of your Avid projects need that are on none of the drives, and request them with MediaFiles Ferry.": (
-        "Findet die Mediendateien, die die Bins deiner Avid-Projekte brauchen und die auf keinem Laufwerk liegen, und fordert sie mit MediaFiles Ferry an.",
-        "Trouve les fichiers médias dont les chutiers de vos projets Avid ont besoin et qui ne sont sur aucun disque, et les demande avec MediaFiles Ferry.",
-        "Encuentra los archivos de medios que necesitan los bins de tus proyectos de Avid y que no están en ningún disco, y los pide con MediaFiles Ferry."),
-    "Open projects…": ("Projekte öffnen…", "Ouvrir les projets…", "Abrir proyectos…"),
     "Choose the folder with your Avid projects": ("Ordner mit deinen Avid-Projekten wählen", "Choisir le dossier de vos projets Avid", "Elegir la carpeta con tus proyectos de Avid"),
     "No folder chosen": ("Kein Ordner gewählt", "Aucun dossier choisi", "Ninguna carpeta elegida"),
     "Choose folder…": ("Ordner wählen…", "Choisir un dossier…", "Elegir carpeta…"),
@@ -300,14 +304,14 @@ T = {
         ("{n} referencia sin archivo de medios omitida: p. ej. sonido de cámara nunca importado; Media Composer muestra esos clips en línea.",
          "{n} referencias sin archivo de medios omitidas: p. ej. sonido de cámara nunca importado; Media Composer muestra esos clips en línea."),
     ),
-    ("{n} of the missing files has no Avid media reference – e.g. imported via AAF. Ferry only finds it if the other system has it in Avid MediaFiles.",
-     "{n} of the missing files have no Avid media reference – e.g. imported via AAF. Ferry only finds them if the other system has them in Avid MediaFiles."): (
-        ("{n} der fehlenden Dateien hat keinen Avid-Medienverweis – z. B. über AAF importiert. Ferry findet sie nur, wenn das andere System sie in Avid MediaFiles hat.",
-         "{n} der fehlenden Dateien haben keinen Avid-Medienverweis – z. B. über AAF importiert. Ferry findet sie nur, wenn das andere System sie in Avid MediaFiles hat."),
-        ("{n} des fichiers manquants n'a pas de référence média Avid – p. ex. importé par AAF. Ferry ne le trouve que si l'autre système l'a dans Avid MediaFiles.",
-         "{n} des fichiers manquants n'ont pas de référence média Avid – p. ex. importés par AAF. Ferry ne les trouve que si l'autre système les a dans Avid MediaFiles."),
-        ("{n} de los archivos que faltan no tiene referencia de medios de Avid: p. ej. importado por AAF. Ferry solo lo encuentra si el otro sistema lo tiene en Avid MediaFiles.",
-         "{n} de los archivos que faltan no tienen referencia de medios de Avid: p. ej. importados por AAF. Ferry solo los encuentra si el otro sistema los tiene en Avid MediaFiles.")),
+    ("{n} of the missing files has no Avid media reference – e.g. imported via AAF. the exchange only finds it if the other system has it in Avid MediaFiles.",
+     "{n} of the missing files have no Avid media reference – e.g. imported via AAF. the exchange only finds them if the other system has them in Avid MediaFiles."): (
+        ("{n} der fehlenden Dateien hat keinen Avid-Medienverweis – z. B. über AAF importiert. der Austausch findet sie nur, wenn das andere System sie in Avid MediaFiles hat.",
+         "{n} der fehlenden Dateien haben keinen Avid-Medienverweis – z. B. über AAF importiert. der Austausch findet sie nur, wenn das andere System sie in Avid MediaFiles hat."),
+        ("{n} des fichiers manquants n'a pas de référence média Avid – p. ex. importé par AAF. l’échange ne le trouve que si l'autre système l'a dans Avid MediaFiles.",
+         "{n} des fichiers manquants n'ont pas de référence média Avid – p. ex. importés par AAF. l’échange ne les trouve que si l'autre système les a dans Avid MediaFiles."),
+        ("{n} de los archivos que faltan no tiene referencia de medios de Avid: p. ej. importado por AAF. el intercambio solo lo encuentra si el otro sistema lo tiene en Avid MediaFiles.",
+         "{n} de los archivos que faltan no tienen referencia de medios de Avid: p. ej. importados por AAF. el intercambio solo los encuentra si el otro sistema los tiene en Avid MediaFiles.")),
     ("{n} missing file is on the drives as another media file of the same source (camera clip or tape) – the clip only lost its link: relink it in Media Composer. Not requested.",
      "{n} missing files are on the drives as other media files of the same source (camera clip or tape) – the clips only lost their link: relink them in Media Composer. Not requested."): (
         ("{n} fehlende Datei liegt als andere Mediendatei derselben Quelle (Kameraclip oder Band) auf den Laufwerken – der Clip hat nur seine Verlinkung verloren: in Media Composer neu verlinken. Nicht angefordert.",
@@ -324,13 +328,10 @@ T = {
         ("{n} AMA-verlinkte Datei hat einen gleichnamigen Masterclip mit Medien auf den Laufwerken – ausgelassen.", "{n} AMA-verlinkte Dateien haben einen gleichnamigen Masterclip mit Medien auf den Laufwerken – ausgelassen."),
         ("{n} fichier lié par AMA a un clip master du même nom avec ses médias sur les disques – ignoré.", "{n} fichiers liés par AMA ont un clip master du même nom avec ses médias sur les disques – ignorés."),
         ("{n} archivo vinculado por AMA tiene un clip master con el mismo nombre y sus medios en los discos: omitido.", "{n} archivos vinculados por AMA tienen un clip master con el mismo nombre y sus medios en los discos: omitidos.")),
-    "Show AMA clips…": ("AMA-Clips anzeigen…", "Afficher les clips AMA…", "Mostrar clips AMA…"),
-    "AMA-Linked Clips": ("AMA-verlinkte Clips", "Clips liés par AMA", "Clips vinculados por AMA"),
     "Where the AMA-linked clips are used. Click a clip to see its master clips, subclips and sequences. AMA files are not requested.": (
         "Wo die AMA-verlinkten Clips benutzt werden. Ein Klick auf einen Clip zeigt seine Masterclips, Subclips und Sequenzen. AMA-Dateien werden nicht angefordert.",
         "Où les clips liés par AMA sont utilisés. Un clic sur un clip affiche ses clips master, sous-clips et séquences. Les fichiers AMA ne sont pas demandés.",
         "Dónde se usan los clips vinculados por AMA. Un clic en un clip muestra sus clips master, subclips y secuencias. Los archivos AMA no se solicitan."),
-    "AMA-LINKED CLIPS PER BIN": ("AMA-VERLINKTE CLIPS PRO BIN", "CLIPS LIÉS PAR AMA PAR CHUTIER", "CLIPS VINCULADOS POR AMA POR BIN"),
     "on the drives – relink": ("auf den Laufwerken – neu verlinken", "sur les disques – à relier", "en los discos – revincular"),
     "MISSING MEDIA FILES PER BIN": ("FEHLENDE MEDIENDATEIEN PRO BIN", "FICHIERS MÉDIAS MANQUANTS PAR CHUTIER", "ARCHIVOS DE MEDIOS QUE FALTAN POR BIN"),
     "1 file": ("1 Datei", "1 fichier", "1 archivo"),
@@ -346,10 +347,6 @@ T = {
     "subclip": ("Subclip", "sous-clip", "subclip"),
     "sequence": ("Sequenz", "séquence", "secuencia"),
     "… more in the saved list": ("… weitere in der gesicherten Liste", "… la suite dans la liste enregistrée", "… más en la lista guardada"),
-    "Save the request and open it in MediaFiles Ferry on the system that has the media (Open manifest…). Ferry collects the files into a delivery you import here.": (
-        "Sichere die Anforderung und öffne sie in MediaFiles Ferry auf dem System, das die Medien hat (Manifest öffnen …). Ferry sammelt die Dateien in eine Lieferung, die du hier einspielst.",
-        "Enregistrez la demande et ouvrez-la dans MediaFiles Ferry sur le système qui a les médias (Ouvrir un manifeste…). Ferry rassemble les fichiers dans une livraison que vous importez ici.",
-        "Guarda la solicitud y ábrela en MediaFiles Ferry en el sistema que tiene los medios (Abrir manifiesto…). Ferry reúne los archivos en una entrega que importas aquí."),
     "Reading the media databases of the drives…": ("Lese die Mediendatenbanken der Laufwerke…", "Lecture des bases de données médias des disques…", "Leyendo las bases de datos de medios de los discos…"),
     "These drives did not answer and were skipped – media on them count as missing: {}. If macOS asks whether MediaFiles Check may access files on a volume, allow it and scan again.": (
         "Diese Laufwerke haben nicht geantwortet und wurden übersprungen – Medien darauf zählen als fehlend: {}. Fragt macOS, ob MediaFiles Check auf Dateien eines Laufwerks zugreifen darf, erlaube es und scanne noch einmal.",

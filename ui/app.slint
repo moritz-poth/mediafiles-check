@@ -564,6 +564,299 @@ component SettingsTab {
     }
 }
 
+// Avid-Projekte (Reiter „Projekte“): Rust füllt diesen Zustand, die Seite zeigt ihn je Schritt (view)
+export global Projects {
+    // 0 nichts gelesen, 1 liest Bins, 2 Ergebnis da
+    in property <int> step;
+    // Schritt in der Seitenleiste: 0 Projekte wählen, 1 Fehlende Medien, 2 AMA-Clips, 3 Anfordern
+    in-out property <int> view;
+    in property <string> folder;
+    in property <[DriveRow]> projects;
+    in property <int> selected-count;
+    in property <string> error;
+    in property <string> work-text;
+    in property <float> work-value;
+    in property <int> missing;
+    in property <int> unmanaged;
+    in property <int> no-media;
+    in property <int> bins;
+    in property <int> clips;
+    in property <int> failed;
+    in property <int> unknown;
+    in property <string> skipped;
+    in property <int> renders;
+    in property <int> relink;
+    in property <int> ama;
+    in property <int> ama-covered;
+    in property <[MissingRow]> rows;
+    in property <[MissingRow]> ama-rows;
+    callback choose-folder();
+    callback toggle(int);
+    callback scan();
+    callback save-list();
+    callback save-request();
+    callback toggle-group(int);
+    callback toggle-ama(int);
+}
+
+// Seitenkopf wie im Entwurf: Titel links, Knöpfe der Seite rechts
+component PageHead inherits HorizontalLayout {
+    in property <string> title;
+    spacing: 8px;
+    Text {
+        text: root.title;
+        horizontal-stretch: 1;
+        vertical-alignment: center;
+        overflow: elide;
+        font-size: 14px;
+        font-weight: 600;
+        color: Theme.text;
+    }
+    @children
+}
+
+// Ablauf eines Pflegen-Werkzeugs: Teile mit „──“ dazwischen, der aktuelle fett (Farbe allein trägt nichts)
+component FlowStrip inherits HorizontalLayout {
+    in property <[string]> parts;
+    in property <int> current;
+    spacing: 6px;
+    alignment: start;
+    for p[i] in root.parts: HorizontalLayout {
+        spacing: 6px;
+        if i > 0: Text { text: "──"; font-size: 11px; color: Theme.faint; }
+        Text {
+            text: p;
+            font-size: 11px;
+            font-weight: i == root.current ? 700 : 400;
+            color: i == root.current ? Theme.text : Theme.faint;
+            accessible-description: i == root.current ? @tr("current step") : "";
+        }
+    }
+}
+
+component ProjectsPane inherits VerticalLayout {
+    spacing: Metrics.spacing;
+    property <int> dot-count;
+    Timer {
+        interval: 400ms;
+        running: Projects.step == 1;
+        triggered => { root.dot-count = Math.mod(root.dot-count + 1, 4); }
+    }
+
+    // ── Projekte wählen ──
+    if Projects.view == 0 && Projects.step != 1: VerticalLayout {
+        spacing: 14px;
+        PageHead {
+            title: @tr("Choose projects");
+            CheckButton {
+                text: @tr("Choose folder…");
+                clicked => { Projects.choose-folder(); }
+            }
+            CheckButton {
+                text: @tr("Scan");
+                primary: true;
+                enabled: Projects.selected-count > 0;
+                clicked => { Projects.scan(); }
+            }
+        }
+        Text {
+            text: Projects.folder == "" ? @tr("No folder chosen") : Projects.folder;
+            overflow: elide;
+            font-size: 12px;
+            color: Projects.folder == "" ? Theme.faint : Theme.muted;
+        }
+        if Projects.folder != "" && Projects.projects.length == 0: Text {
+            text: @tr("No Avid projects in this folder.");
+            color: Theme.muted;
+        }
+        if Projects.projects.length > 0: ScrollBox {
+            limit: 300px;
+            spacing: 2px;
+            for p[i] in Projects.projects: HorizontalLayout {
+                height: 26px;
+                spacing: 10px;
+                Text {
+                    text: p.name;
+                    horizontal-stretch: 1;
+                    overflow: elide;
+                    vertical-alignment: center;
+                    color: p.selected ? Theme.text : Theme.muted;
+                }
+                VerticalLayout {
+                    alignment: center;
+                    Switch {
+                        on: p.selected;
+                        label: p.name;
+                        toggled => { Projects.toggle(i); }
+                    }
+                }
+            }
+        }
+        Para {
+            text: @tr("Reads every bin of the switched-on projects and lists the media files their clips, subclips and sequences need that are on none of the connected drives. Nothing is changed.");
+        }
+        StatusLine {
+            text: Projects.error;
+            color: Theme.error;
+        }
+    }
+
+    // ── Bins werden gelesen ──
+    if Projects.step == 1: Section {
+        title: @tr("READING BINS");
+        ProgressBar { value: Projects.work-value; }
+        StatusLine {
+            text: Projects.work-text;
+            color: Theme.muted;
+        }
+        Text {
+            text: @tr("Please wait{}", root.dot-count == 1 ? ".  " : root.dot-count == 2 ? ".. " : root.dot-count == 3 ? "..." : "   ");
+            font-size: 12px;
+            color: Theme.faint;
+        }
+    }
+
+    // ── Fehlende Medien ──
+    if Projects.view == 1 && Projects.step == 2: VerticalLayout {
+        spacing: 14px;
+        PageHead {
+            title: Projects.missing == 0 ? @tr("All media files are on the drives") : @tr("{n} media file missing" | "{n} media files missing" % Projects.missing);
+            CheckButton {
+                text: @tr("Save list…");
+                clicked => { Projects.save-list(); }
+            }
+        }
+        VerticalLayout {
+            spacing: 10px;
+            Text {
+                text: @tr("{} bins, {} clips checked", Projects.bins, Projects.clips);
+                font-size: 12px;
+                color: Theme.muted;
+            }
+            if Projects.unknown > 0: Para {
+                width: Metrics.content-width - 12px;
+                text: @tr("{n} MXF file on the drives could not be identified: it is in no Avid database and its header is unreadable – clips using it are listed as missing. The file may be damaged or still being written." | "{n} MXF files on the drives could not be identified: they are in no Avid database and their headers are unreadable – clips using them are listed as missing. The files may be damaged or still being written." % Projects.unknown);
+                color: Theme.warning;
+            }
+            if Projects.skipped != "": Para {
+                width: Metrics.content-width - 12px;
+                text: @tr("These drives did not answer and were skipped – media on them count as missing: {}. If macOS asks whether MediaFiles Check may access files on a volume, allow it and scan again.", Projects.skipped);
+                color: Theme.warning;
+            }
+            if Projects.failed > 0: Para {
+                width: Metrics.content-width - 12px;
+                text: @tr("{n} bin could not be read – see the saved list." | "{n} bins could not be read – see the saved list." % Projects.failed);
+                color: Theme.warning;
+            }
+            if Projects.renders > 0: Para {
+                width: Metrics.content-width - 12px;
+                text: @tr("{n} render file is missing too – not requested, Media Composer renders it again." | "{n} render files are missing too – not requested, Media Composer renders them again." % Projects.renders);
+            }
+            if Projects.relink > 0: Para {
+                width: Metrics.content-width - 12px;
+                text: @tr("{n} missing file is on the drives as another media file of the same source (camera clip or tape) – the clip only lost its link: relink it in Media Composer. Not requested." | "{n} missing files are on the drives as other media files of the same source (camera clip or tape) – the clips only lost their link: relink them in Media Composer. Not requested." % Projects.relink);
+            }
+            if Projects.ama > 0: HorizontalLayout {
+                spacing: 10px;
+                Text {
+                    text: @tr("{n} AMA-linked file – not requested." | "{n} AMA-linked files – not requested." % Projects.ama);
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                    font-size: 12px;
+                    color: Theme.muted;
+                }
+                CheckButton {
+                    text: @tr("Show AMA clips");
+                    clicked => { Projects.view = 2; }
+                }
+            }
+            if Projects.ama-covered > 0: Para {
+                width: Metrics.content-width - 12px;
+                text: @tr("{n} AMA-linked file has a master clip of the same name with its media on the drives – left out." | "{n} AMA-linked files have a master clip of the same name with its media on the drives – left out." % Projects.ama-covered);
+            }
+            if Projects.no-media > 0: Para {
+                width: Metrics.content-width - 12px;
+                text: @tr("{n} reference without a media file left out – e.g. camera sound that was never imported; Media Composer shows such clips online." | "{n} references without a media file left out – e.g. camera sound that was never imported; Media Composer shows such clips online." % Projects.no-media);
+            }
+            if Projects.unmanaged > 0: Para {
+                width: Metrics.content-width - 12px;
+                text: @tr("{n} of the missing files has no Avid media reference – e.g. imported via AAF. the exchange only finds it if the other system has it in Avid MediaFiles." | "{n} of the missing files have no Avid media reference – e.g. imported via AAF. the exchange only finds them if the other system has them in Avid MediaFiles." % Projects.unmanaged);
+            }
+                }
+        if Projects.rows.length > 0: Section {
+            title: @tr("MISSING MEDIA FILES PER BIN");
+            MissingList {
+                rows: Projects.rows;
+                limit: 380px;
+                toggle(i) => { Projects.toggle-group(i); }
+            }
+        }
+        StatusLine {
+            text: Projects.error;
+            color: Theme.error;
+        }
+    }
+
+    // ── AMA-Clips ──
+    if Projects.view == 2 && Projects.step == 2: VerticalLayout {
+        spacing: 14px;
+        PageHead {
+            title: @tr("{n} AMA-linked file" | "{n} AMA-linked files" % Projects.ama);
+        }
+        Para {
+            text: @tr("Where the AMA-linked clips are used. Click a clip to see its master clips, subclips and sequences. AMA files are not requested.");
+        }
+        if Projects.ama-rows.length > 0: MissingList {
+            rows: Projects.ama-rows;
+            limit: 400px;
+            toggle(i) => { Projects.toggle-ama(i); }
+        }
+    }
+
+    // ── Anfordern ──
+    if Projects.view == 3 && Projects.step == 2: VerticalLayout {
+        spacing: 14px;
+        PageHead {
+            title: @tr("Request missing media");
+            CheckButton {
+                text: @tr("Save request…");
+                primary: true;
+                enabled: Projects.missing > 0;
+                clicked => { Projects.save-request(); }
+            }
+        }
+        Para {
+            text: Projects.missing == 0 ? @tr("Nothing to request – all media files are on the drives.")
+                : @tr("{n} media file will be requested." | "{n} media files will be requested." % Projects.missing)
+                    + (Projects.relink > 0 ? " " + @tr("Files to relink are not part of it.") : "");
+            color: Theme.text;
+        }
+        if Projects.missing > 0: Rectangle {
+            border-radius: 8px;
+            border-width: 1px;
+            border-color: Theme.line;
+            background: Theme.sidebar;
+            VerticalLayout {
+                padding: 12px;
+                spacing: 8px;
+                for t[i] in [
+                    @tr("Send the request file to the system that has the media (mail, USB stick)."),
+                    @tr("There: Exchange › Compare, open the file, then Collect."),
+                    @tr("Here: Exchange › Import the delivery."),
+                ]: HorizontalLayout {
+                    spacing: 10px;
+                    Text { text: i + 1; font-size: 12px; color: Theme.faint; }
+                    Text { text: t; width: Metrics.content-width - 60px; wrap: word-wrap; font-size: 12px; color: Theme.text; }
+                }
+            }
+        }
+        StatusLine {
+            text: Projects.error;
+            color: Theme.error;
+        }
+    }
+}
+
 // Seiten des Hauptfensters; jede gehört zu einem Reiter (tab-of) und einem Schritt der Seitenleiste (step-of)
 export enum Page { home, working, result, rename, question, notice, rebalance, rebalanced, runs, askname, dups, dupsdone,
     maintain, rebalstart, dupsstart, exchange, projects, tasks }
@@ -724,10 +1017,10 @@ export component AppWindow inherits CheckWindow {
             { name: @tr("Drives"), status: @tr("{} of {} on", root.selected-count, root.drives.length), enabled: true },
             { name: @tr("Result"), status: !root.has-result ? "" : root.bad-folders == 0 ? @tr("all match") : @tr("{n} folder differs" | "{n} folders differ" % root.bad-folders), enabled: root.has-result },
         ] : root.tab == 2 ? [
-            { name: @tr("Choose projects"), status: "", enabled: true },
-            { name: @tr("Missing media"), status: "", enabled: false },
-            { name: @tr("AMA clips"), status: "", enabled: false },
-            { name: @tr("Request"), status: "", enabled: false },
+            { name: @tr("Choose projects"), status: Projects.projects.length == 0 ? "" : @tr("{} of {} on", Projects.selected-count, Projects.projects.length), enabled: true },
+            { name: @tr("Missing media"), status: Projects.step != 2 ? "" : @tr("{n} file" | "{n} files" % Projects.missing), enabled: Projects.step == 2 },
+            { name: @tr("AMA clips"), status: Projects.step != 2 ? "" : @tr("{n} file" | "{n} files" % Projects.ama), enabled: Projects.step == 2 },
+            { name: @tr("Request"), status: "", enabled: Projects.step == 2 && Projects.missing > 0 },
         ] : root.tab == 3 ? [
             { name: @tr("Rename"), status: root.renamed.length == 0 ? "" : @tr("{n} folder renamed" | "{n} folders renamed" % root.renamed.length), enabled: true },
             { name: @tr("Rebalancing"), status: root.rebalance-pending > 0 ? @tr("databases pending") : "", enabled: true },
@@ -753,6 +1046,9 @@ export component AppWindow inherits CheckWindow {
     in property <[RenameRow]> rename-rows;
     in property <[RenamedRow]> renamed;
     in property <bool> mc-running;
+    // alle umbenannten Ordner haben eine neue Datenbank (grüner Punkt)
+    property <bool> renamed-ready: root.renamed.length > 0 && root.ready-count == root.renamed.length;
+    in property <int> ready-count;
     // Frage beim Zurückbenennen; kind: 0 neue Dateien, 1 Dateien fehlen/geändert, 2 Datenbank noch nicht neu
     in property <int> q-kind;
     in property <string> q-folder;
@@ -771,6 +1067,14 @@ export component AppWindow inherits CheckWindow {
     out property <string> txt-settings-menu: @tr("Settings…");
     out property <string> txt-mc-not-started: @tr("Media Composer could not be started.");
     out property <string> txt-choose-folder: @tr("Choose a drive or MXF folder");
+    out property <string> txt-choose: @tr("Choose the folder with your Avid projects");
+    out property <string> txt-reading-drives: @tr("Reading the media databases of the drives…");
+    out property <string> txt-one-file: @tr("1 file");
+    out property <string> txt-relink: @tr("on the drives – relink");
+    out property <string> txt-files-n: @tr("{} files", "{}"); // Rust fills in the number
+    out property <string> txt-subclip: @tr("subclip");
+    out property <string> txt-sequence: @tr("sequence");
+    out property <string> txt-more-rows: @tr("… more in the saved list");
     out property <string> txt-more: @tr("… and {} more (see report)", "{}"); // Rust fills in the number
 
     callback toggle-drive(int);
@@ -782,7 +1086,6 @@ export component AppWindow inherits CheckWindow {
     callback rename();
     callback rename-back();
     callback start-media-composer();
-    callback open-projects();
     callback answer(int);
     callback find-full();
     callback toggle-rebalance(int);
@@ -912,8 +1215,11 @@ export component AppWindow inherits CheckWindow {
                 alignment: start;
                 for st[i] in root.steps: SideItem {
                     step: st;
-                    selected: i == root.step;
-                    clicked => { root.page = root.start-of(root.tab, i); }
+                    selected: i == (root.tab == 2 ? Projects.view : root.step);
+                    clicked => {
+                        if root.tab == 2 { Projects.view = i; }
+                        root.page = root.start-of(root.tab, i);
+                    }
                 }
             }
         }
@@ -930,190 +1236,188 @@ export component AppWindow inherits CheckWindow {
         spacing: Metrics.spacing;
 
         // ── Start ──────────────────────────────────────────────
+        // ── Prüfen › Laufwerke ──
         if root.page == Page.home: VerticalLayout {
-            spacing: Metrics.spacing;
-            Section {
-                title: @tr("DRIVES");
-                if root.drives.length == 0: Text {
-                    text: @tr("No drive with “Avid MediaFiles/MXF” found.");
-                    overflow: elide;
-                    color: Theme.muted;
+            spacing: 14px;
+            PageHead {
+                title: @tr("Check drives");
+                CheckButton {
+                    text: @tr("Check folder…");
+                    clicked => { root.check-folder(); }
                 }
-                if root.drives.length > 0: ScrollBox {
-                    limit: 6 * 22px + 5 * 10px;
+                CheckButton {
+                    text: @tr("Check");
+                    primary: true;
+                    enabled: root.selected-count > 0;
+                    clicked => { root.check-drives(); }
+                }
+            }
+            Para {
+                text: @tr("Compares the MXF files in every folder with the folder's Avid database and lists every difference. Nothing is changed.");
+            }
+            if root.drives.length == 0: Text {
+                text: @tr("No drive with “Avid MediaFiles/MXF” found.");
+                overflow: elide;
+                color: Theme.muted;
+            }
+            if root.drives.length > 0: ScrollBox {
+                limit: 6 * 22px + 5 * 10px;
+                spacing: 10px;
+                for d[i] in root.drives: HorizontalLayout {
+                    height: 22px;
                     spacing: 10px;
-                    for d[i] in root.drives: HorizontalLayout {
-                        height: 22px;
-                        spacing: 10px;
-                        Dot { color: Theme.online; }
-                        Text {
-                            text: d.name;
-                            horizontal-stretch: 1;
-                            overflow: elide;
-                            vertical-alignment: center;
-                            color: d.selected ? Theme.text : Theme.muted;
-                        }
-                        VerticalLayout {
-                            alignment: center;
-                            Switch {
-                                on: d.selected;
-                                label: d.name;
-                                toggled => { root.toggle-drive(i); }
-                            }
-                        }
+                    Dot { color: Theme.online; }
+                    Text {
+                        text: d.name;
+                        horizontal-stretch: 1;
+                        overflow: elide;
+                        vertical-alignment: center;
+                        color: d.selected ? Theme.text : Theme.muted;
                     }
-                }
-                Para {
-                    text: @tr("Compares the MXF files in every folder with the folder's Avid database and lists every difference. Nothing is changed.");
-                }
-                Para {
-                    text: @tr("The switches apply to Exchange › Scan too.");
-                    color: Theme.faint;
-                }
-                StatusLine {
-                    text: root.error;
-                    color: Theme.error;
-                }
-                HorizontalLayout {
-                    spacing: 10px;
-                    alignment: start;
-                    CheckButton {
-                        text: @tr("Check drives");
-                        primary: true;
-                        enabled: root.selected-count > 0;
-                        clicked => { root.check-drives(); }
-                    }
-                    CheckButton {
-                        text: @tr("Check folder…");
-                        clicked => { root.check-folder(); }
+                    VerticalLayout {
+                        alignment: center;
+                        Switch {
+                            on: d.selected;
+                            label: d.name;
+                            toggled => { root.toggle-drive(i); }
+                        }
                     }
                 }
             }
-
+            Para {
+                text: @tr("The switches apply to Exchange › Scan too.");
+                color: Theme.faint;
+            }
+            StatusLine {
+                text: root.error;
+                color: Theme.error;
+            }
         }
 
+        // ── Pflegen › Umbenennen ──
         if root.page == Page.maintain: VerticalLayout {
-            spacing: Metrics.spacing;
-            if root.renamed.length == 0: Section {
-                title: @tr("RENAMED FOR MEDIA COMPOSER");
-                Para {
-                    text: @tr("No folder is renamed right now. Folders are renamed for Media Composer from a check result (Check › Result) or when rebalancing and setting duplicates aside.");
+            spacing: 14px;
+            PageHead {
+                title: @tr("Rename for Media Composer");
+                if root.renamed.length > 0: CheckButton {
+                    text: @tr("Start Media Composer");
+                    enabled: !root.mc-running;
+                    clicked => { root.start-media-composer(); }
+                }
+                if root.renamed.length > 0: CheckButton {
+                    text: @tr("Rename back");
+                    primary: true;
+                    enabled: !root.mc-running;
+                    clicked => { root.rename-back(); }
                 }
             }
-            if root.renamed.length > 0: Section {
-                title: @tr("RENAMED FOR MEDIA COMPOSER");
-                ScrollBox {
-                    limit: 5 * 18px + 4 * 10px;
+            FlowStrip {
+                parts: [@tr("Rename"), @tr("Media Composer writes"), @tr("Rename back")];
+                current: root.renamed.length == 0 ? 0 : root.renamed-ready ? 2 : 1;
+            }
+            if root.renamed.length == 0: Para {
+                text: @tr("No folder is renamed right now. Folders are renamed for Media Composer from a check result (Check › Result) or when rebalancing and setting duplicates aside.");
+            }
+            if root.renamed.length > 0: ScrollBox {
+                limit: 5 * 18px + 4 * 10px;
+                spacing: 10px;
+                for r in root.renamed: HorizontalLayout {
                     spacing: 10px;
-                    for r in root.renamed: HorizontalLayout {
-                        spacing: 10px;
-                        height: Metrics.line;
-                        Dot { color: r.status == 2 ? Theme.online : r.status == 1 ? Theme.warning : Theme.line; }
-                        Text {
-                            text: @tr("{} (was {})", r.current, r.original);
-                            horizontal-stretch: 1;
-                            overflow: elide;
-                            vertical-alignment: center;
-                            color: Theme.text;
-                        }
-                        Text {
-                            text: r.status == 2 ? @tr("ready") : r.status == 1 ? @tr("waiting") : @tr("drive missing");
-                            font-size: 12px;
-                            vertical-alignment: center;
-                            color: Theme.muted;
-                        }
+                    height: Metrics.line;
+                    Dot { color: r.status == 2 ? Theme.online : r.status == 1 ? Theme.warning : Theme.line; }
+                    Text {
+                        text: @tr("{} (was {})", r.current, r.original);
+                        horizontal-stretch: 1;
+                        overflow: elide;
+                        vertical-alignment: center;
+                        color: Theme.text;
+                    }
+                    Text {
+                        text: r.status == 2 ? @tr("ready") : r.status == 1 ? @tr("waiting") : @tr("drive missing");
+                        font-size: 12px;
+                        vertical-alignment: center;
+                        color: Theme.muted;
                     }
                 }
-                Para {
-                    text: @tr("Start Media Composer and wait until it has scanned the drives – the dot turns green once it has written the database. Then quit Media Composer and rename the folders back.");
-                }
-                StatusLine {
-                    text: root.mc-running ? @tr("Quit Media Composer before renaming back.") : "";
-                    color: Theme.warning;
-                }
-                HorizontalLayout {
-                    spacing: 10px;
-                    alignment: start;
-                    CheckButton {
-                        text: @tr("Start Media Composer");
-                        enabled: !root.mc-running;
-                        clicked => { root.start-media-composer(); }
-                    }
-                    CheckButton {
-                        text: @tr("Rename back");
-                        primary: true;
-                        enabled: !root.mc-running;
-                        clicked => { root.rename-back(); }
-                    }
-                }
+            }
+            if root.renamed.length > 0: Para {
+                text: @tr("Start Media Composer and wait until it has scanned the drives – the dot turns green once it has written the database. Then quit Media Composer and rename the folders back.");
+            }
+            if root.mc-running: StatusLine {
+                text: @tr("Quit Media Composer before renaming back.");
+                color: Theme.warning;
             }
         }
 
+        // ── Pflegen › Rebalancing ──
         if root.page == Page.rebalstart: VerticalLayout {
-            spacing: Metrics.spacing;
-            Section {
-                title: @tr("REBALANCING");
-                Para {
-                    text: @tr("Splits MXF folders with more than {} files (database included): the oldest media files move into new folders.", Shared.limit);
+            spacing: 14px;
+            PageHead {
+                title: @tr("Rebalancing");
+                CheckButton {
+                    text: @tr("Find full folders…");
+                    primary: true;
+                    enabled: root.selected-count > 0;
+                    clicked => { root.find-full(); }
                 }
-                if root.rebalance-pending > 0: Para {
+            }
+            FlowStrip {
+                parts: [@tr("Rebalance"), @tr("Rewrite databases"), @tr("Rename back")];
+                current: root.rebalance-pending > 0 ? 1 : 0;
+            }
+            Para {
+                text: @tr("Splits MXF folders with more than {} files (database included): the oldest media files move into new folders.", Shared.limit);
+            }
+            if root.rebalance-pending > 0: HorizontalLayout {
+                spacing: 10px;
+                Para {
+                    width: Metrics.content-width - 140px;
                     text: @tr("{n} run is waiting for new databases (History)." | "{n} runs are waiting for new databases (History)." % root.rebalance-pending);
                     color: Theme.warning;
                 }
-                HorizontalLayout {
-                    spacing: 10px;
-                    alignment: start;
-                    CheckButton {
-                        text: @tr("Find full folders…");
-                        enabled: root.selected-count > 0;
-                        clicked => { root.find-full(); }
-                    }
+                CheckButton {
+                    text: @tr("History");
+                    small: true;
+                    clicked => { root.page = Page.runs; }
                 }
             }
-
         }
 
+        // ── Pflegen › Duplikate ──
         if root.page == Page.dupsstart: VerticalLayout {
-            spacing: Metrics.spacing;
-            Section {
-                title: @tr("DUPLICATES");
-                Para {
-                    text: @tr("Finds media files that are on the selected drives more than once – by their Media Composer ID, also when renamed.");
+            spacing: 14px;
+            PageHead {
+                title: @tr("Duplicates");
+                CheckButton {
+                    text: @tr("Find duplicates…");
+                    primary: true;
+                    enabled: root.selected-count > 0;
+                    clicked => { root.find-dups(); }
                 }
-                if root.dup-pending > 0: Para {
-                    text: @tr("Databases not rewritten yet") + " (" + @tr("History") + ")";
+            }
+            FlowStrip {
+                parts: [@tr("Set aside"), @tr("Rewrite databases"), @tr("Rename back")];
+                current: root.dup-pending > 0 ? 1 : 0;
+            }
+            Para {
+                text: @tr("Finds media files that are on the selected drives more than once – by their Media Composer ID, also when renamed.");
+            }
+            if root.dup-pending > 0: HorizontalLayout {
+                spacing: 10px;
+                Para {
+                    width: Metrics.content-width - 140px;
+                    text: @tr("Databases not rewritten yet");
                     color: Theme.warning;
                 }
-                HorizontalLayout {
-                    spacing: 10px;
-                    alignment: start;
-                    CheckButton {
-                        text: @tr("Find duplicates…");
-                        enabled: root.selected-count > 0;
-                        clicked => { root.find-dups(); }
-                    }
+                CheckButton {
+                    text: @tr("History");
+                    small: true;
+                    clicked => { root.page = Page.runs; }
                 }
             }
-
         }
 
-        if root.page == Page.projects: VerticalLayout {
-            spacing: Metrics.spacing;
-            Section {
-                title: @tr("AVID PROJECTS");
-                Para {
-                    text: @tr("Find the media files the bins of your Avid projects need that are on none of the drives, and request them with MediaFiles Ferry.");
-                }
-                HorizontalLayout {
-                    alignment: start;
-                    CheckButton {
-                        text: @tr("Open projects…");
-                        clicked => { root.open-projects(); }
-                    }
-                }
-            }
-
-        }
+        if root.page == Page.projects: ProjectsPane { }
 
         if root.page == Page.exchange: VerticalLayout {
             spacing: Metrics.spacing;
@@ -1589,6 +1893,7 @@ export component AppWindow inherits CheckWindow {
         // ── Verlauf: alle Läufe von Rebalancing und Duplikaten (Datenbanken neu schreiben, rückgängig machen) ──
         if root.page == Page.runs: VerticalLayout {
             spacing: Metrics.spacing;
+            PageHead { title: @tr("History"); }
             Section {
                 title: @tr("REBALANCING");
                 if root.rebalanced.length == 0: Para { text: @tr("No runs yet."); }
@@ -2440,299 +2745,3 @@ export component SettingsWindow inherits CheckWindow {
 
 // Avid-Projekte: Überordner wählen, Projekte einschalten, Bins lesen, fehlende Medien auflisten und für Ferry anfordern.
 // step: 0 Auswahl, 1 läuft, 2 Ergebnis
-export component ProjectsWindow inherits CheckWindow {
-    title: @tr("Avid Projects");
-    width: 680px;
-    height: main.preferred-height;
-    // breiter als die anderen Fenster: lange Bin- und Clipnamen
-    // = Layoutbreite: Slint misst umbrechende Texte mit der Layoutbreite, eine schmalere feste Breite schneidet Zeilen ab
-    property <length> inner: self.width - 2 * Metrics.padding;
-
-    in property <int> step;
-    in property <string> folder;
-    in property <[DriveRow]> projects;
-    in property <int> selected-count;
-    in property <string> error;
-    in property <string> work-text;
-    in property <float> work-value;
-    in property <int> missing;
-    in property <int> unmanaged;
-    in property <int> no-media;
-    in property <int> bins;
-    in property <int> clips;
-    in property <int> failed;
-    in property <int> unknown;
-    in property <string> skipped;
-    in property <int> renders;
-    in property <int> relink;
-    in property <int> ama;
-    in property <int> ama-covered;
-    in property <[MissingRow]> rows;
-    out property <string> txt-choose: @tr("Choose the folder with your Avid projects");
-    out property <string> txt-reading-drives: @tr("Reading the media databases of the drives…");
-    out property <string> txt-one-file: @tr("1 file");
-    out property <string> txt-relink: @tr("on the drives – relink");
-    out property <string> txt-files-n: @tr("{} files", "{}"); // Rust fills in the number
-    out property <string> txt-subclip: @tr("subclip");
-    out property <string> txt-sequence: @tr("sequence");
-    out property <string> txt-more-rows: @tr("… more in the saved list");
-
-    callback choose-folder();
-    callback toggle(int);
-    callback scan();
-    callback save-list();
-    callback save-request();
-    callback back();
-    callback show-ama();
-    callback toggle-group(int);
-
-    property <int> dot-count;
-    Timer {
-        interval: 400ms;
-        running: root.step == 1;
-        triggered => { root.dot-count = Math.mod(root.dot-count + 1, 4); }
-    }
-
-    main := VerticalLayout {
-        padding: Metrics.padding;
-        spacing: Metrics.spacing;
-        Headline { }
-
-        if root.step == 0: VerticalLayout {
-            spacing: Metrics.spacing;
-            Section {
-                title: @tr("AVID PROJECTS");
-                HorizontalLayout {
-                    spacing: 10px;
-                    Text {
-                        text: root.folder == "" ? @tr("No folder chosen") : root.folder;
-                        horizontal-stretch: 1;
-                        overflow: elide;
-                        vertical-alignment: center;
-                        color: root.folder == "" ? Theme.faint : Theme.muted;
-                    }
-                    CheckButton {
-                        text: @tr("Choose folder…");
-                        clicked => { root.choose-folder(); }
-                    }
-                }
-                if root.folder != "" && root.projects.length == 0: Text {
-                    text: @tr("No Avid projects in this folder.");
-                    color: Theme.muted;
-                }
-                Rectangle {
-                    height: min(plist.preferred-height, 300px);
-                    pf := Flickable {
-                        content-height: plist.preferred-height;
-                        plist := VerticalLayout {
-                            x: 0;
-                            width: pf.width - 10px;
-                            spacing: 2px;
-                            for p[i] in root.projects: HorizontalLayout {
-                                height: 26px;
-                                spacing: 10px;
-                                Text {
-                                    text: p.name;
-                                    horizontal-stretch: 1;
-                                    overflow: elide;
-                                    vertical-alignment: center;
-                                    color: p.selected ? Theme.text : Theme.muted;
-                                }
-                                VerticalLayout {
-                                    alignment: center;
-                                    Switch {
-                                        on: p.selected;
-                                        label: p.name;
-                                        toggled => { root.toggle(i); }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    if plist.preferred-height > parent.height: Rectangle {
-                        x: parent.width - self.width;
-                        width: 3px;
-                        height: max(20px, parent.height * parent.height / plist.preferred-height);
-                        y: -pf.content-y / (plist.preferred-height - parent.height) * (parent.height - self.height);
-                        border-radius: 1.5px;
-                        background: Theme.line;
-                    }
-                }
-                Para {
-                    width: root.inner;
-                    text: @tr("Reads every bin of the switched-on projects and lists the media files their clips, subclips and sequences need that are on none of the connected drives. Nothing is changed.");
-                }
-                StatusLine {
-                    text: root.error;
-                    color: Theme.error;
-                }
-                HorizontalLayout {
-                    alignment: start;
-                    CheckButton {
-                        text: @tr("Scan");
-                        primary: true;
-                        enabled: root.selected-count > 0;
-                        clicked => { root.scan(); }
-                    }
-                }
-            }
-        }
-
-        if root.step == 1: Section {
-            title: @tr("READING BINS");
-            ProgressBar { value: root.work-value; }
-            StatusLine {
-                text: root.work-text;
-                color: Theme.muted;
-            }
-            Text {
-                text: @tr("Please wait{}", root.dot-count == 1 ? ".  " : root.dot-count == 2 ? ".. " : root.dot-count == 3 ? "..." : "   ");
-                font-size: 12px;
-                color: Theme.faint;
-            }
-        }
-
-        if root.step == 2: VerticalLayout {
-            spacing: Metrics.spacing;
-            Section {
-                title: @tr("RESULT");
-                HorizontalLayout {
-                    spacing: 10px;
-                    Dot { color: root.missing == 0 ? Theme.online : Theme.warning; }
-                    Text {
-                        text: root.missing == 0 ? @tr("All media files are on the drives") : @tr("{n} media file missing" | "{n} media files missing" % root.missing);
-                        width: root.inner - 18px;
-                        font-size: 15px;
-                        font-weight: 600;
-                        wrap: word-wrap;
-                        color: Theme.text;
-                    }
-                }
-                Text {
-                    text: @tr("{} bins, {} clips checked", root.bins, root.clips);
-                    font-size: 12px;
-                    color: Theme.muted;
-                }
-                if root.unknown > 0: Para {
-                    width: root.inner;
-                    text: @tr("{n} MXF file on the drives could not be identified: it is in no Avid database and its header is unreadable – clips using it are listed as missing. The file may be damaged or still being written." | "{n} MXF files on the drives could not be identified: they are in no Avid database and their headers are unreadable – clips using them are listed as missing. The files may be damaged or still being written." % root.unknown);
-                    color: Theme.warning;
-                }
-                if root.skipped != "": Para {
-                    width: root.inner;
-                    text: @tr("These drives did not answer and were skipped – media on them count as missing: {}. If macOS asks whether MediaFiles Check may access files on a volume, allow it and scan again.", root.skipped);
-                    color: Theme.warning;
-                }
-                if root.failed > 0: Para {
-                    width: root.inner;
-                    text: @tr("{n} bin could not be read – see the saved list." | "{n} bins could not be read – see the saved list." % root.failed);
-                    color: Theme.warning;
-                }
-                if root.renders > 0: Para {
-                    width: root.inner;
-                    text: @tr("{n} render file is missing too – not requested, Media Composer renders it again." | "{n} render files are missing too – not requested, Media Composer renders them again." % root.renders);
-                }
-                if root.relink > 0: Para {
-                    width: root.inner;
-                    text: @tr("{n} missing file is on the drives as another media file of the same source (camera clip or tape) – the clip only lost its link: relink it in Media Composer. Not requested." | "{n} missing files are on the drives as other media files of the same source (camera clip or tape) – the clips only lost their link: relink them in Media Composer. Not requested." % root.relink);
-                }
-                if root.ama > 0: HorizontalLayout {
-                    spacing: 10px;
-                    Text {
-                        text: @tr("{n} AMA-linked file – not requested." | "{n} AMA-linked files – not requested." % root.ama);
-                        vertical-alignment: center;
-                        horizontal-stretch: 1;
-                        font-size: 12px;
-                        color: Theme.muted;
-                    }
-                    CheckButton {
-                        text: @tr("Show AMA clips…");
-                        clicked => { root.show-ama(); }
-                    }
-                }
-                if root.ama-covered > 0: Para {
-                    width: root.inner;
-                    text: @tr("{n} AMA-linked file has a master clip of the same name with its media on the drives – left out." | "{n} AMA-linked files have a master clip of the same name with its media on the drives – left out." % root.ama-covered);
-                }
-                if root.no-media > 0: Para {
-                    width: root.inner;
-                    text: @tr("{n} reference without a media file left out – e.g. camera sound that was never imported; Media Composer shows such clips online." | "{n} references without a media file left out – e.g. camera sound that was never imported; Media Composer shows such clips online." % root.no-media);
-                }
-                if root.unmanaged > 0: Para {
-                    width: root.inner;
-                    text: @tr("{n} of the missing files has no Avid media reference – e.g. imported via AAF. Ferry only finds it if the other system has it in Avid MediaFiles." | "{n} of the missing files have no Avid media reference – e.g. imported via AAF. Ferry only finds them if the other system has them in Avid MediaFiles." % root.unmanaged);
-                }
-            }
-            if root.rows.length > 0: Section {
-                title: @tr("MISSING MEDIA FILES PER BIN");
-                MissingList {
-                    rows: root.rows;
-                    limit: 380px;
-                    toggle(i) => { root.toggle-group(i); }
-                }
-            }
-            if root.missing > 0: Para {
-                width: root.inner;
-                text: @tr("Save the request and open it in MediaFiles Ferry on the system that has the media (Open manifest…). Ferry collects the files into a delivery you import here.");
-            }
-            Divider { }
-            HorizontalLayout {
-                spacing: 10px;
-                CheckButton {
-                    text: @tr("Back");
-                    clicked => { root.back(); }
-                }
-                CheckButton {
-                    text: @tr("Save list…");
-                    clicked => { root.save-list(); }
-                }
-                Rectangle { horizontal-stretch: 1; }
-                CheckButton {
-                    text: @tr("Save request…");
-                    primary: true;
-                    enabled: root.missing > 0;
-                    clicked => { root.save-request(); }
-                }
-            }
-        }
-    }
-}
-
-// Where AMA-linked clips are used (Avid projects → Show AMA clips…); a window of its own so the result stays short.
-export component AmaWindow inherits CheckWindow {
-    title: @tr("AMA-Linked Clips");
-    width: 680px;
-    height: main.preferred-height;
-    property <length> inner: self.width - 2 * Metrics.padding;
-
-    in property <[MissingRow]> rows;
-    callback toggle-group(int);
-    callback close();
-
-    main := VerticalLayout {
-        padding: Metrics.padding;
-        spacing: Metrics.spacing;
-        Headline { }
-        Section {
-            title: @tr("AMA-LINKED CLIPS PER BIN");
-            Para {
-                width: root.inner;
-                text: @tr("Where the AMA-linked clips are used. Click a clip to see its master clips, subclips and sequences. AMA files are not requested.");
-            }
-            MissingList {
-                rows: root.rows;
-                limit: 520px;
-                toggle(i) => { root.toggle-group(i); }
-            }
-        }
-        Divider { }
-        HorizontalLayout {
-            alignment: end;
-            CheckButton {
-                text: @tr("Done");
-                primary: true;
-                clicked => { root.close(); }
-            }
-        }
-    }
-}
