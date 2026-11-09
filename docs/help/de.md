@@ -71,6 +71,8 @@ Vor dem Zurückbenennen prüft MediaFiles Check jeden Ordner:
 
 **Erst mal umbenannt lassen** lässt den Ordner, wie er ist; du kannst ihn später zurückbenennen. Gibt es inzwischen einen Ordner mit dem Originalnamen, wird nichts umbenannt und du bekommst einen Hinweis.
 
+Die Originalnamen werden gespeichert, bevor etwas umbenannt wird – sie überstehen also einen Absturz, ein Beenden oder einen Neustart: Beim nächsten Start stehen die umbenannten Ordner wieder auf der Startseite. Ein Ordner wird an Laufwerk, aktuellem Namen und seinen Mediendateien erkannt – ein Laufwerk, das unter anderem Namen zurückkommt (z. B. `Media 1`), wird an den Mediendateien wiedergefunden.
+
 ## Avid-Projekte
 
 **Projekte öffnen…** auf der Startseite öffnet das Fenster für Avid-Projekte. Es findet die Mediendateien, die die Bins deiner Projekte brauchen und die auf keinem angeschlossenen Laufwerk liegen – und schreibt eine Anforderung für MediaFiles Ferry, das sie auf dem System einsammelt, das sie hat.
@@ -93,6 +95,28 @@ Gut zu wissen:
 - Fehlende Render-Dateien (gerenderte Effekte) werden nur gezählt, nicht aufgelistet oder angefordert – Media Composer rendert sie neu.
 - Ein Laufwerk, das 30 Sekunden nicht antwortet, wird übersprungen und im Ergebnis genannt.
 
+## Rebalancing
+
+Wir empfehlen höchstens 5000 Dateien pro MXF-Ordner. Die Grenze (Einstellungen → Rebalancing, Standard 5000) zählt jede Datei eines Ordners, die beiden Datenbankdateien mitgezählt – ein Ordner bekommt also höchstens die Grenze minus 2 Mediendateien.
+
+Ein Ordner und seine rebalanced-Ordner (`<Name>-rebalanced-1`, `-2` …) gehören zusammen; eine Media-Composer-Endung `.1` fällt im Namen weg (`Mac Studio.1` → `Mac Studio-rebalanced-1`, `1` → `1-rebalanced-1`). Rebalancing verteilt immer die ganze Gruppe: alle Mediendateien nach Erstellungsdatum sortiert, die ältesten kommen nach `-rebalanced-1`, die nächsten nach `-2` …, die jüngsten bleiben im Hauptordner. **Volle Ordner suchen…** auf der Startseite listet jede Gruppe auf den gewählten Laufwerken, die nicht zur Grenze passt, und zeigt, was verschoben würde.
+
+1. Media Composer beenden – bei Netzlaufwerken auf jedem Arbeitsplatz – und die Gruppen wählen.
+2. **Rebalancing starten** klicken. Bei einem Ordner, den Media Composer selbst anlegt (`1` bzw. `<Rechnername>.1` auf Netzlaufwerken), wirst du vorher gefragt: Wir empfehlen, ihm einen eigenen Namen zu geben. Der Ordner wird umbenannt, seine rebalanced-Ordner bekommen den neuen Namen, und Media Composer legt für neue Medien einen neuen Ordner an. **Namen behalten** macht ohne Umbenennen weiter. Nichts wird kopiert oder gelöscht; ein rebalanced-Ordner ohne Mediendateien (nur noch Datenbankdateien und der Ordner „Creating“) wandert als Ganzes nach `MediaFiles Check Database Backups`.
+3. Danach müssen die Datenbanken aller geänderten Ordner neu geschrieben werden. **Starten** legt ihre Datenbankdateien in `MediaFiles Check Database Backups` auf demselben Laufwerk (Media Composer schreibt neue) und benennt die Ordner, die Media Composer nicht selbst aktualisiert, für Media Composer um. Dann weiter wie bei „Für Media Composer umbenennen“: Media Composer starten, auf die grünen Punkte warten, beenden, zurückbenennen. **Abbrechen** lässt die Datenbanken, wie sie sind.
+
+**Grenze ändern:** MediaFiles Check warnt vor jeder Änderung. Das nächste **Volle Ordner suchen…** verteilt jede Gruppe neu für die neue Grenze – eine niedrigere verteilt die Dateien auf mehr Ordner, eine höhere schiebt sie zurück. Bei vielen Dateien dauert das.
+
+**Verlauf…** auf der Startseite listet jede Gruppe: **Datenbanken neu schreiben** holt Schritt 3 nach (auch nach „Abbrechen“ oder wenn die App zwischendurch beendet wurde), **Rückgängig** schiebt alle Mediendateien zurück in den Hauptordner, entfernt die rebalanced-Ordner und gibt einem umbenannten Ordner seinen alten Namen zurück – umbenannte Ordner vorher zurückbenennen. Ein Durchlauf, der mittendrin abgebrochen ist, wird beim nächsten **Volle Ordner suchen…** zu Ende gebracht.
+
+## Duplikate
+
+**Duplikate suchen…** auf der Startseite durchsucht die gewählten Laufwerke nach Mediendateien, die es mehrfach gibt. Eine Mediendatei wird an ihrer Media-Composer-ID erkannt (in der Datei selbst oder in der Datenbank ihres Ordners) – so werden auch umbenannte Kopien gefunden. Dateien ohne ID werden über Name, Größe und eine Prüfsumme ihres Inhalts verglichen. Mountpoint-Arbeitsbereiche werden ausgelassen – sie zeigen die Dateien eines anderen Laufwerks.
+
+Die Liste zeigt jede Mediendatei mit ihren Kopien: Der grüne Punkt markiert die Kopie, die bleibt (die, die die Datenbank ihres Ordners kennt, sonst die älteste) – ein Klick auf eine andere Kopie behält stattdessen diese. Was bleiben soll, wie es ist (z. B. ein Backup-Laufwerk), schaltest du aus. Kopien mit gleicher ID, aber unterschiedlicher Größe sind nicht von selbst eingeschaltet – erst prüfen. **Bericht sichern…** schreibt die ganze Liste in eine Textdatei.
+
+**Zur Seite legen** (Media Composer geschlossen – bei Netzlaufwerken auf jedem Arbeitsplatz) verschiebt die anderen Kopien nach `MediaFiles Check Duplicates` auf ihrem eigenen Laufwerk; nichts wird kopiert oder gelöscht. Ein Ordner, in dem danach keine Mediendateien mehr liegen, kommt mit seinen Datenbankdateien und dem Ordner „Creating“ mit; **Rückgängig** holt ihn zurück. Danach müssen die Datenbanken ihrer Ordner neu geschrieben werden: **Starten** funktioniert wie beim Rebalancing, **Abbrechen** lässt sie, wie sie sind. Die zur Seite gelegten Kopien löschst du selbst, wenn alles läuft. **Verlauf…** listet jeden Durchlauf mit **Datenbanken neu schreiben** und **Rückgängig** (schiebt die Kopien zurück, nie über eine vorhandene Datei).
+
 ## Datenbank neu aufbauen
 
 1. Media Composer beenden.
@@ -102,13 +126,13 @@ Gut zu wissen:
 
 ## Einstellungen
 
-**MediaFiles Check → Einstellungen…** (⌘,) stellt die Darstellung (Schalter **Hell/Dunkel**, an = dunkel) und die Sprache (English, Deutsch, Français, Español) ein. **MediaFiles Check → Über MediaFiles Check** zeigt Version und Lizenz.
+**MediaFiles Check → Einstellungen…** (⌘,) öffnet das Einstellungsfenster mit drei Reitern: **Allgemein** stellt die Darstellung (Schalter **Hell/Dunkel**, an = dunkel) und die Sprache (English, Deutsch, Français, Español) ein, **Updates** und **Support** stehen weiter unten, **Über** zeigt Version und Lizenz. **MediaFiles Check → Über MediaFiles Check** öffnet dasselbe Fenster mit dem Reiter „Über“; Einstellungen… öffnet den zuletzt benutzten Reiter.
 
 ![Einstellungen](images/de/settings.png)
 
 ## Updates
 
-MediaFiles Check sucht kurz nach dem Start und alle 6 Stunden auf GitHub nach einer neuen Version; **Einstellungen… → Nach Updates suchen** sucht sofort. Eine neue Version erscheint oben im Hauptfenster: **Neuigkeiten** öffnet die Versionshinweise, **Update installieren** lädt sie, prüft, dass sie vollständig und unverändert ist, legt die alte Version in den Papierkorb und startet die App neu.
+MediaFiles Check sucht kurz nach dem Start und alle 6 Stunden auf GitHub nach einer neuen Version; **Einstellungen… → Updates → Nach Updates suchen** sucht sofort. Eine neue Version erscheint oben im Hauptfenster: **Neuigkeiten** öffnet die Versionshinweise, **Update installieren** lädt sie, prüft, dass sie vollständig und unverändert ist, legt die alte Version in den Papierkorb und startet die App neu. **Testversionen erhalten** (Einstellungen… → Updates) bietet auch Versionen an, die noch getestet werden – nur für Tester; solange eine Testversion läuft, werden neuere Testversionen immer angeboten.
 
 ## Support
 

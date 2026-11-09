@@ -71,6 +71,8 @@ Before renaming back, MediaFiles Check checks every folder:
 
 **Leave it renamed for now** keeps the folder as it is; you can rename it back later. If a folder with the original name exists meanwhile, nothing is renamed and you are told.
 
+The original names are saved before anything is renamed, so they survive a crash, a quit or a restart: the renamed folders are back on the start page at the next launch. A folder is recognised by its drive, its current name and its media files – a drive that comes back under another name (e.g. `Media 1`) is found again by its media files.
+
 ## Avid projects
 
 **Open projects…** on the start page opens the window for Avid projects. It finds the media files the bins of your projects need that are on none of the connected drives – and writes a request for MediaFiles Ferry, which collects them on the system that has them.
@@ -93,6 +95,28 @@ Good to know:
 - Missing render files (rendered effects) are only counted, not listed or requested – Media Composer renders them again.
 - A drive that does not answer for 30 seconds is skipped and named in the result.
 
+## Rebalancing
+
+We recommend no more than 5000 files per MXF folder. The limit (Settings → Rebalancing, default 5000) counts every file of a folder, the two database files included, so a folder takes at most the limit minus 2 media files.
+
+A folder and its rebalanced folders (`<name>-rebalanced-1`, `-2` …) belong together; a Media Composer ending `.1` is left out of the name (`Mac Studio.1` → `Mac Studio-rebalanced-1`, `1` → `1-rebalanced-1`). Rebalancing always lays out the whole group: all its media files sorted by creation date, the oldest go into `-rebalanced-1`, the next into `-2` …, the youngest stay in the main folder. **Find full folders…** on the start page lists every group on the selected drives that does not match the limit and shows what would move.
+
+1. Quit Media Composer – on network drives on every workstation – and choose the groups.
+2. Click **Rebalance**. For a folder Media Composer creates itself (`1`, or `<computer name>.1` on network drives) you are asked first: we recommend giving it a name of its own. The folder is renamed, its rebalanced folders take the new name, and Media Composer starts a new folder for new media. **Keep the name** goes on without renaming. Nothing is copied or deleted; a rebalanced folder left without media files (only its database files and the “Creating” folder) goes into `MediaFiles Check Database Backups` as a whole.
+3. Afterwards the databases of all changed folders have to be rewritten. **Start** puts their database files into `MediaFiles Check Database Backups` on the same drive (Media Composer writes new ones) and renames the folders Media Composer does not update itself. Then continue as in “Rename for Media Composer”: start Media Composer, wait for the green dots, quit it, rename back. **Cancel** leaves the databases as they are.
+
+**Changing the limit:** MediaFiles Check warns before every change. The next **Find full folders…** lays out every group anew for the new limit – a lower limit spreads the files over more folders, a higher one moves them back. With many files that takes a while.
+
+**History…** on the start page lists every group: **Rewrite databases** does step 3 later (also after a cancel or if the app was quit in between), **Undo** moves all media files back into the main folder, removes the rebalanced folders and gives a renamed folder its old name back – rename renamed folders back first. A run that stopped half-way is finished by the next **Find full folders…**.
+
+## Duplicates
+
+**Find duplicates…** on the start page looks through the selected drives for media files that are there more than once. A media file is recognised by its Media Composer ID (in the file itself, or in its folder's database), so renamed copies are found too. Files without an ID are compared by name, size and a checksum of their content. Mountpoint workspaces are left out – they show the files of another drive.
+
+The list shows each media file with its copies: the green dot marks the copy that stays (the one its folder's database knows, otherwise the oldest) – click another copy to keep that one instead. Switch off what should stay as it is (e.g. a backup drive). Copies with the same ID but different sizes are not switched on by themselves – check them first. **Save report…** writes the whole list to a text file.
+
+**Set aside** (Media Composer closed – on network drives on every workstation) moves the other copies into `MediaFiles Check Duplicates` on their own drive; nothing is copied or deleted. A folder left without media files goes there too, with its database files and “Creating” folder; **Undo** brings it back. Afterwards the databases of their folders have to be rewritten: **Start** works as for rebalancing, **Cancel** leaves them as they are. Delete the set-aside copies yourself once everything works. **History…** lists every run with **Rewrite databases** and **Undo** (moves the copies back, never over an existing file).
+
 ## Rebuild a database
 
 1. Quit Media Composer.
@@ -102,13 +126,13 @@ Good to know:
 
 ## Settings
 
-**MediaFiles Check → Settings…** (⌘,) sets the appearance (switch **Light/Dark**, on = dark) and the language (English, Deutsch, Français, Español). **MediaFiles Check → About MediaFiles Check** shows the version and the license.
+**MediaFiles Check → Settings…** (⌘,) opens the settings window with three tabs: **General** sets the appearance (switch **Light/Dark**, on = dark) and the language (English, Deutsch, Français, Español), **Updates** and **Support** are described below, **About** shows the version and the license. **MediaFiles Check → About MediaFiles Check** opens the same window on the About tab; Settings… opens the tab you used last.
 
 ![Settings](images/en/settings.png)
 
 ## Updates
 
-MediaFiles Check looks for a new version on GitHub shortly after starting and every 6 hours; **Settings… → Check for updates** looks right away. A new version shows at the top of the main window: **What's new** opens the release notes, **Install update** downloads it, checks that it is complete and unchanged, puts the old version in the Trash and restarts the app.
+MediaFiles Check looks for a new version on GitHub shortly after starting and every 6 hours; **Settings… → Updates → Check for updates** looks right away. A new version shows at the top of the main window: **What's new** opens the release notes, **Install update** downloads it, checks that it is complete and unchanged, puts the old version in the Trash and restarts the app. **Get test versions** (Settings… → Updates) also offers versions that are still being tested – for testers only; while a test version runs, newer test versions are always offered.
 
 ## Support
 

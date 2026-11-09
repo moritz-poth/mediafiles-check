@@ -8,6 +8,171 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+msgid "Rebalancing"
+msgstr "Reequilibrado"
+
+msgid "REBALANCING"
+msgstr "REEQUILIBRADO"
+
+msgid "REBALANCED"
+msgstr "REEQUILIBRADO"
+
+msgid "Rebalance"
+msgstr "Reequilibrar"
+
+msgid "Find full folders…"
+msgstr "Buscar carpetas llenas…"
+
+msgid "REBALANCING HISTORY"
+msgstr "HISTORIAL DE REEQUILIBRADO"
+
+msgid "History ({})…"
+msgstr "Historial ({})…"
+
+msgid "Databases not rewritten yet"
+msgstr "Bases de datos aún no reescritas"
+
+msgid "Rewrite databases"
+msgstr "Reescribir bases de datos"
+
+msgid "Cancel leaves the databases as they are – you can start it later on the start page under Rebalancing → History."
+msgstr "«Cancelar» deja las bases de datos como están; puedes iniciarlo más tarde en la página de inicio, en Reequilibrado → Historial."
+
+msgid "{n} run is waiting for new databases (History)."
+msgid_plural "{n} runs are waiting for new databases (History)."
+msgstr[0] "{n} reequilibrado espera bases de datos nuevas (Historial)."
+msgstr[1] "{n} reequilibrados esperan bases de datos nuevas (Historial)."
+
+msgid "New folders get the name of the full folder with “-rebalanced-1”, “-2” … (“Mac Studio.1” becomes “Mac Studio-rebalanced-1”). After a change of the limit, the next “Find full folders…” lays them out anew."
+msgstr "Las carpetas nuevas llevan el nombre de la carpeta llena con «-rebalanced-1», «-2»… («Mac Studio.1» pasa a ser «Mac Studio-rebalanced-1»). Tras cambiar el límite, la siguiente «Buscar carpetas llenas…» las reparte de nuevo."
+
+msgid "Keep the name"
+msgstr "Mantener el nombre"
+
+msgid "Change…"
+msgstr "Cambiar…"
+
+msgid "Change"
+msgstr "Cambiar"
+
+msgid "Change the limit to {}?"
+msgstr "¿Cambiar el límite a {}?"
+
+msgid "The next “Find full folders…” lays out every rebalanced folder on the drives anew for this limit: media files move into more folders or back. With many files that can take a long time, and the databases of every changed folder have to be rewritten."
+msgstr "La siguiente «Buscar carpetas llenas…» vuelve a repartir cada carpeta reequilibrada de las unidades según este límite: los archivos de medios pasan a más carpetas o vuelven. Con muchos archivos puede tardar mucho, y hay que reescribir las bases de datos de cada carpeta modificada."
+
+msgid "New name"
+msgstr "Nombre nuevo"
+
+msgid "RENAME FOLDER?"
+msgstr "¿RENOMBRAR LA CARPETA?"
+
+msgid "“{}” is a folder Media Composer creates and fills itself. We recommend giving it a name of its own before rebalancing – the folder and its rebalanced folders then carry that name, and Media Composer starts a new folder for new media."
+msgstr "«{}» es una carpeta que Media Composer crea y llena por sí mismo. Recomendamos darle un nombre propio antes del reequilibrado: la carpeta y sus carpetas reequilibradas llevarán ese nombre, y Media Composer creará una carpeta nueva para los medios nuevos."
+
+msgid "The oldest media files go into the rebalanced folders, the youngest stay in the main folder; nothing is copied or deleted. Afterwards the databases of the changed folders have to be rewritten. You can undo it under History."
+msgstr "Los archivos de medios más antiguos pasan a las carpetas reequilibradas y los más recientes se quedan en la carpeta principal; no se copia ni se borra nada. Después hay que reescribir las bases de datos de las carpetas modificadas. Puedes deshacerlo en el Historial."
+
+msgid "Now the databases of the changed folders have to be rewritten. Start sets their databases aside (Media Composer writes new ones) and renames the folders Media Composer does not update itself – then go on as for renamed folders on the start page."
+msgstr "Ahora hay que reescribir las bases de datos de las carpetas modificadas. «Iniciar» aparta sus bases de datos (Media Composer escribe otras nuevas) y renombra las carpetas que Media Composer no actualiza por sí mismo; después sigue como con las carpetas renombradas en la página de inicio."
+
+msgid "set aside"
+msgstr "apartar"
+
+msgid "stays"
+msgstr "se queda"
+
+msgid "Set aside"
+msgstr "Apartar"
+
+msgid "DUPLICATES"
+msgstr "DUPLICADOS"
+
+msgid "DUPLICATES HISTORY"
+msgstr "HISTORIAL DE DUPLICADOS"
+
+msgid "SET ASIDE"
+msgstr "APARTADO"
+
+msgid "Find duplicates…"
+msgstr "Buscar duplicados…"
+
+msgid "Cancel leaves the databases as they are – you can start it later on the start page under Duplicates → History."
+msgstr "«Cancelar» deja las bases de datos como están; puedes iniciarlo más tarde en la página de inicio, en Duplicados → Historial."
+
+msgid "Finds media files that are on the selected drives more than once – by their Media Composer ID, also when renamed."
+msgstr "Encuentra archivos de medios que están más de una vez en las unidades elegidas, por su ID de Media Composer, aunque se hayan renombrado."
+
+msgid "Click a copy to keep it. The others go into “MediaFiles Check Duplicates” on their drive – nothing is deleted, you can undo it under History."
+msgstr "Haz clic en una copia para conservarla. Las demás van a «MediaFiles Check Duplicates» en su unidad; no se borra nada y puedes deshacerlo en el Historial."
+
+msgid "History"
+msgstr "Historial"
+
+msgid "Undo"
+msgstr "Deshacer"
+
+msgid "Start"
+msgstr "Iniciar"
+
+msgid "Cancel"
+msgstr "Cancelar"
+
+msgid "Files per folder"
+msgstr "Archivos por carpeta"
+
+msgid "Splits MXF folders with more than {} files (database included): the oldest media files move into new folders."
+msgstr "Divide las carpetas MXF con más de {} archivos (base de datos incluida): los archivos de medios más antiguos pasan a carpetas nuevas."
+
+msgid "No folder on the selected drives has more than {} files, the two database files included."
+msgstr "Ninguna carpeta de las unidades elegidas tiene más de {} archivos, contando los dos archivos de base de datos."
+
+msgid "Media Composer must stay closed while moving – on network drives on every workstation."
+msgstr "Media Composer debe permanecer cerrado mientras se mueve; en unidades de red, en cada puesto."
+
+msgid "Counts every file of a folder, the two database files included – a folder keeps at most this many minus 2 media files. Rebalancing moves the oldest media files of a fuller folder into new folders. We recommend no more than 5000 (between 100 and 50000)."
+msgstr "Cuenta cada archivo de una carpeta, incluidos los dos archivos de base de datos: una carpeta conserva como máximo esta cantidad menos 2 archivos de medios. El reequilibrado mueve los archivos de medios más antiguos de una carpeta más llena a carpetas nuevas. Recomendamos no más de 5000 (entre 100 y 50000)."
+
+msgid "{} kept – it holds other files"
+msgstr "{} se conserva: contiene otros archivos"
+
+msgid "Database of {} set aside: {}"
+msgstr "Base de datos de {} apartada: {}"
+
+msgid "{n} file moved back to {}"
+msgid_plural "{n} files moved back to {}"
+msgstr[0] "{n} archivo devuelto a {}"
+msgstr[1] "{n} archivos devueltos a {}"
+
+msgid "{n} file left where it is (changed, or the name exists again): {}"
+msgid_plural "{n} files left where they are (changed, or the name exists again): {}"
+msgstr[0] "{n} archivo se queda donde está (cambiado, o el nombre vuelve a existir): {}"
+msgstr[1] "{n} archivos se quedan donde están (cambiados, o el nombre vuelve a existir): {}"
+
+msgid "General"
+msgstr "General"
+
+msgid "Updates"
+msgstr "Actualizaciones"
+
+msgid "Support"
+msgstr "Soporte"
+
+msgid "About"
+msgstr "Acerca de"
+
+msgid "Get test versions"
+msgstr "Recibir versiones de prueba"
+
+msgid "Also offers versions that are still being tested. For testers only – they can contain errors."
+msgstr "Ofrece también versiones aún en prueba. Solo para testers: pueden contener errores."
+
+msgid "Switches all windows of MediaFiles Check between a light and a dark look."
+msgstr "Cambia todas las ventanas de MediaFiles Check entre un aspecto claro y oscuro."
+
+msgid "MediaFiles Check checks GitHub for new versions on its own and shows a notice."
+msgstr "MediaFiles Check busca por sí mismo nuevas versiones en GitHub y muestra un aviso."
+
 msgid "Run self-test…"
 msgstr "Autoprueba…"
 
@@ -83,9 +248,6 @@ msgstr "Ocultar"
 msgid "Skipped"
 msgstr "Omitida"
 
-msgid "SUPPORT"
-msgstr "SOPORTE"
-
 msgid "SELF-TEST"
 msgstr "AUTOPRUEBA"
 
@@ -104,9 +266,6 @@ msgstr "Prueba la lectura de bases de datos, la comparación, el renombrado y la
 msgid "MediaFiles Check tests reading databases, comparing, renaming and updates on test data of its own and sends us an anonymous report. Your drives and folders are only listed, never changed. It takes less than a minute."
 msgstr "MediaFiles Check prueba la lectura de bases de datos, la comparación, el renombrado y las actualizaciones con sus propios datos de prueba y nos envía un informe anónimo. Tus discos y carpetas solo se listan, nunca se cambian. Tarda menos de un minuto."
 
-msgid "Settings"
-msgstr "Ajustes"
-
 msgid "Language"
 msgstr "Idioma"
 
@@ -115,9 +274,6 @@ msgstr "Ayuda"
 
 msgid "Manual"
 msgstr "Manual"
-
-msgid "About MediaFiles Check"
-msgstr "Acerca de MediaFiles Check"
 
 msgid "MediaFiles Check Manual"
 msgstr "Manual de MediaFiles Check"
@@ -177,17 +333,11 @@ msgstr "Guardar informe…"
 msgid "Done"
 msgstr "Listo"
 
-msgid "VERSION {}"
-msgstr "VERSIÓN {}"
-
 msgid "MediaFiles Check is free software: you can redistribute and modify it under the terms of the GNU General Public License, version 3 or later."
 msgstr "MediaFiles Check es software libre: puedes redistribuirlo y modificarlo según los términos de la GNU General Public License, versión 3 o posterior."
 
 msgid "It comes with ABSOLUTELY NO WARRANTY – use at your own risk."
 msgstr "Se ofrece SIN NINGUNA GARANTÍA; úsalo bajo tu propia responsabilidad."
-
-msgid "UPDATES"
-msgstr "ACTUALIZACIONES"
 
 msgid "Version {}"
 msgstr "Versión {}"
@@ -352,9 +502,6 @@ msgstr "Mostrar archivo de registro"
 
 msgid "Settings…"
 msgstr "Ajustes…"
-
-msgid "SETTINGS"
-msgstr "AJUSTES"
 
 msgid "Start Media Composer"
 msgstr "Abrir Media Composer"

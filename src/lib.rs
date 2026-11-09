@@ -8,9 +8,11 @@
 //! The file must end exactly after block 2; anything else counts as unreadable, so an unknown format never produces
 //! a wrong report.
 pub mod avb;
+pub mod duplicates;
 pub mod log;
 pub mod mxf;
 pub mod projects;
+pub mod rebalance;
 pub mod rename;
 pub mod report;
 pub mod selftest;
@@ -229,6 +231,20 @@ pub fn find_volumes() -> Vec<PathBuf> {
     let mut found: Vec<PathBuf> = candidates.into_iter().filter(|p| mxf_dir(p).is_dir()).collect();
     found.sort();
     found
+}
+
+/// A recorded folder whose drive is mounted under another path now (after a crash macOS may mount "Media" as
+/// "/Volumes/Media 1"; a drive can be renamed): the MXF folder on another drive that holds `folder` with every
+/// recorded MXF file. Media Composer gives each MXF file a unique name, so the names identify the folder; a folder
+/// without recorded files is never matched. None while `mxf` itself still exists.
+pub fn find_moved(mxf: &Path, folder: &str, files: &[(String, u64)]) -> Option<PathBuf> {
+    if files.is_empty() || mxf.is_dir() {
+        return None;
+    }
+    find_volumes().into_iter().map(|v| mxf_dir(&v)).filter(|m| m != mxf).find(|m| {
+        let have: std::collections::HashSet<String> = fs::read_dir(m.join(folder)).map(|rd| rd.flatten().map(|e| key(&e.file_name().to_string_lossy())).collect()).unwrap_or_default();
+        files.iter().all(|(n, _)| have.contains(&key(n)))
+    })
 }
 
 fn subfolders(dir: &Path) -> Vec<PathBuf> {

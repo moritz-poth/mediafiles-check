@@ -1,6 +1,7 @@
 // Oberfläche von MediaFiles Check (gleicher Look wie MediaFiles Ferry). Texte auf Englisch in @tr(); Deutsch in translations/.
-import { Palette, TextEdit } from "std-widgets.slint";
+import { Palette, Spinner } from "std-widgets.slint";
 import "fonts/JetBrainsMono-Regular.ttf";
+import "fonts/JetBrainsMono-Medium.ttf";
 import "fonts/JetBrainsMono-SemiBold.ttf";
 import "fonts/JetBrainsMono-Bold.ttf";
 
@@ -87,6 +88,9 @@ export global Theme {
     out property <color> online: dark ? #3fb950 : #1a7f37;   // light 4.7:1
     out property <color> warning: dark ? #d29922 : #8a5a00;
     out property <color> error: dark ? #f85149 : #c62828;
+    // partial wie Mountpoint (Rahmen des Fehler-Toasts); accent = Systemblau des aktiven Reiters
+    out property <color> partial: dark ? #f0883e : #b4530f;
+    out property <color> accent: dark ? #0a84ff : #007aff;
 }
 
 component Headline inherits VerticalLayout {
@@ -149,10 +153,12 @@ component CheckButton {
     in property <string> text;
     in property <bool> primary;
     in property <bool> enabled: true;
+    // 26 px wie Mountpoints FerryButtonStyle in den Einstellungen (Schrift 12, 12 px Rand), sonst 32 px wie Ferry
+    in property <bool> small;
     callback clicked;
-    min-width: label.preferred-width + 28px;
+    min-width: label.preferred-width + (root.small ? 24px : 28px);
     preferred-width: self.min-width;
-    height: 32px;
+    height: root.small ? 26px : 32px;
     accessible-role: button;
     accessible-label: root.text;
     accessible-enabled: root.enabled;
@@ -167,7 +173,9 @@ component CheckButton {
     }
     label := Text {
         text: root.text;
-        font-weight: root.primary ? 600 : 400;
+        font-size: root.small ? 12px : 13px;
+        // small = Einstellungen: CoreText zeichnet Mountpoints Knopftext deutlich kräftiger als Slint
+        font-weight: root.small ? (root.primary ? 700 : 600) : root.primary ? 600 : 400;
         color: !root.enabled ? Theme.disabled : root.primary ? Theme.on-primary : Theme.text;
         horizontal-alignment: center;
         vertical-alignment: center;
@@ -263,6 +271,36 @@ component Dropdown {
     }
 }
 
+component ScrollThumb inherits Rectangle {
+    in property <length> view;
+    in property <length> content;
+    in property <length> offset;
+    visible: root.content > root.view;
+    width: 6px;
+    height: max(24px, (root.view - 4px) * root.view / max(root.content, 1px));
+    y: 2px + (root.content > root.view ? -root.offset / (root.content - root.view) * (root.view - 4px - self.height) : 0px);
+    border-radius: 3px;
+    background: Theme.dark ? #ffffff59 : #00000059;
+}
+
+// Liste mit Scrollfläche bis `limit`, darüber Scrollbalken wie im Problem-Feld; Platz für den Balken nur wenn nötig
+component ScrollBox inherits Rectangle {
+    in property <length> limit: 300px;
+    in property <length> spacing: 0px;
+    property <bool> scrolls: inner.preferred-height > root.limit;
+    height: min(inner.preferred-height, root.limit);
+    flick := Flickable {
+        content-height: inner.preferred-height;
+        inner := VerticalLayout {
+            x: 0;
+            width: flick.width - (root.scrolls ? 12px : 0px);
+            spacing: root.spacing;
+            @children
+        }
+    }
+    ScrollThumb { x: parent.width - self.width - 2px; view: flick.height; content: inner.preferred-height; offset: flick.content-y; }
+}
+
 // Ergebnisliste mit eigener Scrollfläche; level: 0 Überschrift, 1 Befund (Warnfarbe), 2 Detail (eingerückt)
 component RowList inherits Rectangle {
     in property <[ReportRow]> rows;
@@ -288,14 +326,7 @@ component RowList inherits Rectangle {
             }
         }
     }
-    if list.preferred-height > root.height: Rectangle {
-        x: parent.width - self.width;
-        width: 3px;
-        height: max(20px, root.height * root.height / list.preferred-height);
-        y: -flick.content-y / (list.preferred-height - root.height) * (root.height - self.height);
-        border-radius: 1.5px;
-        background: Theme.line;
-    }
+    ScrollThumb { x: parent.width - self.width - 2px; view: flick.height; content: list.preferred-height; offset: flick.content-y; }
 }
 
 // Fehlende Mediendateien pro Bin, Klick auf eine Datei klappt auf, wo sie im Bin steckt
@@ -348,14 +379,7 @@ component MissingList inherits Rectangle {
             }
         }
     }
-    if list.preferred-height > root.height: Rectangle {
-        x: parent.width - self.width;
-        width: 3px;
-        height: max(20px, root.height * root.height / list.preferred-height);
-        y: -flick.content-y / (list.preferred-height - root.height) * (root.height - self.height);
-        border-radius: 1.5px;
-        background: Theme.line;
-    }
+    ScrollThumb { x: parent.width - self.width - 2px; view: flick.height; content: list.preferred-height; offset: flick.content-y; }
 }
 
 component ProgressBar inherits Rectangle {
@@ -380,8 +404,13 @@ export global Shared {
     in property <int> language-index;
     in property <[bool]> appearance;
     in property <bool> dark: true;
+    in property <bool> betas;
+    // Rebalancing: höchstens so viele Mediendateien pro Ordner (Einstellungen → Rebalancing)
+    in property <int> limit: 5000;
+    callback select-limit(int);
     callback select-language(int);
     callback select-dark(bool);
+    callback select-betas(bool);
     callback show-help();
     callback show-about();
     callback show-settings();
@@ -421,9 +450,10 @@ component UpdateStatus inherits Text {
 
 // Neue Version: Hinweis mit "Neuigkeiten" und "Update installieren" (oben im Hauptfenster und in den Einstellungen)
 component UpdateOffer inherits VerticalLayout {
+    in property <length> text-width: Metrics.content-width;
     spacing: 10px;
     Text {
-        width: Metrics.content-width;
+        width: root.text-width;
         wrap: word-wrap;
         text: @tr("Version {} is available.", Shared.update-version);
         font-weight: 600;
@@ -476,12 +506,47 @@ component CheckWindow inherits Window {
     }
 }
 
-export enum Page { home, working, result, rename, question, notice }
+export enum Page { home, working, result, rename, question, notice, rebalance, rebalanced, runs, askname, dups, dupsdone }
+
+// Duplikate: eine Kopie (Laufwerk: Ordner[ · Name]), keep = diese bleibt
+export struct DupCopy {
+    place: string,
+    keep: bool,
+}
+
+// Duplikate: eine Mediendatei mit ihren Kopien; selected = Kopien zur Seite legen; blocked = nicht wählbar
+export struct DupGroup {
+    title: string,
+    detail: string,
+    note: string,
+    selected: bool,
+    blocked: bool,
+    copies: [DupCopy],
+}
+
+// frühere Rebalancings: Text (Rust, übersetzt), ob „Starten“ (Datenbanken) schon gemacht ist
+export struct RunRow {
+    text: string,
+    db-done: bool,
+}
+
+// Rebalancing: ein Ordner über der Grenze, title = Laufwerk/Ordner, detail = was entsteht (Rust, übersetzt)
+export struct RebalRow {
+    title: string,
+    detail: string,
+    // Hinweis in Warnfarbe (Media-Composer-Ordner, gesperrt), leer = keiner
+    note: string,
+    selected: bool,
+    // ein Ordner der Gruppe ist gerade für Media Composer umbenannt: nicht wählbar
+    blocked: bool,
+}
 
 export component AppWindow inherits CheckWindow {
     title: "MediaFiles Check";
     width: Metrics.window-width;
-    height: main.preferred-height;
+    // nie höher als der Bildschirm (Rust: nutzbare Höhe minus Titelleiste); längere Seiten scrollen
+    in property <length> screen-height: 100000px;
+    height: min(main.preferred-height, root.screen-height);
 
     in property <string> language: "en";
     in-out property <Page> page: Page.home;
@@ -508,6 +573,13 @@ export component AppWindow inherits CheckWindow {
     in property <[string]> q-names;
     in property <string> q-first;
     in property <[NoticeRow]> notice;
+    // Rebalancing: volle Ordner zur Auswahl, frühere Rebalancings (rückgängig machen), Zusammenfassung danach
+    in property <[RebalRow]> rebalance-rows;
+    in property <int> rebalance-selected;
+    in property <[RunRow]> rebalanced;
+    // Läufe, deren Datenbanken noch nicht neu geschrieben sind
+    in property <int> rebalance-pending;
+    in property <string> rebalance-summary;
     out property <string> txt-settings-menu: @tr("Settings…");
     out property <string> txt-mc-not-started: @tr("Media Composer could not be started.");
     out property <string> txt-choose-folder: @tr("Choose a drive or MXF folder");
@@ -524,6 +596,32 @@ export component AppWindow inherits CheckWindow {
     callback start-media-composer();
     callback open-projects();
     callback answer(int);
+    callback find-full();
+    callback toggle-rebalance(int);
+    callback rebalance();
+    callback rebalance-db(int);
+    callback undo-rebalance(int);
+    // Duplikate: Ergebnis, Auswahl, Verlauf (runs-kind 0 = Rebalancing, 1 = Duplikate auf der Seite „runs“)
+    in property <[DupGroup]> dup-groups;
+    in property <string> dup-summary;
+    in property <int> dup-selected;
+    in property <string> dup-done-summary;
+    in property <[RunRow]> dup-runs;
+    in property <int> dup-pending;
+    in-out property <int> runs-kind;
+    callback find-dups();
+    callback toggle-dup(int);
+    callback keep-copy(int, int);
+    callback save-dups();
+    callback set-aside-dups();
+    callback dup-db(int);
+    callback undo-dup(int);
+    // Media-Composer-Ordner vor dem Rebalancing umbenennen: Name bestätigen oder ohne Umbenennen weiter
+    callback rename-main(string);
+    callback keep-main();
+    in property <string> ask-folder;
+    in property <string> ask-error;
+    in-out property <string> ask-name;
 
     property <int> dot-count;
     property <string> dots: root.dot-count == 1 ? ".  " : root.dot-count == 2 ? ".. " : root.dot-count == 3 ? "..." : "   ";
@@ -533,7 +631,11 @@ export component AppWindow inherits CheckWindow {
         triggered => { root.dot-count = Math.mod(root.dot-count + 1, 4); }
     }
 
+    changed page => { page-flick.content-y = 0; }
+    page-flick := Flickable {
+        content-height: main.preferred-height;
     main := VerticalLayout {
+        width: page-flick.width;
         padding: Metrics.padding;
         spacing: Metrics.spacing;
 
@@ -555,23 +657,27 @@ export component AppWindow inherits CheckWindow {
                     overflow: elide;
                     color: Theme.muted;
                 }
-                for d[i] in root.drives: HorizontalLayout {
-                    height: 22px;
+                if root.drives.length > 0: ScrollBox {
+                    limit: 6 * 22px + 5 * 10px;
                     spacing: 10px;
-                    Dot { color: Theme.online; }
-                    Text {
-                        text: d.name;
-                        horizontal-stretch: 1;
-                        overflow: elide;
-                        vertical-alignment: center;
-                        color: d.selected ? Theme.text : Theme.muted;
-                    }
-                    VerticalLayout {
-                        alignment: center;
-                        Switch {
-                            on: d.selected;
-                            label: d.name;
-                            toggled => { root.toggle-drive(i); }
+                    for d[i] in root.drives: HorizontalLayout {
+                        height: 22px;
+                        spacing: 10px;
+                        Dot { color: Theme.online; }
+                        Text {
+                            text: d.name;
+                            horizontal-stretch: 1;
+                            overflow: elide;
+                            vertical-alignment: center;
+                            color: d.selected ? Theme.text : Theme.muted;
+                        }
+                        VerticalLayout {
+                            alignment: center;
+                            Switch {
+                                on: d.selected;
+                                label: d.name;
+                                toggled => { root.toggle-drive(i); }
+                            }
                         }
                     }
                 }
@@ -613,25 +719,79 @@ export component AppWindow inherits CheckWindow {
                 }
             }
 
+            Divider { }
+            Section {
+                title: @tr("REBALANCING");
+                Para {
+                    text: @tr("Splits MXF folders with more than {} files (database included): the oldest media files move into new folders.", Shared.limit);
+                }
+                if root.rebalance-pending > 0: Para {
+                    text: @tr("{n} run is waiting for new databases (History)." | "{n} runs are waiting for new databases (History)." % root.rebalance-pending);
+                    color: Theme.warning;
+                }
+                HorizontalLayout {
+                    spacing: 10px;
+                    alignment: start;
+                    CheckButton {
+                        text: @tr("Find full folders…");
+                        enabled: root.selected-count > 0;
+                        clicked => { root.find-full(); }
+                    }
+                    if root.rebalanced.length > 0: CheckButton {
+                        text: @tr("History ({})…", root.rebalanced.length);
+                        clicked => { root.runs-kind = 0; root.page = Page.runs; }
+                    }
+                }
+            }
+
+            Divider { }
+            Section {
+                title: @tr("DUPLICATES");
+                Para {
+                    text: @tr("Finds media files that are on the selected drives more than once – by their Media Composer ID, also when renamed.");
+                }
+                if root.dup-pending > 0: Para {
+                    text: @tr("Databases not rewritten yet") + " (" + @tr("History") + ")";
+                    color: Theme.warning;
+                }
+                HorizontalLayout {
+                    spacing: 10px;
+                    alignment: start;
+                    CheckButton {
+                        text: @tr("Find duplicates…");
+                        enabled: root.selected-count > 0;
+                        clicked => { root.find-dups(); }
+                    }
+                    if root.dup-runs.length > 0: CheckButton {
+                        text: @tr("History ({})…", root.dup-runs.length);
+                        clicked => { root.runs-kind = 1; root.page = Page.runs; }
+                    }
+                }
+            }
+
             if root.renamed.length > 0: Divider { }
             if root.renamed.length > 0: Section {
                 title: @tr("RENAMED FOR MEDIA COMPOSER");
-                for r in root.renamed: HorizontalLayout {
+                ScrollBox {
+                    limit: 5 * 18px + 4 * 10px;
                     spacing: 10px;
-                    height: Metrics.line;
-                    Dot { color: r.status == 2 ? Theme.online : r.status == 1 ? Theme.warning : Theme.line; }
-                    Text {
-                        text: @tr("{} (was {})", r.current, r.original);
-                        horizontal-stretch: 1;
-                        overflow: elide;
-                        vertical-alignment: center;
-                        color: Theme.text;
-                    }
-                    Text {
-                        text: r.status == 2 ? @tr("ready") : r.status == 1 ? @tr("waiting") : @tr("drive missing");
-                        font-size: 12px;
-                        vertical-alignment: center;
-                        color: Theme.muted;
+                    for r in root.renamed: HorizontalLayout {
+                        spacing: 10px;
+                        height: Metrics.line;
+                        Dot { color: r.status == 2 ? Theme.online : r.status == 1 ? Theme.warning : Theme.line; }
+                        Text {
+                            text: @tr("{} (was {})", r.current, r.original);
+                            horizontal-stretch: 1;
+                            overflow: elide;
+                            vertical-alignment: center;
+                            color: Theme.text;
+                        }
+                        Text {
+                            text: r.status == 2 ? @tr("ready") : r.status == 1 ? @tr("waiting") : @tr("drive missing");
+                            font-size: 12px;
+                            vertical-alignment: center;
+                            color: Theme.muted;
+                        }
                     }
                 }
                 Para {
@@ -837,20 +997,359 @@ export component AppWindow inherits CheckWindow {
         }
 
         // ── Abschluss ─────────────────────────────────────────
+        // ── Rebalancing: Auswahl ──────────────────────────────
+        if root.page == Page.rebalance: VerticalLayout {
+            spacing: Metrics.spacing;
+            Section {
+                title: @tr("REBALANCING");
+                if root.rebalance-rows.length == 0: Para {
+                    text: @tr("No folder on the selected drives has more than {} files, the two database files included.", Shared.limit);
+                }
+                if root.rebalance-rows.length > 0: ScrollBox {
+                    limit: 300px;
+                    spacing: 12px;
+                            for r[i] in root.rebalance-rows: HorizontalLayout {
+                                spacing: 10px;
+                                VerticalLayout {
+                                    horizontal-stretch: 1;
+                                    spacing: 2px;
+                                    Text { text: r.title; overflow: elide; color: r.selected ? Theme.text : Theme.muted; }
+                                    Text {
+                                        width: Metrics.content-width - 72px;
+                                        text: r.detail;
+                                        wrap: word-wrap;
+                                        font-size: 11px;
+                                        color: Theme.muted;
+                                    }
+                                    if r.note != "": Text {
+                                        width: Metrics.content-width - 72px;
+                                        text: r.note;
+                                        wrap: word-wrap;
+                                        font-size: 11px;
+                                        color: Theme.warning;
+                                    }
+                                }
+                                VerticalLayout {
+                                    alignment: start;
+                                    if !r.blocked: Switch {
+                                        on: r.selected;
+                                        label: r.title;
+                                        toggled => { root.toggle-rebalance(i); }
+                                    }
+                                }
+                            }
+                }
+                if root.rebalance-rows.length > 0: Para {
+                    text: @tr("The oldest media files go into the rebalanced folders, the youngest stay in the main folder; nothing is copied or deleted. Afterwards the databases of the changed folders have to be rewritten. You can undo it under History.");
+                }
+                if root.rebalance-rows.length > 0: Para {
+                    text: root.mc-running ? @tr("Quit Media Composer first.") : @tr("Media Composer must stay closed while moving – on network drives on every workstation.");
+                    color: Theme.warning;
+                }
+            }
+            Divider { }
+            HorizontalLayout {
+                spacing: 10px;
+                CheckButton {
+                    text: @tr("Back");
+                    clicked => { root.back(); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                if root.rebalance-rows.length > 0: CheckButton {
+                    text: @tr("Rebalance");
+                    primary: true;
+                    enabled: !root.mc-running && root.rebalance-selected > 0;
+                    clicked => { root.rebalance(); }
+                }
+            }
+        }
+
+        // ── Rebalancing: danach Datenbanken neu schreiben ─────
+        if root.page == Page.rebalanced: VerticalLayout {
+            spacing: Metrics.spacing;
+            Section {
+                title: @tr("REBALANCED");
+                ScrollBox {
+                    limit: 200px;
+                    Para { text: root.rebalance-summary; color: Theme.text; }
+                }
+                Para {
+                    text: @tr("Now the databases of the changed folders have to be rewritten. Start sets their databases aside (Media Composer writes new ones) and renames the folders Media Composer does not update itself – then go on as for renamed folders on the start page.");
+                }
+                Para {
+                    text: @tr("Cancel leaves the databases as they are – you can start it later on the start page under Rebalancing → History.");
+                }
+                Para {
+                    text: root.mc-running ? @tr("Quit Media Composer first.") : "";
+                    color: Theme.warning;
+                }
+            }
+            Divider { }
+            HorizontalLayout {
+                spacing: 10px;
+                CheckButton {
+                    text: @tr("Cancel");
+                    clicked => { root.back(); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                CheckButton {
+                    text: @tr("Start");
+                    primary: true;
+                    enabled: !root.mc-running;
+                    clicked => { root.rebalance-db(-1); }
+                }
+            }
+        }
+
+        // ── Rebalancing: Media-Composer-Ordner umbenennen? ──
+        if root.page == Page.askname: VerticalLayout {
+            spacing: Metrics.spacing;
+            Section {
+                title: @tr("RENAME FOLDER?");
+                Para {
+                    text: @tr("“{}” is a folder Media Composer creates and fills itself. We recommend giving it a name of its own before rebalancing – the folder and its rebalanced folders then carry that name, and Media Composer starts a new folder for new media.", root.ask-folder);
+                    color: Theme.text;
+                }
+                Text { text: @tr("New name"); font-size: 12px; color: Theme.muted; }
+                Rectangle {
+                    height: 30px;
+                    border-radius: 6px;
+                    border-width: 1px;
+                    border-color: root.ask-error != "" ? Theme.error : Theme.line;
+                    name-input := TextInput {
+                        x: 8px;
+                        width: parent.width - 16px;
+                        height: parent.height;
+                        text <=> root.ask-name;
+                        font-size: 13px;
+                        color: Theme.text;
+                        vertical-alignment: center;
+                        single-line: true;
+                        accessible-label: @tr("New name");
+                        init => { self.focus(); }
+                        accepted => { root.rename-main(self.text); }
+                    }
+                }
+                if root.ask-error != "": StatusLine { text: root.ask-error; color: Theme.error; }
+            }
+            Divider { }
+            HorizontalLayout {
+                spacing: 10px;
+                CheckButton {
+                    text: @tr("Keep the name");
+                    clicked => { root.keep-main(); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                CheckButton {
+                    text: @tr("Rename");
+                    primary: true;
+                    clicked => { root.rename-main(root.ask-name); }
+                }
+            }
+        }
+
+        // ── Duplikate: Ergebnis ──
+        if root.page == Page.dups: VerticalLayout {
+            spacing: Metrics.spacing;
+            Section {
+                title: @tr("DUPLICATES");
+                Para { text: root.dup-summary; color: Theme.text; }
+                if root.dup-groups.length > 0: ScrollBox {
+                    limit: 300px;
+                    spacing: 16px;
+                    for g[gi] in root.dup-groups: VerticalLayout {
+                        spacing: 6px;
+                        HorizontalLayout {
+                            spacing: 10px;
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                spacing: 2px;
+                                Text { text: g.title; overflow: elide; font-weight: 600; color: g.selected ? Theme.text : Theme.muted; }
+                                Text { width: Metrics.content-width - 72px; text: g.detail; wrap: word-wrap; font-size: 11px; color: Theme.muted; }
+                                if g.note != "": Text { width: Metrics.content-width - 72px; text: g.note; wrap: word-wrap; font-size: 11px; color: Theme.warning; }
+                            }
+                            VerticalLayout {
+                                alignment: start;
+                                if !g.blocked: Switch {
+                                    on: g.selected;
+                                    label: g.title;
+                                    toggled => { root.toggle-dup(gi); }
+                                }
+                            }
+                        }
+                        // Klick auf eine Kopie: diese bleibt
+                        for c[ci] in g.copies: Rectangle {
+                            height: 18px;
+                            HorizontalLayout {
+                                spacing: 8px;
+                                VerticalLayout {
+                                    alignment: center;
+                                    Rectangle {
+                                        width: 8px;
+                                        height: 8px;
+                                        border-radius: 4px;
+                                        background: c.keep ? Theme.online : transparent;
+                                        border-width: c.keep ? 0px : 1px;
+                                        border-color: Theme.muted;
+                                    }
+                                }
+                                Text { text: c.place; horizontal-stretch: 1; overflow: elide; font-size: 11px; vertical-alignment: center; color: c.keep ? Theme.text : Theme.muted; }
+                                Text { text: c.keep ? @tr("stays") : @tr("set aside"); font-size: 11px; vertical-alignment: center; color: Theme.faint; }
+                            }
+                            TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => { root.keep-copy(gi, ci); }
+                            }
+                        }
+                    }
+                }
+                if root.dup-groups.length > 0: Para {
+                    text: @tr("Click a copy to keep it. The others go into “MediaFiles Check Duplicates” on their drive – nothing is deleted, you can undo it under History.");
+                }
+                if root.dup-groups.length > 0: Para {
+                    text: root.mc-running ? @tr("Quit Media Composer first.") : @tr("Media Composer must stay closed while moving – on network drives on every workstation.");
+                    color: Theme.warning;
+                }
+                HorizontalLayout {
+                    alignment: start;
+                    CheckButton {
+                        text: @tr("Save report…");
+                        small: true;
+                        clicked => { root.save-dups(); }
+                    }
+                }
+            }
+            Divider { }
+            HorizontalLayout {
+                spacing: 10px;
+                CheckButton {
+                    text: @tr("Back");
+                    clicked => { root.back(); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                if root.dup-groups.length > 0: CheckButton {
+                    text: @tr("Set aside");
+                    primary: true;
+                    enabled: !root.mc-running && root.dup-selected > 0;
+                    clicked => { root.set-aside-dups(); }
+                }
+            }
+        }
+
+        // ── Duplikate: danach Datenbanken neu schreiben ──
+        if root.page == Page.dupsdone: VerticalLayout {
+            spacing: Metrics.spacing;
+            Section {
+                title: @tr("SET ASIDE");
+                ScrollBox {
+                    limit: 200px;
+                    Para { text: root.dup-done-summary; color: Theme.text; }
+                }
+                Para {
+                    text: @tr("Now the databases of the changed folders have to be rewritten. Start sets their databases aside (Media Composer writes new ones) and renames the folders Media Composer does not update itself – then go on as for renamed folders on the start page.");
+                }
+                Para {
+                    text: @tr("Cancel leaves the databases as they are – you can start it later on the start page under Duplicates → History.");
+                }
+                Para {
+                    text: root.mc-running ? @tr("Quit Media Composer first.") : "";
+                    color: Theme.warning;
+                }
+            }
+            Divider { }
+            HorizontalLayout {
+                spacing: 10px;
+                CheckButton {
+                    text: @tr("Cancel");
+                    clicked => { root.back(); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                CheckButton {
+                    text: @tr("Start");
+                    primary: true;
+                    enabled: !root.mc-running;
+                    clicked => { root.dup-db(-1); }
+                }
+            }
+        }
+
+        // ── Rebalancing: frühere Läufe (Datenbanken neu schreiben, rückgängig machen) ──
+        if root.page == Page.runs: VerticalLayout {
+            spacing: Metrics.spacing;
+            Section {
+                title: root.runs-kind == 0 ? @tr("REBALANCING HISTORY") : @tr("DUPLICATES HISTORY");
+                ScrollBox {
+                    limit: 320px;
+                    spacing: 16px;
+                    for r[i] in root.runs-kind == 0 ? root.rebalanced : root.dup-runs: VerticalLayout {
+                        spacing: 8px;
+                        Text {
+                            width: Metrics.content-width - 12px;
+                            text: r.text;
+                            wrap: word-wrap;
+                            font-size: 12px;
+                            color: Theme.text;
+                        }
+                        if !r.db-done: Text {
+                            text: @tr("Databases not rewritten yet");
+                            font-size: 12px;
+                            color: Theme.warning;
+                        }
+                        HorizontalLayout {
+                            spacing: 10px;
+                            alignment: start;
+                            if !r.db-done: CheckButton {
+                                text: @tr("Rewrite databases");
+                                small: true;
+                                enabled: !root.mc-running;
+                                clicked => { if (root.runs-kind == 0) { root.rebalance-db(i); } else { root.dup-db(i); } }
+                            }
+                            CheckButton {
+                                text: @tr("Undo");
+                                small: true;
+                                enabled: !root.mc-running;
+                                clicked => { if (root.runs-kind == 0) { root.undo-rebalance(i); } else { root.undo-dup(i); } }
+                            }
+                        }
+                    }
+                }
+                if root.mc-running: StatusLine {
+                    text: @tr("Quit Media Composer first.");
+                    color: Theme.warning;
+                }
+            }
+            Divider { }
+            HorizontalLayout {
+                alignment: start;
+                CheckButton {
+                    text: @tr("Back");
+                    clicked => { root.back(); }
+                }
+            }
+        }
+
         if root.page == Page.notice: VerticalLayout {
             spacing: Metrics.spacing;
             Section {
                 title: @tr("RESULT");
-                for r in root.notice: Text {
-                    width: Metrics.content-width;
-                    wrap: word-wrap;
-                    font-size: 12px;
-                    text: r.kind == 0 ? @tr("{} renamed back to {}", r.a, r.b)
-                        : r.kind == 1 ? @tr("{n} new file moved to {}" | "{n} new files moved to {}" % r.n, r.a)
-                        : r.kind == 2 ? @tr("{} stays renamed", r.a)
-                        : r.kind == 3 ? @tr("{}: {}", r.a, r.b)
-                        : @tr("not moved, the target has a file with this name: {}", r.a);
-                    color: r.kind == 3 ? Theme.error : r.kind == 4 || r.kind == 2 ? Theme.warning : Theme.text;
+                ScrollBox {
+                    limit: 360px;
+                    spacing: 10px;
+                    for r in root.notice: Text {
+                        width: Metrics.content-width - 12px;
+                        wrap: word-wrap;
+                        font-size: 12px;
+                        text: r.kind == 0 ? @tr("{} renamed back to {}", r.a, r.b)
+                            : r.kind == 1 ? @tr("{n} new file moved to {}" | "{n} new files moved to {}" % r.n, r.a)
+                            : r.kind == 2 ? @tr("{} stays renamed", r.a)
+                            : r.kind == 3 ? @tr("{}: {}", r.a, r.b)
+                            : r.kind == 5 ? @tr("{n} file moved back to {}" | "{n} files moved back to {}" % r.n, r.a)
+                            : r.kind == 6 ? @tr("{} kept – it holds other files", r.a)
+                            : r.kind == 7 ? @tr("{n} file left where it is (changed, or the name exists again): {}" | "{n} files left where they are (changed, or the name exists again): {}" % r.n, r.a)
+                            : r.kind == 8 ? @tr("Database of {} set aside: {}", r.a, r.b)
+                            : @tr("not moved, the target has a file with this name: {}", r.a);
+                        color: r.kind == 3 ? Theme.error : r.kind == 4 || r.kind == 2 || r.kind == 6 || r.kind == 7 ? Theme.warning : Theme.text;
+                    }
                 }
             }
             Divider { }
@@ -864,65 +1363,8 @@ export component AppWindow inherits CheckWindow {
             }
         }
     }
-}
-
-// Rechtliche Hinweise nach GPL-3.0 §5d: Copyright, keine Gewährleistung, Lizenz, Quellcode.
-export component AboutWindow inherits CheckWindow {
-    title: @tr("About MediaFiles Check");
-    width: Metrics.window-width;
-    height: about.preferred-height;
-
-    in property <string> version;
-    callback open-source();
-    callback open-license();
-
-    about := VerticalLayout {
-        padding: Metrics.padding;
-        spacing: Metrics.spacing;
-        Headline { }
-        Section {
-            title: @tr("VERSION {}", root.version);
-            Text {
-                text: "© 2026 Moritz Poth";
-                color: Theme.muted;
-            }
-            Para {
-                text: @tr("MediaFiles Check is free software: you can redistribute and modify it under the terms of the GNU General Public License, version 3 or later.");
-                font-size: 13px;
-                color: Theme.text;
-            }
-            Para {
-                text: @tr("It comes with ABSOLUTELY NO WARRANTY – use at your own risk.");
-                font-size: 13px;
-                color: Theme.text;
-            }
-            HorizontalLayout {
-                spacing: 10px;
-                alignment: start;
-                CheckButton {
-                    text: @tr("Source code");
-                    clicked => { root.open-source(); }
-                }
-                CheckButton {
-                    text: @tr("License");
-                    clicked => { root.open-license(); }
-                }
-            }
-        }
-        Section {
-            title: @tr("THIRD-PARTY");
-            Para {
-                text: @tr("JetBrains Mono font – SIL Open Font License 1.1. Slint UI toolkit – used under the GNU GPL v3.");
-                font-size: 11px;
-                color: Theme.faint;
-            }
-            Para {
-                text: @tr("Avid and Media Composer are trademarks of Avid Technology, Inc. MediaFiles Check is not affiliated with Avid.");
-                font-size: 11px;
-                color: Theme.faint;
-            }
-        }
     }
+    ScrollThumb { x: parent.width - self.width - 2px; view: page-flick.height; content: main.preferred-height; offset: page-flick.content-y; }
 }
 
 // Anleitung: gleiche Schrift, Farben und Abstände wie das Hauptfenster; Inhalt aus docs/help/<sprache>.md.
@@ -1001,12 +1443,117 @@ export component HelpWindow inherits CheckWindow {
 }
 
 // Einstellungen (App-Menü → Settings…, ⌘,): wie in Mountpoint – Darstellung als Schalter, Sprache als Auswahl.
-export component SettingsWindow inherits CheckWindow {
-    title: @tr("Settings");
-    width: Metrics.window-width;
-    height: root.page == 0 ? settings.preferred-height : root.page == 1 ? selftest.preferred-height : problem.preferred-height;
+// Reiter oben wie Mountpoints Einstellungs-Werkzeugleiste (NSToolbar .preference): Symbol über dem Namen in der
+// Systemschrift, der aktive Reiter hinterlegt und in Systemblau
+component SettingsTab {
+    in property <image> icon;
+    in property <string> text;
+    in property <bool> selected;
+    callback clicked;
+    min-width: max(label.preferred-width + 14px, 44px);
+    height: 45px;
+    accessible-role: tab;
+    accessible-label: root.text;
+    accessible-checked: root.selected;
+    accessible-action-default => { root.clicked(); }
+    Rectangle {
+        border-radius: 6px;
+        background: root.selected ? (Theme.dark ? #ffffff14 : #00000012) : transparent;
+    }
+    VerticalLayout {
+        padding-top: 2px;
+        padding-bottom: 2px;
+        spacing: 0px;
+        alignment: center;
+        HorizontalLayout {
+            alignment: center;
+            Image {
+                source: root.icon;
+                width: 23px;
+                height: 23px;
+                colorize: root.selected ? Theme.accent : label.color;
+            }
+        }
+        label := Text {
+            text: root.text;
+            // Systemschrift-Alias verlor in Slint Umlaute („Über“ → „Uber“); Helvetica Neue gibt es auf jedem Mac
+            font-family: "Helvetica Neue";
+            font-size: 12px;
+            horizontal-alignment: center;
+            // dunkel 55 % Weiß (4.8:1), hell 65 % Schwarz (5.9:1 auf #f0f0f0; 50 % wären nur 3.9:1)
+            color: root.selected ? Theme.accent : Theme.dark ? #ffffff8c : #000000a6;
+        }
+    }
+    TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
 
-    // Support (wie Mountpoint): 0 Einstellungen, 1 Selbsttest, 2 Problem melden
+// Zeile wie in Mountpoint: kurzer Text links, Bedienelement rechtsbündig
+component SettingRow inherits HorizontalLayout {
+    in property <string> text;
+    spacing: 10px;
+    Text {
+        text: root.text;
+        // Mountpoints Regular wirkt mit CoreText (dunkel, kleine Größen) fast halbfett; Slint zeichnet dünner
+        font-weight: 600;
+        horizontal-stretch: 1;
+        vertical-alignment: center;
+        wrap: word-wrap;
+        color: Theme.text;
+    }
+    @children
+}
+
+// Erklärung unter einer Zeile (Mountpoint: hint, 11 pt, blass, höchstens 390 breit)
+component Hint inherits Text {
+    width: 390px;
+    wrap: word-wrap;
+    font-size: 11px;
+    color: Theme.faint;
+}
+
+// Rollbalken wie macOS' Overlay-Scroller in Mountpoints ScrollView: 6 px, abgerundet, 2 px vom Rand
+
+// Rahmen wie Mountpoints Eingabefelder: 1 px Linie, Ecken 6, keine eigene Fläche
+component FieldFrame inherits Rectangle {
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: Theme.line;
+    clip: true;
+}
+
+// Einstellungen wie in Mountpoint (seit 1.0.0 beta 7): eigenes Fenster 800 × 450 (16:9, nie größer), Inhalt bis unter die
+// durchsichtige Titelleiste (Rust: mac_window::unify_titlebar), Reiterleiste in der Farbe der Titelleiste – heller,
+// solange das Fenster aktiv ist (active, von Rust gesetzt) –, Titel = Reiter, Spalte von 560 px mittig.
+// Kein Reiter wächst oder scrollt – nur die Selbsttest-Liste und das Beschreibungsfeld scrollen in sich.
+export component SettingsWindow inherits CheckWindow {
+    // gleiche Wirkung wie Mountpoints Regular mit CoreText (gemessen: Slint-Text sonst rund 20 % heller)
+    default-font-weight: 500;
+    title: root.tab == 0 ? @tr("General") : root.tab == 1 ? @tr("Updates") : root.tab == 2 ? @tr("Support") : root.tab == 4 ? @tr("Rebalancing") : @tr("About");
+    width: 800px;
+    height: 450px;
+
+    // Reiter: 0 Allgemein, 4 Rebalancing (steht als zweiter), 1 Updates, 2 Support, 3 Über; last-tab = zuletzt gewählter außer „Über“ (für „Einstellungen…“,
+    // in settings.txt gesichert)
+    in-out property <int> tab;
+    in-out property <int> last-tab;
+    // Grenze ändern erst nach der Warnung (jede Änderung verteilt beim nächsten Suchen alle rebalanced-Ordner neu)
+    in-out property <bool> limit-ask;
+    in-out property <int> limit-new;
+    in-out property <bool> limit-revert;
+    callback tab-chosen(int);
+    changed tab => {
+        if root.tab != 3 && root.tab != root.last-tab {
+            root.last-tab = root.tab;
+            root.tab-chosen(root.tab);
+        }
+    }
+    in property <bool> active: true;
+    in property <string> version;
+    callback open-source();
+    callback open-license();
+    // Support (wie Mountpoint): 0 Übersicht, 1 Selbsttest, 2 Problem melden
     in-out property <int> page;
     // Selbsttest: 0 bereit, 1 läuft, 2 fertig
     in property <int> test-phase;
@@ -1019,9 +1566,10 @@ export component SettingsWindow inherits CheckWindow {
     in-out property <string> report-text;
     in-out property <string> report-contact;
     in-out property <bool> report-attach: true;
-    // kurze Meldung nach dem Senden (3 s, Fehler 8 s – Rust blendet sie aus)
+    // kurze Meldung nach dem Senden wie Mountpoints Toast (Rust blendet sie nach 3 s, Fehler 8 s, aus)
     in property <string> toast-text;
     in property <bool> toast-ok;
+    in property <bool> toast-visible;
     callback start-selftest();
     callback send-selftest();
     callback save-selftest();
@@ -1029,283 +1577,557 @@ export component SettingsWindow inherits CheckWindow {
     callback open-coffee();
     callback back();
 
-    settings := VerticalLayout {
-        visible: root.page == 0;
-        padding: Metrics.padding;
-        spacing: Metrics.spacing;
-        Headline { }
-        Section {
-            title: @tr("SETTINGS");
-            // „Light/Dark“ wie in Mountpoint: Schalter rechts, an = dunkel
+    property <length> column: 560px;
+
+    VerticalLayout {
+        // Titelleiste (28) + Reiter (52), gemessen an Mountpoint
+        Rectangle {
+            height: 80px;
+            background: Theme.dark ? (root.active ? #383838 : #292929) : (root.active ? #f0f0f0 : #e7e7e7);
             HorizontalLayout {
-                spacing: 10px;
-                height: 28px;
-                Text {
+                alignment: center;
+                padding-top: 28px;
+                padding-bottom: 7px;
+                SettingsTab {
+                    icon: @image-url("../assets/tabs/general.png");
+                    text: @tr("General");
+                    selected: root.tab == 0;
+                    clicked => { root.tab = 0; }
+                }
+                SettingsTab {
+                    icon: @image-url("../assets/tabs/rebalance.png");
+                    text: @tr("Rebalancing");
+                    selected: root.tab == 4;
+                    clicked => { root.tab = 4; }
+                }
+                SettingsTab {
+                    icon: @image-url("../assets/tabs/updates.png");
+                    text: @tr("Updates");
+                    selected: root.tab == 1;
+                    clicked => { root.tab = 1; }
+                }
+                SettingsTab {
+                    icon: @image-url("../assets/tabs/support.png");
+                    text: @tr("Support");
+                    selected: root.tab == 2;
+                    clicked => { root.tab = 2; }
+                }
+                SettingsTab {
+                    icon: @image-url("../assets/tabs/about.png");
+                    text: @tr("About");
+                    selected: root.tab == 3;
+                    clicked => { root.tab = 3; }
+                }
+            }
+        }
+        // Trennlinie unter der Werkzeugleiste wie bei macOS (ein Bildpunkt)
+        Rectangle {
+            height: 0.5px;
+            background: Theme.dark ? #000000 : #c6c6c6;
+        }
+        HorizontalLayout {
+            alignment: center;
+            // Allgemein ist der Maßstab (wie Mountpoint): seine erste Zeile hat einen Schalter (20 hoch). Reiter, die mit
+            // einem Knopf (26 hoch) beginnen, rücken 3 px höher, damit der erste Text überall auf derselben Höhe steht.
+            padding-top: root.tab == 2 && root.page != 0 ? 16px : root.tab == 1 || root.tab == 2 || root.tab == 4 ? 21px : 24px;
+            padding-bottom: 16px;
+
+            if root.tab == 0: VerticalLayout {
+                width: root.column;
+                alignment: start;
+                spacing: 14px;
+                SettingRow {
                     text: @tr("Light/Dark");
-                    horizontal-stretch: 1;
-                    vertical-alignment: center;
-                    color: Theme.text;
-                }
-                VerticalLayout {
-                    alignment: center;
-                    Switch {
-                        on: Shared.dark;
-                        label: @tr("Light/Dark");
-                        toggled => { Shared.select-dark(!Shared.dark); }
+                    VerticalLayout {
+                        alignment: center;
+                        Switch {
+                            on: Shared.dark;
+                            label: @tr("Light/Dark");
+                            toggled => { Shared.select-dark(!Shared.dark); }
+                        }
                     }
                 }
-            }
-            HorizontalLayout {
-                spacing: 10px;
-                Text {
+                Hint { text: @tr("Switches all windows of MediaFiles Check between a light and a dark look."); }
+                SettingRow {
                     text: @tr("Language");
-                    horizontal-stretch: 1;
-                    vertical-alignment: center;
-                    color: Theme.text;
-                }
-                VerticalLayout {
-                    alignment: center;
-                    Dropdown {
-                        items: Shared.language-names;
-                        current: Shared.language-index;
-                        selected(i) => { Shared.select-language(i); }
+                    VerticalLayout {
+                        alignment: center;
+                        Dropdown {
+                            items: Shared.language-names;
+                            current: Shared.language-index;
+                            selected(i) => { Shared.select-language(i); }
+                        }
                     }
                 }
             }
-        }
-        Section {
-            title: @tr("UPDATES");
-            HorizontalLayout {
-                spacing: 10px;
-                Text {
+
+            // Rebalancing: Obergrenze pro Ordner; ungültige Eingaben (keine Zahl, außerhalb 100–50000) werden nicht übernommen
+            if root.tab == 4: VerticalLayout {
+                width: root.column;
+                alignment: start;
+                spacing: 14px;
+                SettingRow {
+                    text: @tr("Files per folder");
+                    FieldFrame {
+                        width: 90px;
+                        height: 26px;
+                        border-color: limit-input.valid ? Theme.line : Theme.error;
+                        limit-input := TextInput {
+                            property <bool> valid: self.text.is-float() && self.text.to-float() >= 100 && self.text.to-float() <= 50000 && Math.round(self.text.to-float()) == self.text.to-float();
+                            x: 8px;
+                            width: parent.width - 16px;
+                            height: parent.height;
+                            text: Shared.limit;
+                            font-size: 12px;
+                            color: Theme.text;
+                            selection-background-color: Theme.accent.with-alpha(0.35);
+                            horizontal-alignment: right;
+                            vertical-alignment: center;
+                            single-line: true;
+                            input-type: number;
+                            accessible-label: @tr("Files per folder");
+                            // „Abbrechen“ in der Warnung setzt das Feld zurück
+                            property <bool> revert: root.limit-revert;
+                            changed revert => { self.text = Shared.limit; }
+                            accepted => { if self.valid && self.text.to-float() != Shared.limit { root.limit-new = self.text.to-float(); root.limit-ask = true; } }
+                        }
+                    }
+                    if limit-input.valid && limit-input.text.to-float() != Shared.limit: CheckButton {
+                        text: @tr("Change…");
+                        small: true;
+                        clicked => { root.limit-new = limit-input.text.to-float(); root.limit-ask = true; }
+                    }
+                }
+                Hint { text: @tr("Counts every file of a folder, the two database files included – a folder keeps at most this many minus 2 media files. Rebalancing moves the oldest media files of a fuller folder into new folders. We recommend no more than 5000 (between 100 and 50000)."); }
+                Hint { text: @tr("New folders get the name of the full folder with “-rebalanced-1”, “-2” … (“Mac Studio.1” becomes “Mac Studio-rebalanced-1”). After a change of the limit, the next “Find full folders…” lays them out anew."); }
+            }
+
+            if root.tab == 1: VerticalLayout {
+                width: root.column;
+                alignment: start;
+                spacing: 14px;
+                SettingRow {
                     text: @tr("Version {}", Shared.version);
-                    horizontal-stretch: 1;
-                    vertical-alignment: center;
-                    color: Theme.text;
+                    if Shared.update-state == 1: VerticalLayout {
+                        alignment: center;
+                        Spinner { indeterminate: true; width: 16px; height: 16px; }
+                    }
+                    CheckButton {
+                        small: true;
+                        text: @tr("Check for updates");
+                        enabled: Shared.update-state != 1 && Shared.update-state != 3;
+                        clicked => { Shared.check-update(); }
+                    }
                 }
-                CheckButton {
-                    text: @tr("Check for updates");
-                    enabled: Shared.update-state != 1 && Shared.update-state != 3;
-                    clicked => { Shared.check-update(); }
+                if Shared.update-version != "": UpdateOffer { text-width: root.column; }
+                if Shared.update-state != 0: UpdateStatus {
+                    width: root.column;
+                    font-size: 11px;
+                    color: Shared.update-state == 4 ? Theme.partial : Theme.faint;
                 }
+                Hint { text: @tr("MediaFiles Check checks GitHub for new versions on its own and shows a notice."); }
+                SettingRow {
+                    text: @tr("Get test versions");
+                    VerticalLayout {
+                        alignment: center;
+                        Switch {
+                            on: Shared.betas;
+                            label: @tr("Get test versions");
+                            toggled => { Shared.select-betas(!Shared.betas); }
+                        }
+                    }
+                }
+                Hint { text: @tr("Also offers versions that are still being tested. For testers only – they can contain errors."); }
             }
-            if Shared.update-version != "": UpdateOffer { }
-            UpdateStatus { }
-        }
-        Section {
-            title: @tr("SUPPORT");
-            HorizontalLayout {
-                spacing: 10px;
-                Text {
+
+            if root.tab == 2 && root.page == 0: VerticalLayout {
+                width: root.column;
+                alignment: start;
+                spacing: 14px;
+                SettingRow {
                     text: root.test-phase == 1 ? @tr("Self-test running…") : @tr("Test this Mac");
-                    horizontal-stretch: 1;
-                    vertical-alignment: center;
-                    color: Theme.text;
+                    CheckButton {
+                        small: true;
+                        text: @tr("Run self-test…");
+                        clicked => { root.page = 1; }
+                    }
                 }
-                CheckButton {
-                    text: @tr("Run self-test…");
-                    clicked => { root.page = 1; }
-                }
-            }
-            Para { text: @tr("Tests reading databases, comparing, renaming and updates on test data of its own and sends us an anonymous report."); }
-            HorizontalLayout {
-                spacing: 10px;
-                Text {
+                Hint { text: @tr("Tests reading databases, comparing, renaming and updates on test data of its own and sends us an anonymous report."); }
+                SettingRow {
                     text: @tr("Problem or idea?");
-                    horizontal-stretch: 1;
-                    vertical-alignment: center;
-                    color: Theme.text;
+                    CheckButton {
+                        small: true;
+                        text: @tr("Report…");
+                        clicked => { root.page = 2; }
+                    }
                 }
-                CheckButton {
-                    text: @tr("Report…");
-                    clicked => { root.page = 2; }
-                }
-            }
-            Para { text: @tr("No GitHub account needed."); }
-            HorizontalLayout {
-                spacing: 10px;
-                Text {
+                Hint { text: @tr("No GitHub account needed."); }
+                SettingRow {
                     text: @tr("Events and errors");
-                    horizontal-stretch: 1;
-                    vertical-alignment: center;
-                    color: Theme.text;
+                    CheckButton {
+                        small: true;
+                        text: @tr("Show log file");
+                        clicked => { Shared.show-log(); }
+                    }
                 }
-                CheckButton {
-                    text: @tr("Show log file");
-                    clicked => { Shared.show-log(); }
-                }
-            }
-            HorizontalLayout {
-                spacing: 10px;
-                Text {
+                SettingRow {
                     text: @tr("Like MediaFiles Check?");
-                    horizontal-stretch: 1;
-                    vertical-alignment: center;
-                    color: Theme.text;
-                }
-                CheckButton {
-                    text: @tr("Buy me a coffee");
-                    clicked => { root.open-coffee(); }
-                }
-            }
-            Para { text: @tr("If you use MediaFiles Check and like it, I would be glad if you bought me a coffee."); }
-        }
-    }
-
-    selftest := VerticalLayout {
-        visible: root.page == 1;
-        padding: Metrics.padding;
-        spacing: 14px;
-        Section {
-            title: @tr("SELF-TEST");
-            if root.test-phase == 0: Para {
-                text: @tr("MediaFiles Check tests reading databases, comparing, renaming and updates on test data of its own and sends us an anonymous report. Your drives and folders are only listed, never changed. It takes less than a minute.");
-            }
-            for row in root.test-rows: HorizontalLayout {
-                spacing: 8px;
-                Text {
-                    width: 14px;
-                    text: row.status == 0 ? "✓" : row.status == 1 ? "✕" : "–";
-                    color: row.status == 0 ? Theme.online : row.status == 1 ? Theme.error : Theme.faint;
-                    accessible-label: row.status == 0 ? @tr("Passed") : row.status == 1 ? @tr("Failed") : @tr("Skipped");
-                }
-                VerticalLayout {
-                    spacing: 2px;
-                    Text { text: row.title; font-size: 12px; color: Theme.text; }
-                    Text {
-                        width: Metrics.content-width - 22px;
-                        text: row.detail;
-                        wrap: word-wrap;
-                        font-size: 10px;
-                        color: row.status == 1 ? Theme.error : Theme.faint;
+                    CheckButton {
+                        small: true;
+                        text: @tr("Buy me a coffee");
+                        clicked => { root.open-coffee(); }
                     }
                 }
+                Hint { text: @tr("If you use MediaFiles Check and like it, I would be glad if you bought me a coffee."); }
             }
-            if root.test-phase == 1: Text { text: root.test-current; font-size: 12px; color: Theme.muted; }
-            if root.test-phase == 2: Text {
-                text: root.test-summary;
-                font-size: 12px;
-                font-weight: 600;
-                color: root.test-failed ? Theme.error : Theme.text;
-            }
-            if root.test-phase == 2: Para {
-                text: root.test-note != "" ? root.test-note : @tr("Only anonymous data is sent: system, test results and the log with user and folder names replaced. Save the report to look at it first.");
-            }
-        }
-        Divider { }
-        HorizontalLayout {
-            spacing: 10px;
-            CheckButton {
-                text: root.test-phase == 1 ? @tr("Hide") : @tr("Back");
-                clicked => { root.back(); }
-            }
-            Rectangle { horizontal-stretch: 1; }
-            if root.test-phase == 0: CheckButton {
-                text: @tr("Start self-test");
-                primary: true;
-                clicked => { root.start-selftest(); }
-            }
-            if root.test-phase == 2: CheckButton {
-                text: @tr("Save report");
-                clicked => { root.save-selftest(); }
-            }
-            if root.test-phase == 2: CheckButton {
-                text: root.sending ? @tr("Sending…") : @tr("Send report");
-                primary: true;
-                enabled: !root.sending;
-                clicked => { root.send-selftest(); }
-            }
-        }
-    }
 
-    problem := VerticalLayout {
-        visible: root.page == 2;
-        padding: Metrics.padding;
-        spacing: 12px;
-        Section {
-            title: @tr("REPORT A PROBLEM");
-            Para { text: @tr("What happened, and what did you expect? Ideas are welcome too. No GitHub account needed."); }
-            TextEdit {
-                width: Metrics.content-width;
-                height: 120px;
-                font-size: 12px;
-                wrap: word-wrap;
-                text <=> root.report-text;
-                accessible-label: @tr("Description");
-            }
-            // eigenes Feld statt LineEdit: die Standard-Fläche passte nicht zum Theme
-            Rectangle {
-                width: Metrics.content-width;
-                height: 28px;
-                border-radius: 6px;
-                border-width: 1px;
-                border-color: contact.has-focus ? Theme.muted : Theme.line;
-                if root.report-contact == "": Text {
-                    x: 8px;
-                    text: @tr("Email for questions (optional)");
-                    font-size: 12px;
-                    color: Theme.faint;
-                    vertical-alignment: center;
-                    height: parent.height;
-                }
-                contact := TextInput {
-                    x: 8px;
-                    width: parent.width - 16px;
-                    height: parent.height;
-                    font-size: 12px;
-                    color: Theme.text;
-                    vertical-alignment: center;
-                    single-line: true;
-                    text <=> root.report-contact;
-                    accessible-label: @tr("Email for questions (optional)");
-                }
-            }
-            HorizontalLayout {
+            // Selbsttest wie Mountpoints SelfTestView: feste Liste mit Rahmen, die mitscrollt – das Fenster wächst nie
+            if root.tab == 2 && root.page == 1: VerticalLayout {
+                width: root.column;
+                alignment: start;
+                // Liste 200 hoch wie in Mountpoint: etwas engere Abstände, damit alles ohne Scrollen passt
                 spacing: 10px;
-                Text {
-                    text: @tr("Attach system info and log file");
-                    horizontal-stretch: 1;
-                    vertical-alignment: center;
-                    color: Theme.text;
+                Section {
+                    title: @tr("SELF-TEST");
+                    spacing: 8px;
+                    if root.test-phase == 0: Text {
+                        width: root.column;
+                        wrap: word-wrap;
+                        font-size: 12px;
+                        color: Theme.muted;
+                        text: @tr("MediaFiles Check tests reading databases, comparing, renaming and updates on test data of its own and sends us an anonymous report. Your drives and folders are only listed, never changed. It takes less than a minute.");
+                    }
+                    if root.test-phase != 0: FieldFrame {
+                        height: 200px;
+                        flick := Flickable {
+                            content-height: list.preferred-height;
+                            // neue Zeile → ans Ende scrollen, wie Mountpoints scrollTo
+                            property <length> filled: list.preferred-height;
+                            changed filled => { self.content-y = min(0px, self.height - self.filled); }
+                            list := VerticalLayout {
+                                width: flick.width;
+                                padding: 10px;
+                                spacing: 8px;
+                                for row in root.test-rows: HorizontalLayout {
+                                    spacing: 8px;
+                                    VerticalLayout {
+                                        alignment: start;
+                                        padding-top: 2px;
+                                        Image {
+                                            width: 12px;
+                                            height: 12px;
+                                            source: row.status == 0 ? @image-url("../assets/tabs/pass.png") : row.status == 1 ? @image-url("../assets/tabs/fail.png") : @image-url("../assets/tabs/skip.png");
+                                            colorize: row.status == 0 ? Theme.online : row.status == 1 ? Theme.error : Theme.faint;
+                                            accessible-role: image;
+                                            accessible-label: row.status == 0 ? @tr("Passed") : row.status == 1 ? @tr("Failed") : @tr("Skipped");
+                                        }
+                                    }
+                                    VerticalLayout {
+                                        spacing: 2px;
+                                        Text { text: row.title; font-size: 12px; color: Theme.text; }
+                                        Text {
+                                            width: root.column - 42px;
+                                            text: row.detail;
+                                            wrap: word-wrap;
+                                            font-size: 10px;
+                                            color: row.status == 1 ? Theme.error : Theme.faint;
+                                        }
+                                    }
+                                }
+                                if root.test-phase == 1: HorizontalLayout {
+                                    spacing: 8px;
+                                    VerticalLayout {
+                                        alignment: center;
+                                        Spinner { indeterminate: true; width: 12px; height: 12px; }
+                                    }
+                                    Text { text: root.test-current; font-size: 12px; color: Theme.muted; }
+                                }
+                            }
+                        }
+                        ScrollThumb { x: parent.width - self.width - 2px; view: flick.height; content: list.preferred-height; offset: flick.content-y; }
+                    }
+                    if root.test-phase == 2: VerticalLayout {
+                        padding-top: 2px;
+                        spacing: 4px;
+                        Text {
+                            text: root.test-summary;
+                            font-size: 12px;
+                            font-weight: 600;
+                            color: root.test-failed ? Theme.error : Theme.text;
+                        }
+                        Text {
+                            width: root.column;
+                            wrap: word-wrap;
+                            font-size: 11px;
+                            color: Theme.faint;
+                            text: root.test-note != "" ? root.test-note : @tr("Only anonymous data is sent: system, test results and the log with user and folder names replaced. Save the report to look at it first.");
+                        }
+                    }
                 }
-                VerticalLayout {
-                    alignment: center;
-                    Switch {
-                        on: root.report-attach;
-                        label: @tr("Attach system info and log file");
-                        toggled => { root.report-attach = !root.report-attach; }
+                Divider { }
+                HorizontalLayout {
+                    spacing: 10px;
+                    CheckButton {
+                        small: true;
+                        text: root.test-phase == 1 ? @tr("Hide") : @tr("Back");
+                        clicked => { root.back(); }
+                    }
+                    Rectangle { horizontal-stretch: 1; }
+                    if root.test-phase == 0: CheckButton {
+                        small: true;
+                        text: @tr("Start self-test");
+                        primary: true;
+                        clicked => { root.start-selftest(); }
+                    }
+                    if root.test-phase == 1: VerticalLayout {
+                        alignment: center;
+                        Spinner { indeterminate: true; width: 16px; height: 16px; }
+                    }
+                    if root.test-phase == 2: CheckButton {
+                        small: true;
+                        text: @tr("Save report");
+                        clicked => { root.save-selftest(); }
+                    }
+                    if root.test-phase == 2: CheckButton {
+                        small: true;
+                        text: root.sending ? @tr("Sending…") : @tr("Send report");
+                        primary: true;
+                        enabled: !root.sending;
+                        clicked => { root.send-selftest(); }
                     }
                 }
             }
-            Para { text: @tr("Anonymized: your user name and folder names are replaced."); }
-        }
-        Divider { }
-        HorizontalLayout {
-            spacing: 10px;
-            CheckButton {
-                text: @tr("Back");
-                clicked => { root.back(); }
+
+            // Problem melden wie Mountpoints ProblemView: Felder mit Linie, ohne eigene Fläche
+            if root.tab == 2 && root.page == 2: VerticalLayout {
+                width: root.column;
+                alignment: start;
+                spacing: 12px;
+                Section {
+                    title: @tr("REPORT A PROBLEM");
+                    spacing: 12px;
+                    Text {
+                        width: root.column;
+                        wrap: word-wrap;
+                        font-size: 12px;
+                        color: Theme.muted;
+                        text: @tr("What happened, and what did you expect? Ideas are welcome too. No GitHub account needed.");
+                    }
+                    FieldFrame {
+                        height: 100px;
+                        editor := Flickable {
+                            x: 6px;
+                            y: 6px;
+                            width: parent.width - 12px;
+                            height: parent.height - 12px;
+                            content-height: max(self.height, description.preferred-height);
+                            // beim Tippen am Ende bleiben, wenn der Text länger als das Feld wird
+                            property <length> filled: description.preferred-height;
+                            changed filled => { self.content-y = min(0px, self.height - self.filled); }
+                            description := TextInput {
+                                width: editor.width;
+                                font-size: 12px;
+                                color: Theme.text;
+                                selection-background-color: Theme.accent.with-alpha(0.35);
+                                wrap: word-wrap;
+                                single-line: false;
+                                text <=> root.report-text;
+                                accessible-label: @tr("Description");
+                            }
+                        ScrollThumb { x: parent.width - self.width - 2px; view: editor.height; content: description.preferred-height; offset: editor.content-y; y: 6px + 2px + (description.preferred-height > editor.height ? -editor.content-y / (description.preferred-height - editor.height) * (editor.height - 4px - self.height) : 0px); }
+                        }
+                    }
+                    FieldFrame {
+                        height: 26px;
+                        if root.report-contact == "": Text {
+                            x: 8px;
+                            text: @tr("Email for questions (optional)");
+                            font-size: 12px;
+                            color: Theme.faint;
+                            vertical-alignment: center;
+                            height: parent.height;
+                        }
+                        TextInput {
+                            x: 8px;
+                            width: parent.width - 16px;
+                            height: parent.height;
+                            font-size: 12px;
+                            color: Theme.text;
+                            selection-background-color: Theme.accent.with-alpha(0.35);
+                            vertical-alignment: center;
+                            single-line: true;
+                            text <=> root.report-contact;
+                            accessible-label: @tr("Email for questions (optional)");
+                        }
+                    }
+                    SettingRow {
+                        text: @tr("Attach system info and log file");
+                        VerticalLayout {
+                            alignment: center;
+                            Switch {
+                                on: root.report-attach;
+                                label: @tr("Attach system info and log file");
+                                toggled => { root.report-attach = !root.report-attach; }
+                            }
+                        }
+                    }
+                    Text {
+                        width: root.column;
+                        wrap: word-wrap;
+                        font-size: 11px;
+                        color: Theme.faint;
+                        text: @tr("Anonymized: your user name and folder names are replaced.");
+                    }
+                }
+                Divider { }
+                HorizontalLayout {
+                    spacing: 10px;
+                    CheckButton {
+                        small: true;
+                        text: @tr("Back");
+                        clicked => { root.back(); }
+                    }
+                    Rectangle { horizontal-stretch: 1; }
+                    CheckButton {
+                        small: true;
+                        text: root.sending ? @tr("Sending…") : @tr("Send");
+                        primary: true;
+                        enabled: !root.sending && root.report-text != "";
+                        clicked => { root.send-problem(); }
+                    }
+                }
             }
-            Rectangle { horizontal-stretch: 1; }
-            CheckButton {
-                text: root.sending ? @tr("Sending…") : @tr("Send");
-                primary: true;
-                enabled: !root.sending && root.report-text != "";
-                clicked => { root.send-problem(); }
+
+            // Über wie Mountpoints AboutView: Symbol, Name, Version, ©; Lizenz; Knöpfe; Drittanbieter
+            if root.tab == 3: VerticalLayout {
+                width: root.column;
+                alignment: start;
+                spacing: 16px;
+                HorizontalLayout {
+                    spacing: 14px;
+                    alignment: start;
+                    Image {
+                        source: @image-url("../assets/icon.png");
+                        width: 56px;
+                        height: 56px;
+                    }
+                    VerticalLayout {
+                        spacing: 4px;
+                        alignment: center;
+                        Text { text: "MediaFiles Check"; font-size: 15px; font-weight: 600; color: Theme.text; }
+                        Text { text: @tr("Version {}", root.version); font-size: 12px; color: Theme.muted; }
+                        Text { text: "© 2026 Moritz Poth"; font-size: 12px; color: Theme.muted; }
+                    }
+                }
+                Text {
+                    width: root.column;
+                    wrap: word-wrap;
+                    font-size: 12px;
+                    color: Theme.text;
+                    text: @tr("MediaFiles Check is free software: you can redistribute and modify it under the terms of the GNU General Public License, version 3 or later.");
+                }
+                Text {
+                    width: root.column;
+                    wrap: word-wrap;
+                    font-size: 12px;
+                    color: Theme.text;
+                    text: @tr("It comes with ABSOLUTELY NO WARRANTY – use at your own risk.");
+                }
+                HorizontalLayout {
+                    spacing: 10px;
+                    alignment: start;
+                    CheckButton {
+                        small: true;
+                        text: @tr("Source code");
+                        clicked => { root.open-source(); }
+                    }
+                    CheckButton {
+                        small: true;
+                        text: @tr("License");
+                        clicked => { root.open-license(); }
+                    }
+                }
+                VerticalLayout {
+                    spacing: 6px;
+                    Text { text: @tr("THIRD-PARTY"); font-size: 11px; font-weight: 600; letter-spacing: 1px; color: Theme.muted; }
+                    Text {
+                        width: root.column;
+                        wrap: word-wrap;
+                        font-size: 11px;
+                        color: Theme.faint;
+                        text: @tr("JetBrains Mono font – SIL Open Font License 1.1. Slint UI toolkit – used under the GNU GPL v3.");
+                    }
+                    Text {
+                        width: root.column;
+                        wrap: word-wrap;
+                        font-size: 11px;
+                        color: Theme.faint;
+                        text: @tr("Avid and Media Composer are trademarks of Avid Technology, Inc. MediaFiles Check is not affiliated with Avid.");
+                    }
+                }
             }
         }
     }
 
+    // Warnung vor dem Ändern der Grenze: Karte über dem Fenster (Ferry-Stil, wie Mountpoints networkCard)
+    if root.limit-ask: Rectangle {
+        background: #00000066;
+        TouchArea { }
+        Rectangle {
+            width: 460px;
+            height: card.preferred-height;
+            border-radius: 10px;
+            background: Theme.background;
+            border-width: 1px;
+            border-color: Theme.line;
+            drop-shadow-blur: 16px;
+            drop-shadow-color: #00000059;
+            card := VerticalLayout {
+                padding: 22px;
+                spacing: 12px;
+                Text { text: @tr("Change the limit to {}?", root.limit-new); font-size: 14px; font-weight: 700; color: Theme.text; }
+                Text {
+                    width: 460px - 44px;
+                    text: @tr("The next “Find full folders…” lays out every rebalanced folder on the drives anew for this limit: media files move into more folders or back. With many files that can take a long time, and the databases of every changed folder have to be rewritten.");
+                    wrap: word-wrap;
+                    font-size: 12px;
+                    color: Theme.muted;
+                }
+                HorizontalLayout {
+                    spacing: 10px;
+                    alignment: end;
+                    CheckButton {
+                        text: @tr("Cancel");
+                        small: true;
+                        clicked => { root.limit-ask = false; root.limit-revert = !root.limit-revert; }
+                    }
+                    CheckButton {
+                        text: @tr("Change");
+                        small: true;
+                        primary: true;
+                        clicked => { root.limit-ask = false; Shared.select-limit(root.limit-new); }
+                    }
+                }
+            }
+        }
+    }
+
+    // Toast wie Mountpoints .toast: unten mittig (44 über dem Rand), so breit wie der Text, gleitet von unten herein
     if root.toast-text != "": Rectangle {
         x: (root.width - self.width) / 2;
-        y: root.height - self.height - 60px;
-        width: root.width - 64px;
+        y: root.toast-visible ? root.height - self.height - 44px : root.height;
+        opacity: root.toast-visible ? 1 : 0;
+        animate y, opacity { duration: 200ms; easing: ease-out; }
+        width: min(measure.preferred-width, root.width - 60px) + 28px;
+        // ungebrochene Breite des Textes (der Toast ist so breit wie sein Text, höchstens fast fensterbreit)
+        measure := Text { visible: false; text: root.toast-text; font-size: 11px; font-weight: 600; }
         height: toast.preferred-height + 18px;
         border-radius: 8px;
         background: root.toast-ok ? Theme.online : Theme.background;
         border-width: root.toast-ok ? 0px : 1px;
-        border-color: Theme.warning;
+        border-color: Theme.partial;
         drop-shadow-blur: 10px;
+        drop-shadow-offset-y: 4px;
         drop-shadow-color: #00000040;
         toast := Text {
             width: parent.width - 28px;
@@ -1314,7 +2136,7 @@ export component SettingsWindow inherits CheckWindow {
             font-size: 11px;
             font-weight: 600;
             color: root.toast-ok ? Theme.on-primary : Theme.text;
-            horizontal-alignment: center;
+            accessible-role: text;
         }
     }
 }

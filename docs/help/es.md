@@ -71,6 +71,8 @@ Antes de recuperar el nombre, MediaFiles Check comprueba cada carpeta:
 
 **Dejarla así por ahora** deja la carpeta como está; puedes recuperar el nombre más tarde. Si mientras tanto existe una carpeta con el nombre original, no se cambia nada y se te avisa.
 
+Los nombres originales se guardan antes de renombrar nada, así que sobreviven a un cierre inesperado, a salir de la app o a un reinicio: en el siguiente inicio las carpetas renombradas vuelven a aparecer en la página de inicio. Una carpeta se reconoce por su unidad, su nombre actual y sus archivos de medios; una unidad que vuelve con otro nombre (p. ej. `Media 1`) se encuentra de nuevo por sus archivos de medios.
+
 ## Proyectos de Avid
 
 **Abrir proyectos…** en la página de inicio abre la ventana de proyectos de Avid. Encuentra los archivos de medios que necesitan los bins de tus proyectos y que no están en ningún disco conectado, y escribe una solicitud para MediaFiles Ferry, que los reúne en el sistema que los tiene.
@@ -93,6 +95,28 @@ Conviene saber:
 - Los archivos de render que faltan (efectos renderizados) solo se cuentan, no se listan ni se solicitan: Media Composer los vuelve a renderizar.
 - Un disco que no responde durante 30 segundos se omite y se nombra en el resultado.
 
+## Reequilibrado
+
+Recomendamos no más de 5000 archivos por carpeta MXF. El límite (Ajustes → Reequilibrado, 5000 por defecto) cuenta cada archivo de una carpeta, incluidos los dos archivos de base de datos: una carpeta recibe como máximo el límite menos 2 archivos de medios.
+
+Una carpeta y sus carpetas reequilibradas (`<nombre>-rebalanced-1`, `-2`…) van juntas; la terminación `.1` de Media Composer se omite en el nombre (`Mac Studio.1` → `Mac Studio-rebalanced-1`, `1` → `1-rebalanced-1`). El reequilibrado siempre reparte todo el grupo: todos sus archivos de medios ordenados por fecha de creación; los más antiguos van a `-rebalanced-1`, los siguientes a `-2`…, y los más recientes se quedan en la carpeta principal. **Buscar carpetas llenas…** en la página de inicio muestra cada grupo de las unidades elegidas que no cumple el límite y lo que se movería.
+
+1. Cierra Media Composer – en unidades de red, en cada puesto – y elige los grupos.
+2. Haz clic en **Reequilibrar**. Para una carpeta que crea Media Composer (`1`, o `<nombre del equipo>.1` en unidades de red) se te pregunta antes: recomendamos darle un nombre propio. La carpeta se renombra, sus carpetas reequilibradas toman el nuevo nombre y Media Composer crea una carpeta nueva para los medios nuevos. **Mantener el nombre** sigue sin renombrar. No se copia ni se borra nada; una carpeta reequilibrada sin archivos de medios (solo sus archivos de base de datos y la carpeta «Creating») va entera a `MediaFiles Check Database Backups`.
+3. Después hay que reescribir las bases de datos de todas las carpetas modificadas. **Iniciar** guarda sus archivos de base de datos en `MediaFiles Check Database Backups` en la misma unidad (Media Composer escribe otros nuevos) y renombra las carpetas que Media Composer no actualiza por sí mismo. Luego sigue como en «Renombrar para Media Composer»: inicia Media Composer, espera los puntos verdes, ciérralo y devuelve los nombres. **Cancelar** deja las bases de datos como están.
+
+**Cambiar el límite:** MediaFiles Check avisa antes de cada cambio. La siguiente **Buscar carpetas llenas…** reparte cada grupo según el nuevo límite: uno más bajo reparte los archivos en más carpetas, uno más alto los devuelve. Con muchos archivos tarda.
+
+**Historial…** en la página de inicio muestra cada grupo: **Reescribir bases de datos** hace el paso 3 más tarde (también tras «Cancelar» o si la app se cerró entretanto), **Deshacer** devuelve todos los archivos de medios a la carpeta principal, quita las carpetas reequilibradas y devuelve su nombre antiguo a una carpeta renombrada; antes devuelve el nombre a las carpetas renombradas para Media Composer. Una operación interrumpida a medias la termina la siguiente **Buscar carpetas llenas…**.
+
+## Duplicados
+
+**Buscar duplicados…** en la página de inicio recorre las unidades elegidas en busca de archivos de medios que están más de una vez. Un archivo de medios se reconoce por su ID de Media Composer (en el propio archivo o en la base de datos de su carpeta), así que también se encuentran copias renombradas. Los archivos sin ID se comparan por nombre, tamaño y una suma de control de su contenido. Los espacios de Mountpoint se omiten: muestran los archivos de otra unidad.
+
+La lista muestra cada archivo de medios con sus copias: el punto verde marca la copia que se queda (la que conoce la base de datos de su carpeta, si no la más antigua); haz clic en otra copia para conservar esa. Desactiva lo que deba quedarse como está (p. ej. una unidad de copia de seguridad). Las copias con el mismo ID pero distinto tamaño no se activan solas: revísalas antes. **Guardar informe…** escribe toda la lista en un archivo de texto.
+
+**Apartar** (Media Composer cerrado – en unidades de red, en cada puesto) mueve las demás copias a `MediaFiles Check Duplicates` en su propia unidad; no se copia ni se borra nada. Una carpeta que se queda sin archivos de medios también va allí, con sus archivos de base de datos y su carpeta «Creating»; **Deshacer** la devuelve. Después hay que reescribir las bases de datos de sus carpetas: **Iniciar** funciona como en el reequilibrado, **Cancelar** las deja como están. Borra tú mismo las copias apartadas cuando todo funcione. **Historial…** muestra cada operación con **Reescribir bases de datos** y **Deshacer** (devuelve las copias, nunca sobre un archivo existente).
+
 ## Reconstruir una base de datos
 
 1. Cierra Media Composer.
@@ -102,13 +126,13 @@ Conviene saber:
 
 ## Ajustes
 
-**MediaFiles Check → Ajustes…** (⌘,) ajusta el aspecto (interruptor **Claro/Oscuro**, activado = oscuro) y el idioma (English, Deutsch, Français, Español). **MediaFiles Check → Acerca de MediaFiles Check** muestra la versión y la licencia.
+**MediaFiles Check → Ajustes…** (⌘,) abre la ventana de ajustes con tres pestañas: **General** ajusta el aspecto (interruptor **Claro/Oscuro**, activado = oscuro) y el idioma (English, Deutsch, Français, Español); **Actualizaciones** y **Soporte** se describen más abajo, y **Acerca de** muestra la versión y la licencia. **MediaFiles Check → Acerca de MediaFiles Check** abre la misma ventana en la pestaña Acerca de; Ajustes… abre la última pestaña usada.
 
 ![Ajustes](images/es/settings.png)
 
 ## Actualizaciones
 
-MediaFiles Check busca una nueva versión en GitHub poco después de arrancar y cada 6 horas; **Ajustes… → Buscar actualizaciones** lo hace al momento. Una nueva versión aparece arriba en la ventana principal: **Novedades** abre las notas de la versión, **Instalar actualización** la descarga, comprueba que esté completa e intacta, mueve la versión anterior a la papelera y reinicia la app.
+MediaFiles Check busca una nueva versión en GitHub poco después de arrancar y cada 6 horas; **Ajustes… → Actualizaciones → Buscar actualizaciones** lo hace al momento. Una nueva versión aparece arriba en la ventana principal: **Novedades** abre las notas de la versión, **Instalar actualización** la descarga, comprueba que esté completa e intacta, mueve la versión anterior a la papelera y reinicia la app. **Recibir versiones de prueba** (Ajustes… → Actualizaciones) ofrece también versiones aún en prueba, solo para testers; mientras se usa una versión de prueba, siempre se ofrecen las versiones de prueba más nuevas.
 
 ## Soporte
 

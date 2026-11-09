@@ -1,72 +1,143 @@
-// Draws assets/AppIcon.iconset: the motif (Avid database + check) on the dark plate of MediaFiles Ferry / Mountpoint.
-// Every size is drawn for itself (bigger plate and thicker lines when small), not scaled down from 1024.
-// Run: swift scripts/make-icon.swift   (from the repo root)
+// Draws the app icon for every size on Apple's icon grid, in Mountpoint's style (small sizes have less margin).
+//   swift scripts/make-icon.swift            → assets/AppIcon.iconset (all sizes, used by scripts/build-mac-app.sh) + assets/icon.png
+//   swift scripts/make-icon.swift <dir>      → only the iconset sizes into <dir>
+// Motif "database + check" (concept A, chosen 2026-11-09): solid light database with seam rings, green check badge
+// punched out of its lower right. Geometry in a 256-unit grid like Mountpoint's make-icon.swift (same plate, colours,
+// motif scale and green #1a7f37).
 import AppKit
 
-let out = URL(fileURLWithPath: "assets/AppIcon.iconset")
-try? FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+/// Plate size per pixel size, measured from macOS system app icons (same table as Mountpoint).
+let plateFor: [Int: Int] = [16: 14, 32: 28, 64: 52, 128: 104, 256: 206, 512: 412, 1024: 824]
 
-func draw(px: Int) -> Data {
-    let s = CGFloat(px)
-    let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: px, pixelsHigh: px, bitsPerSample: 8, samplesPerPixel: 4,
-                               hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
-    NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
-    let c = NSGraphicsContext.current!.cgContext
-    // design units: 1024, y down
-    c.translateBy(x: 0, y: s)
-    c.scaleBy(x: s / 1024, y: -s / 1024)
-    // plate: Apple grid (824 of 1024); small sizes get a bigger plate (16 px → 14 px)
-    let margin: CGFloat = px <= 16 ? 64 : px <= 32 ? 64 : 100
-    let plate = CGRect(x: margin, y: margin, width: 1024 - 2 * margin, height: 1024 - 2 * margin)
-    let radius = plate.width * 0.225
-    let path = CGPath(roundedRect: plate, cornerWidth: radius, cornerHeight: radius, transform: nil)
-    c.saveGState()
-    if px > 32 { c.setShadow(offset: CGSize(width: 0, height: -10 * 1024 / s * s / 1024), blur: 20, color: NSColor(white: 0, alpha: 0.35).cgColor) }
-    c.addPath(path); c.setFillColor(NSColor(srgbRed: 0x40/255, green: 0x44/255, blue: 0x4a/255, alpha: 1).cgColor); c.fillPath()
-    c.restoreGState()
-    c.saveGState(); c.addPath(path); c.clip()
-    let grad = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: [NSColor(srgbRed: 0x4d/255, green: 0x53/255, blue: 0x5a/255, alpha: 1).cgColor, NSColor(srgbRed: 0x32/255, green: 0x35/255, blue: 0x3b/255, alpha: 1).cgColor] as CFArray, locations: [0, 1])!
-    c.drawLinearGradient(grad, start: CGPoint(x: 0, y: plate.minY), end: CGPoint(x: 0, y: plate.maxY), options: [])
-    c.restoreGState()
-    if px >= 64 {
-        c.addPath(CGPath(roundedRect: plate.insetBy(dx: 1.5, dy: 1.5), cornerWidth: radius - 1.5, cornerHeight: radius - 1.5, transform: nil))
-        c.setStrokeColor(NSColor(white: 1, alpha: 0.10).cgColor); c.setLineWidth(3); c.strokePath()
-    }
+func color(_ hex: UInt32, _ a: CGFloat = 1) -> CGColor {
+    CGColor(red: CGFloat(hex >> 16 & 0xff) / 255, green: CGFloat(hex >> 8 & 0xff) / 255, blue: CGFloat(hex & 0xff) / 255, alpha: a)
+}
 
-    // motif, centred on the plate; lines get thicker when the icon gets small
-    let k = plate.width / 824
-    c.translateBy(x: 512, y: 512); c.scaleBy(x: k, y: k); c.translateBy(x: -535, y: -537)
-    let w: CGFloat = px <= 16 ? 70 : px <= 32 ? 52 : px <= 64 ? 44 : 34
-    let light = NSColor(srgbRed: 0xec/255, green: 0xee/255, blue: 0xf0/255, alpha: 1).cgColor
-    c.setStrokeColor(light); c.setLineWidth(w); c.setLineCap(.round); c.setLineJoin(.round)
-    // database: top ellipse, sides, rings (one ring when tiny)
-    let (cx, rx, ry, top, bottom): (CGFloat, CGFloat, CGFloat, CGFloat, CGFloat) = (440, 170, 56, 330, 650)
-    c.strokeEllipse(in: CGRect(x: cx - rx, y: top - ry, width: 2 * rx, height: 2 * ry))
+/// Half ellipse from the left to the right end; `top` = back edge (through the top), else front edge (through the bottom).
+func halfEllipse(_ p: CGMutablePath, cx: CGFloat, cy: CGFloat, rx: CGFloat, ry: CGFloat, top: Bool, leftToRight: Bool = true) {
+    let t = CGAffineTransform(translationX: cx, y: cy).scaledBy(x: 1, y: ry / rx)
+    // y points down here: angle π = left, 3π/2 = top, π/2 = bottom
+    let (a, b): (CGFloat, CGFloat) = top ? (.pi, 2 * .pi) : (.pi, 0)
+    let (s, e) = leftToRight ? (a, b) : (b, a)
+    p.addArc(center: .zero, radius: rx, startAngle: s, endAngle: e, clockwise: top ? !leftToRight : leftToRight, transform: t)
+}
+
+func render(_ size: Int) -> Data {
+    let plateSize = CGFloat(plateFor[size]!)
+    let margin = (CGFloat(size) - plateSize) / 2
+    let k = plateSize / 824   // everything is designed for the 824 px plate
+    let small = size <= 32
+
+    let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: size, pixelsHigh: size, bitsPerSample: 8,
+                               samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+                               bytesPerRow: 0, bitsPerPixel: 0)!
+    NSGraphicsContext.saveGraphicsState()
+    let ctx = NSGraphicsContext(bitmapImageRep: rep)!
+    NSGraphicsContext.current = ctx
+    let cg = ctx.cgContext
+    cg.translateBy(x: 0, y: CGFloat(size))   // origin top left
+    cg.scaleBy(x: 1, y: -1)
+
+    // plate – identical to Mountpoint
+    let plateRect = CGRect(x: margin, y: margin, width: plateSize, height: plateSize)
+    let radius = 185 * k
+    let plate = CGPath(roundedRect: plateRect, cornerWidth: radius, cornerHeight: radius, transform: nil)
+    cg.saveGState()
+    if size >= 64 { cg.setShadow(offset: CGSize(width: 0, height: -10 * k), blur: 20 * k, color: color(0x000000, 0.35)) }
+    cg.addPath(plate)
+    cg.setFillColor(color(0x2e3236))
+    cg.fillPath()
+    cg.restoreGState()
+    cg.saveGState()
+    cg.addPath(plate)
+    cg.clip()
+    let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                              colors: [color(0x3c4146), color(0x272a2e)] as CFArray, locations: [0, 1])!
+    cg.drawLinearGradient(gradient, start: CGPoint(x: 0, y: plateRect.minY), end: CGPoint(x: 0, y: plateRect.maxY), options: [])
+    cg.restoreGState()
+    let edge = max(3 * k, 0.75)
+    cg.addPath(CGPath(roundedRect: plateRect.insetBy(dx: edge / 2, dy: edge / 2),
+                      cornerWidth: radius - edge / 2, cornerHeight: radius - edge / 2, transform: nil))
+    cg.setStrokeColor(color(0xffffff, 0.10))
+    cg.setLineWidth(edge)
+    cg.strokePath()
+
+    // motif: same scale and optical offset as Mountpoint; tiny sizes get a larger motif
+    let boost: CGFloat = size <= 16 ? 1.3 : size <= 32 ? 1.18 : size <= 64 ? 1.08 : 1
+    let unit = k * 4 * 0.62 * boost
+    cg.translateBy(x: margin + 412 * k, y: margin + 412 * k + 16 * k)
+    cg.scaleBy(x: unit, y: unit)
+    cg.translateBy(x: -128, y: -138)
+
+    let (cx, rx, ry, top, bottom): (CGFloat, CGFloat, CGFloat, CGFloat, CGFloat) = (128, 76, 22, 62, 202)
+    // badge: bigger at small sizes, otherwise the check turns into a green dot
+    let badge = small ? CGPoint(x: 194, y: 188) : CGPoint(x: 198, y: 192)
+    let badgeR: CGFloat = small ? 56 : 46
+    let gap: CGFloat = small ? 12 : 10
+
+    // database in its own layer, so the badge gap is a real hole showing the plate
+    cg.beginTransparencyLayer(auxiliaryInfo: nil)
     let body = CGMutablePath()
-    body.move(to: CGPoint(x: cx - rx, y: top)); body.addLine(to: CGPoint(x: cx - rx, y: bottom))
-    body.addArc(center: CGPoint(x: cx, y: bottom), radius: rx, startAngle: .pi, endAngle: 0, clockwise: true, transform: CGAffineTransform(translationX: cx, y: bottom).scaledBy(x: 1, y: ry / rx).translatedBy(x: -cx, y: -bottom))
-    body.addLine(to: CGPoint(x: cx + rx, y: top))
-    c.addPath(body); c.strokePath()
-    for y in (px <= 16 ? [490] : [437, 544]) as [CGFloat] {
-        let ring = CGMutablePath()
-        ring.addArc(center: CGPoint(x: cx, y: y), radius: rx, startAngle: .pi, endAngle: 0, clockwise: true, transform: CGAffineTransform(translationX: cx, y: y).scaledBy(x: 1, y: ry / rx).translatedBy(x: -cx, y: -y))
-        c.addPath(ring); c.strokePath()
+    body.move(to: CGPoint(x: cx - rx, y: top))
+    halfEllipse(body, cx: cx, cy: top, rx: rx, ry: ry, top: true)
+    body.addLine(to: CGPoint(x: cx + rx, y: bottom))
+    halfEllipse(body, cx: cx, cy: bottom, rx: rx, ry: ry, top: false, leftToRight: false)
+    body.closeSubpath()
+    cg.addPath(body)
+    cg.setFillColor(color(0xe9eaeb))
+    cg.fillPath()
+    cg.addPath(body)   // the stroke rounds the corners, like Mountpoint's solid motif
+    cg.setStrokeColor(color(0xe9eaeb))
+    cg.setLineWidth(12)
+    cg.setLineJoin(.round)
+    cg.strokePath()
+    // seams: the top rim always (it makes the cylinder), the two rings only where they are still visible
+    let seams = CGMutablePath()
+    for y in (size >= 64 ? [top, 109, 156] : [top]) as [CGFloat] {
+        seams.move(to: CGPoint(x: cx - rx - 6, y: y))
+        halfEllipse(seams, cx: cx, cy: y, rx: rx + 6, ry: ry, top: false)   // + 6 = to the edge of the rounding stroke
     }
-    // check badge: punched out of the database, ring, tick
-    let badge = CGRect(x: 660 - 140, y: 660 - 140, width: 280, height: 280)
-    c.setFillColor(NSColor(srgbRed: 0x3a/255, green: 0x3e/255, blue: 0x44/255, alpha: 1).cgColor)
-    c.fillEllipse(in: badge.insetBy(dx: -w / 2, dy: -w / 2))
-    c.strokeEllipse(in: badge)
-    let tick = CGMutablePath()
-    tick.move(to: CGPoint(x: 598, y: 662)); tick.addLine(to: CGPoint(x: 649, y: 713)); tick.addLine(to: CGPoint(x: 751, y: 602))
-    c.setLineWidth(w * 1.1); c.addPath(tick); c.strokePath()
+    cg.addPath(seams)
+    cg.setStrokeColor(color(0x272a2e, small ? 0.45 : 0.22))
+    cg.setLineWidth(small ? 12 : 6)
+    cg.strokePath()
+    cg.setBlendMode(.clear)
+    cg.fillEllipse(in: CGRect(x: badge.x - badgeR - gap, y: badge.y - badgeR - gap, width: 2 * (badgeR + gap), height: 2 * (badgeR + gap)))
+    cg.setBlendMode(.normal)
+    cg.endTransparencyLayer()
 
-    NSGraphicsContext.current = nil
+    // green check badge
+    cg.setFillColor(color(0x1a7f37))
+    cg.fillEllipse(in: CGRect(x: badge.x - badgeR, y: badge.y - badgeR, width: 2 * badgeR, height: 2 * badgeR))
+    let s = badgeR / 40   // tick designed for a radius of 40
+    let tick = CGMutablePath()
+    tick.move(to: CGPoint(x: badge.x - 20 * s, y: badge.y + 1 * s))
+    tick.addLine(to: CGPoint(x: badge.x - 6 * s, y: badge.y + 15 * s))
+    tick.addLine(to: CGPoint(x: badge.x + 22 * s, y: badge.y - 15 * s))
+    cg.addPath(tick)
+    cg.setStrokeColor(color(0xffffff))
+    cg.setLineWidth(small ? 16 * s : 13 * s)
+    cg.setLineCap(.round)
+    cg.setLineJoin(.round)
+    cg.strokePath()
+
+    NSGraphicsContext.restoreGraphicsState()
     return rep.representation(using: .png, properties: [:])!
 }
 
-for base in [16, 32, 128, 256, 512] {
-    try! draw(px: base).write(to: out.appendingPathComponent("icon_\(base)x\(base).png"))
-    try! draw(px: base * 2).write(to: out.appendingPathComponent("icon_\(base)x\(base)@2x.png"))
+func writeIconset(_ dir: String) {
+    try! FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+    for s in [16, 32, 128, 256, 512] {
+        try! render(s).write(to: URL(fileURLWithPath: "\(dir)/icon_\(s)x\(s).png"))
+        try! render(s * 2).write(to: URL(fileURLWithPath: "\(dir)/icon_\(s)x\(s)@2x.png"))
+    }
 }
-try! draw(px: 1024).write(to: URL(fileURLWithPath: "assets/icon.png"))
+
+if let dir = CommandLine.arguments.dropFirst().first {
+    writeIconset(dir)
+    print(dir)
+} else {
+    writeIconset("assets/AppIcon.iconset")
+    try! render(1024).write(to: URL(fileURLWithPath: "assets/icon.png"))
+    print("assets/AppIcon.iconset, assets/icon.png")
+}

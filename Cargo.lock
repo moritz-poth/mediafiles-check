@@ -2735,13 +2735,14 @@ dependencies = [
 
 [[package]]
 name = "mediafiles-check"
-version = "1.0.0-beta.6"
+version = "1.0.0-beta.7"
 dependencies = [
  "base64 0.22.1",
  "chrono",
  "ed25519-dalek",
  "libc",
  "objc2 0.6.5",
+ "raw-window-handle",
  "rfd",
  "serde",
  "serde_json",
@@ -4236,6 +4237,7 @@ dependencies = [
  "num-traits",
  "once_cell",
  "pin-weak",
+ "raw-window-handle",
  "slint-macros",
  "unicode-segmentation",
  "vtable",
