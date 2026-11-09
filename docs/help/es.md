@@ -6,8 +6,8 @@ MediaFiles Check cuida de los archivos de medios de Avid (MXF) de tus puestos de
 
 - **Intercambio** mantiene al día los medios de dos puestos, aunque no estén conectados (antes MediaFiles Ferry).
 - **Comprobar** compara cada carpeta de `Avid MediaFiles/MXF` con su base de datos de Avid y muestra dónde no coinciden.
-- **Proyectos** encuentra los archivos de medios que necesitan los bins de tus proyectos de Avid y que no están en ninguna unidad, y los solicita.
 - **Mantenimiento** reúne las herramientas que cambian algo: renombrar carpetas para Media Composer, reequilibrado, duplicados y su historial.
+- **Proyectos** encuentra los archivos de medios que necesitan los bins de tus proyectos de Avid y que no están en ninguna unidad, y los solicita.
 - **Tareas** recoge todo lo que hay que hacer a mano.
 
 MediaFiles Check **nunca borra** un archivo de medios y **nunca sobrescribe** ninguno. Comprobar solo lee.
@@ -84,21 +84,6 @@ Se muestran hasta 10 nombres de archivo por hallazgo; **Guardar informe…** los
 
 ![Resultado de la comprobación](images/es/check.png)
 
-## Proyectos
-
-1. Proyectos › **Elegir proyectos** → **Elegir carpeta…**: la carpeta con tus proyectos de Avid (cada carpeta con un archivo `.avp`; `Attic` se deja fuera). Se recuerda. Activa los proyectos que quieras comprobar y haz clic en **Analizar**.
-2. **Medios que faltan** muestra por bin cada archivo de medios que falta una vez, con el nombre de su master clip. Un clic muestra dónde se usa. **Guardar lista…** escribe la lista entera.
-3. **Clips AMA** muestra dónde se usan los archivos vinculados por AMA. No se solicitan.
-4. **Solicitar** → **Guardar solicitud…** escribe un archivo `…_Request.ferry`. Envíalo al puesto que tiene los medios; allí: Intercambio › Comparar, ábrelo y luego Reunir. Aquí: Intercambio › Importar la entrega.
-
-Conviene saber:
-
-- Los clips se relacionan con sus medios por los ID de medios de Avid, no por los nombres de archivo. Un archivo que no está en ninguna base de Avid se reconoce por el ID de su cabecera MXF.
-- Un archivo que falta cuya fuente está en las unidades en otro archivo de medios se marca **en las unidades: volver a vincular**: vuelve a vincularlo en Media Composer. No se solicita.
-- Los archivos sin referencia de medios de Avid (p. ej. importados por AAF) se cuentan aparte; el intercambio solo los encuentra si el otro puesto los tiene en Avid MediaFiles.
-- Las pistas de sonido de cámara que nunca tuvieron archivo de medios y los archivos de render que faltan solo se cuentan.
-- Una unidad que no responde durante 30 segundos se omite y se nombra en el resultado.
-
 ## Renombrar para Media Composer
 
 Media Composer solo reconstruye las bases de datos de sus propias carpetas: carpetas numeradas como `1` en unidades locales, `<nombre del equipo>.<número>` en unidades de red. Las demás carpetas, p. ej. copiadas de otro puesto, conservan su base de datos antigua. Mantenimiento › **Renombrar** muestra el proceso arriba: Renombrar — Media Composer escribe — Recuperar el nombre.
@@ -134,6 +119,21 @@ El punto verde marca la copia que se queda (la que conoce la base de datos de su
 ## Historial
 
 Mantenimiento › **Historial** muestra cada operación de reequilibrado y de duplicados: **Reescribir bases de datos** hace el paso de las bases más tarde, **Deshacer** lo devuelve todo (nunca sobre un archivo existente); recupera antes el nombre de las carpetas renombradas.
+
+## Proyectos
+
+1. Proyectos › **Elegir proyectos** → **Elegir carpeta…**: la carpeta con tus proyectos de Avid (cada carpeta con un archivo `.avp`; `Attic` se deja fuera). Se recuerda. Activa los proyectos que quieras comprobar y haz clic en **Analizar**.
+2. **Medios que faltan** muestra por bin cada archivo de medios que falta una vez, con el nombre de su master clip. Un clic muestra dónde se usa. **Guardar lista…** escribe la lista entera.
+3. **Clips AMA** muestra dónde se usan los archivos vinculados por AMA. No se solicitan.
+4. **Solicitar** → **Guardar solicitud…** escribe un archivo `…_Request.ferry`. Envíalo al puesto que tiene los medios; allí: Intercambio › Comparar, ábrelo y luego Reunir. Aquí: Intercambio › Importar la entrega.
+
+Conviene saber:
+
+- Los clips se relacionan con sus medios por los ID de medios de Avid, no por los nombres de archivo. Un archivo que no está en ninguna base de Avid se reconoce por el ID de su cabecera MXF.
+- Un archivo que falta cuya fuente está en las unidades en otro archivo de medios se marca **en las unidades: volver a vincular**: vuelve a vincularlo en Media Composer. No se solicita.
+- Los archivos sin referencia de medios de Avid (p. ej. importados por AAF) se cuentan aparte; el intercambio solo los encuentra si el otro puesto los tiene en Avid MediaFiles.
+- Las pistas de sonido de cámara que nunca tuvieron archivo de medios y los archivos de render que faltan solo se cuentan.
+- Una unidad que no responde durante 30 segundos se omite y se nombra en el resultado.
 
 ## Tareas
 

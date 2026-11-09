@@ -6,8 +6,8 @@ MediaFiles Check kümmert sich um die Avid-Mediendateien (MXF) deiner Schnittpl�
 
 - **Austausch** gleicht die Medien zweier Schnittplätze ab, auch wenn sie nicht verbunden sind (früher MediaFiles Ferry).
 - **Prüfen** vergleicht jeden Ordner in `Avid MediaFiles/MXF` mit seiner Avid-Datenbank und zeigt, wo beide nicht zusammenpassen.
-- **Projekte** findet die Mediendateien, die die Bins deiner Avid-Projekte brauchen, die aber auf keinem Laufwerk liegen, und fordert sie an.
 - **Pflegen** enthält die Werkzeuge, die etwas verändern: Ordner für Media Composer umbenennen, Rebalancing, Duplikate und ihr Verlauf.
+- **Projekte** findet die Mediendateien, die die Bins deiner Avid-Projekte brauchen, die aber auf keinem Laufwerk liegen, und fordert sie an.
 - **Aufgaben** sammelt alles, was von Hand zu tun ist.
 
 MediaFiles Check **löscht nie** eine Mediendatei und **überschreibt nie** eine. Prüfen liest nur.
@@ -84,21 +84,6 @@ Pro Befund stehen bis zu 10 Dateinamen da; **Bericht sichern…** schreibt alle 
 
 ![Prüfergebnis](images/de/check.png)
 
-## Projekte
-
-1. Projekte › **Projekte wählen** → **Ordner wählen…**: der Ordner mit deinen Avid-Projekten (jeder Ordner mit einer `.avp`-Datei; `Attic` bleibt außen vor). Er wird gemerkt. Die zu prüfenden Projekte einschalten und **Scannen** klicken.
-2. **Fehlende Medien** listet pro Bin jede fehlende Mediendatei einmal, benannt nach ihrem Master-Clip. Ein Klick zeigt, wo sie verwendet wird. **Liste sichern…** schreibt die ganze Liste.
-3. **AMA-Clips** zeigt, wo AMA-verknüpfte Dateien verwendet werden. Sie werden nicht angefordert.
-4. **Anfordern** → **Anforderung sichern…** schreibt eine `…_Request.ferry`-Datei. Schick sie an den Schnittplatz, der die Medien hat; dort: Austausch › Vergleichen, Datei öffnen, dann Sammeln. Hier: Austausch › Importieren der Lieferung.
-
-Gut zu wissen:
-
-- Clips werden über Avids Medien-IDs mit ihren Medien verbunden, nicht über Dateinamen. Eine Datei in keiner Avid-Datenbank wird über die ID in ihrem MXF-Kopf erkannt.
-- Eine fehlende Datei, deren Quelle in einer anderen Mediendatei auf den Laufwerken liegt, ist mit **auf den Laufwerken – neu verknüpfen** markiert: in Media Composer neu verknüpfen. Sie wird nicht angefordert.
-- Dateien ohne Avid-Medienverweis (z. B. per AAF importiert) werden extra gezählt; der Austausch findet sie nur, wenn der andere Schnittplatz sie in Avid MediaFiles hat.
-- Kamera-Tonspuren, für die nie eine Mediendatei entstand, und fehlende Render-Dateien werden nur gezählt.
-- Ein Laufwerk, das 30 Sekunden nicht antwortet, wird übersprungen und im Ergebnis genannt.
-
 ## Für Media Composer umbenennen
 
 Media Composer baut nur die Datenbanken seiner eigenen Ordner neu: nummerierte Ordner wie `1` auf lokalen Laufwerken, `<Rechnername>.<Nummer>` auf Netzlaufwerken. Andere Ordner – z. B. von einem anderen Schnittplatz kopiert – behalten ihre alte Datenbank. Pflegen › **Umbenennen** zeigt oben den Ablauf: Umbenennen — Media Composer schreibt — Zurückbenennen.
@@ -134,6 +119,21 @@ Der grüne Punkt zeigt die Kopie, die bleibt (die, die die Datenbank ihres Ordne
 ## Verlauf
 
 Pflegen › **Verlauf** listet jeden Lauf von Rebalancing und Duplikaten: **Datenbanken neu schreiben** holt den Datenbank-Schritt nach, **Rückgängig** schiebt alles zurück (nie über eine vorhandene Datei) – umbenannte Ordner vorher zurückbenennen.
+
+## Projekte
+
+1. Projekte › **Projekte wählen** → **Ordner wählen…**: der Ordner mit deinen Avid-Projekten (jeder Ordner mit einer `.avp`-Datei; `Attic` bleibt außen vor). Er wird gemerkt. Die zu prüfenden Projekte einschalten und **Scannen** klicken.
+2. **Fehlende Medien** listet pro Bin jede fehlende Mediendatei einmal, benannt nach ihrem Master-Clip. Ein Klick zeigt, wo sie verwendet wird. **Liste sichern…** schreibt die ganze Liste.
+3. **AMA-Clips** zeigt, wo AMA-verknüpfte Dateien verwendet werden. Sie werden nicht angefordert.
+4. **Anfordern** → **Anforderung sichern…** schreibt eine `…_Request.ferry`-Datei. Schick sie an den Schnittplatz, der die Medien hat; dort: Austausch › Vergleichen, Datei öffnen, dann Sammeln. Hier: Austausch › Importieren der Lieferung.
+
+Gut zu wissen:
+
+- Clips werden über Avids Medien-IDs mit ihren Medien verbunden, nicht über Dateinamen. Eine Datei in keiner Avid-Datenbank wird über die ID in ihrem MXF-Kopf erkannt.
+- Eine fehlende Datei, deren Quelle in einer anderen Mediendatei auf den Laufwerken liegt, ist mit **auf den Laufwerken – neu verknüpfen** markiert: in Media Composer neu verknüpfen. Sie wird nicht angefordert.
+- Dateien ohne Avid-Medienverweis (z. B. per AAF importiert) werden extra gezählt; der Austausch findet sie nur, wenn der andere Schnittplatz sie in Avid MediaFiles hat.
+- Kamera-Tonspuren, für die nie eine Mediendatei entstand, und fehlende Render-Dateien werden nur gezählt.
+- Ein Laufwerk, das 30 Sekunden nicht antwortet, wird übersprungen und im Ergebnis genannt.
 
 ## Aufgaben
 

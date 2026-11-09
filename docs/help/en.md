@@ -6,8 +6,8 @@ MediaFiles Check looks after the Avid media files (MXF) of your edit systems:
 
 - **Exchange** keeps the media of two edit systems in step, even when they are not connected (formerly MediaFiles Ferry).
 - **Check** compares every folder in `Avid MediaFiles/MXF` with its Avid database and shows where the two don't match.
-- **Projects** finds the media files the bins of your Avid projects need that are on none of the drives, and requests them.
 - **Maintain** has the tools that change something: rename folders for Media Composer, rebalancing, duplicates, and their history.
+- **Projects** finds the media files the bins of your Avid projects need that are on none of the drives, and requests them.
 - **Tasks** collects everything that has to be done by hand.
 
 MediaFiles Check **never deletes** a media file and **never overwrites** one. Checking only reads.
@@ -84,21 +84,6 @@ Up to 10 file names are shown per finding; **Save report…** writes all of them
 
 ![Check result](images/en/check.png)
 
-## Projects
-
-1. Projects › **Choose projects** → **Choose folder…**: the folder with your Avid projects (every folder with an `.avp` file; `Attic` is left out). It is remembered. Switch on the projects to check and click **Scan**.
-2. **Missing media** lists per bin each missing media file once, named after its master clip. Click a file to see where it is used. **Save list…** writes the whole list.
-3. **AMA clips** shows where AMA-linked files are used. They are not requested.
-4. **Request** → **Save request…** writes a `…_Request.ferry` file. Send it to the system that has the media; there: Exchange › Compare, open it, then Collect. Here: Exchange › Import the delivery.
-
-Good to know:
-
-- Clips are matched with their media by Avid's media IDs, not by file names. A file in no Avid database is identified by the ID in its MXF header.
-- A missing file whose source is on the drives in another media file is marked **on the drives – relink**: relink it in Media Composer. It is not requested.
-- Files without an Avid media reference (e.g. imported via AAF) are counted separately; the exchange only finds them if the other system has them in Avid MediaFiles.
-- Camera sound tracks that never had a media file, and missing render files, are only counted.
-- A drive that does not answer for 30 seconds is skipped and named in the result.
-
 ## Rename for Media Composer
 
 Media Composer only rebuilds the databases of its own folders: numbered folders like `1` on local drives, `<computer name>.<number>` on network drives. Other folders – e.g. copied from another system – keep their old database. Maintain › **Rename** shows the flow at the top: Rename — Media Composer writes — Rename back.
@@ -134,6 +119,21 @@ The green dot marks the copy that stays (the one its folder's database knows, ot
 ## History
 
 Maintain › **History** lists every rebalancing and duplicates run: **Rewrite databases** does the database step later, **Undo** moves everything back (never over an existing file) – rename renamed folders back first.
+
+## Projects
+
+1. Projects › **Choose projects** → **Choose folder…**: the folder with your Avid projects (every folder with an `.avp` file; `Attic` is left out). It is remembered. Switch on the projects to check and click **Scan**.
+2. **Missing media** lists per bin each missing media file once, named after its master clip. Click a file to see where it is used. **Save list…** writes the whole list.
+3. **AMA clips** shows where AMA-linked files are used. They are not requested.
+4. **Request** → **Save request…** writes a `…_Request.ferry` file. Send it to the system that has the media; there: Exchange › Compare, open it, then Collect. Here: Exchange › Import the delivery.
+
+Good to know:
+
+- Clips are matched with their media by Avid's media IDs, not by file names. A file in no Avid database is identified by the ID in its MXF header.
+- A missing file whose source is on the drives in another media file is marked **on the drives – relink**: relink it in Media Composer. It is not requested.
+- Files without an Avid media reference (e.g. imported via AAF) are counted separately; the exchange only finds them if the other system has them in Avid MediaFiles.
+- Camera sound tracks that never had a media file, and missing render files, are only counted.
+- A drive that does not answer for 30 seconds is skipped and named in the result.
 
 ## Tasks
 

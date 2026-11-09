@@ -672,7 +672,7 @@ component ProjectsPane inherits VerticalLayout {
             color: Theme.muted;
         }
         if Projects.projects.length > 0: ScrollBox {
-            limit: 300px;
+            limit: 170px;
             spacing: 2px;
             for p[i] in Projects.projects: HorizontalLayout {
                 height: 26px;
@@ -1505,7 +1505,7 @@ export component AppWindow inherits CheckWindow {
     // nie höher als der Bildschirm (Rust: nutzbare Höhe minus Titelleiste); längere Seiten scrollen
     in property <length> screen-height: 100000px;
     // feste Größe für alle Reiter (der Nutzer wollte kein Springen); längere Seiten scrollen im Inhalt
-    height: min(600px, root.screen-height);
+    height: min(500px, root.screen-height);
     // wie das Einstellungsfenster: Reiterleiste in der Farbe der Titelleiste (heller, solange das Fenster aktiv ist)
     in property <bool> active: true;
 
@@ -1723,17 +1723,17 @@ export component AppWindow inherits CheckWindow {
                     clicked => { root.select-tab(1); }
                 }
                 SettingsTab {
-                    icon: @image-url("../assets/tabs/projects.png");
-                    text: @tr("Projects");
-                    selected: root.tab == 2;
-                    clicked => { root.select-tab(2); }
-                }
-                SettingsTab {
                     icon: @image-url("../assets/tabs/maintain.png");
                     text: @tr("Maintain");
                     selected: root.tab == 3;
                     attention: root.renamed.length > 0 || root.runs-open > 0;
                     clicked => { root.select-tab(3); }
+                }
+                SettingsTab {
+                    icon: @image-url("../assets/tabs/projects.png");
+                    text: @tr("Projects");
+                    selected: root.tab == 2;
+                    clicked => { root.select-tab(2); }
                 }
                 SettingsTab {
                     icon: @image-url("../assets/tabs/tasks.png");
@@ -2439,7 +2439,7 @@ export component AppWindow inherits CheckWindow {
             spacing: Metrics.spacing;
             PageHead { title: @tr("History"); }
             ScrollBox {
-                limit: 420px;
+                limit: 300px;
                 spacing: Metrics.spacing;
                 Section {
                     title: @tr("REBALANCING");
@@ -2581,8 +2581,8 @@ export component AppWindow inherits CheckWindow {
                 for t[i] in [
                     { a: @tr("Exchange"), b: @tr("keeps the media of two edit systems in step – formerly MediaFiles Ferry.") },
                     { a: @tr("Check"), b: @tr("compares every MXF folder with its Avid database.") },
-                    { a: @tr("Projects"), b: @tr("finds the media your bins need that are on none of the drives.") },
                     { a: @tr("Maintain"), b: @tr("renames folders for Media Composer, rebalances full folders, sets duplicates aside.") },
+                    { a: @tr("Projects"), b: @tr("finds the media your bins need that are on none of the drives.") },
                     { a: @tr("Tasks"), b: @tr("lists everything that has to be done by hand.") },
                 ]: HorizontalLayout {
                     spacing: 10px;

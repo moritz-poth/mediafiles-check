@@ -6,8 +6,8 @@ MediaFiles Check prend soin des fichiers média Avid (MXF) de vos postes de mont
 
 - **Échange** synchronise les médias de deux postes, même s’ils ne sont pas connectés (anciennement MediaFiles Ferry).
 - **Vérifier** compare chaque dossier de `Avid MediaFiles/MXF` à sa base de données Avid et montre où les deux ne concordent pas.
-- **Projets** trouve les fichiers média dont les chutiers de vos projets Avid ont besoin et qui ne sont sur aucun disque, et les demande.
 - **Entretien** regroupe les outils qui modifient quelque chose : renommer des dossiers pour Media Composer, rééquilibrage, doublons et leur historique.
+- **Projets** trouve les fichiers média dont les chutiers de vos projets Avid ont besoin et qui ne sont sur aucun disque, et les demande.
 - **Tâches** réunit tout ce qu’il faut faire à la main.
 
 MediaFiles Check **ne supprime jamais** un fichier média et **n’en écrase jamais**. Vérifier ne fait que lire.
@@ -84,21 +84,6 @@ Jusqu’à 10 noms de fichiers sont affichés par constat ; **Enregistrer le rap
 
 ![Résultat de la vérification](images/fr/check.png)
 
-## Projets
-
-1. Projets › **Choisir les projets** → **Choisir un dossier…** : le dossier de vos projets Avid (chaque dossier avec un fichier `.avp` ; `Attic` est laissé de côté). Il est mémorisé. Activez les projets à vérifier et cliquez sur **Analyser**.
-2. **Médias manquants** liste par chutier chaque fichier média manquant une fois, nommé d’après son master clip. Un clic montre où il est utilisé. **Enregistrer la liste…** écrit la liste entière.
-3. **Clips AMA** montre où sont utilisés les fichiers liés en AMA. Ils ne sont pas demandés.
-4. **Demander** → **Enregistrer la demande…** écrit un fichier `…_Request.ferry`. Envoyez-le au poste qui a les médias ; là-bas : Échange › Comparer, ouvrez-le, puis Rassembler. Ici : Échange › Importer la livraison.
-
-Bon à savoir :
-
-- Les clips sont reliés à leurs médias par les ID média d’Avid, pas par les noms de fichiers. Un fichier présent dans aucune base Avid est reconnu par l’ID de son en-tête MXF.
-- Un fichier manquant dont la source se trouve sur les disques dans un autre fichier média est marqué **sur les disques – reconnecter** : reconnectez-le dans Media Composer. Il n’est pas demandé.
-- Les fichiers sans référence média Avid (p. ex. importés par AAF) sont comptés à part ; l’échange ne les trouve que si l’autre poste les a dans Avid MediaFiles.
-- Les pistes son de caméra qui n’ont jamais eu de fichier média et les fichiers de rendu manquants sont seulement comptés.
-- Un disque qui ne répond pas pendant 30 secondes est ignoré et nommé dans le résultat.
-
 ## Renommer pour Media Composer
 
 Media Composer ne reconstruit que les bases de données de ses propres dossiers : des dossiers numérotés comme `1` sur les disques locaux, `<nom de l’ordinateur>.<numéro>` sur les disques réseau. Les autres dossiers – p. ex. copiés depuis un autre poste – gardent leur ancienne base. Entretien › **Renommer** montre le déroulement en haut : Renommer — Media Composer écrit — Renommer à l’origine.
@@ -134,6 +119,21 @@ Le point vert marque la copie qui reste (celle que connaît la base de son dossi
 ## Historique
 
 Entretien › **Historique** liste chaque opération de rééquilibrage et de doublons : **Réécrire les bases** fait l’étape des bases plus tard, **Annuler** remet tout en place (jamais par-dessus un fichier existant) – renommez d’abord à l’origine les dossiers renommés.
+
+## Projets
+
+1. Projets › **Choisir les projets** → **Choisir un dossier…** : le dossier de vos projets Avid (chaque dossier avec un fichier `.avp` ; `Attic` est laissé de côté). Il est mémorisé. Activez les projets à vérifier et cliquez sur **Analyser**.
+2. **Médias manquants** liste par chutier chaque fichier média manquant une fois, nommé d’après son master clip. Un clic montre où il est utilisé. **Enregistrer la liste…** écrit la liste entière.
+3. **Clips AMA** montre où sont utilisés les fichiers liés en AMA. Ils ne sont pas demandés.
+4. **Demander** → **Enregistrer la demande…** écrit un fichier `…_Request.ferry`. Envoyez-le au poste qui a les médias ; là-bas : Échange › Comparer, ouvrez-le, puis Rassembler. Ici : Échange › Importer la livraison.
+
+Bon à savoir :
+
+- Les clips sont reliés à leurs médias par les ID média d’Avid, pas par les noms de fichiers. Un fichier présent dans aucune base Avid est reconnu par l’ID de son en-tête MXF.
+- Un fichier manquant dont la source se trouve sur les disques dans un autre fichier média est marqué **sur les disques – reconnecter** : reconnectez-le dans Media Composer. Il n’est pas demandé.
+- Les fichiers sans référence média Avid (p. ex. importés par AAF) sont comptés à part ; l’échange ne les trouve que si l’autre poste les a dans Avid MediaFiles.
+- Les pistes son de caméra qui n’ont jamais eu de fichier média et les fichiers de rendu manquants sont seulement comptés.
+- Un disque qui ne répond pas pendant 30 secondes est ignoré et nommé dans le résultat.
 
 ## Tâches
 
