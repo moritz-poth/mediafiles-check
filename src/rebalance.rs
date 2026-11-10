@@ -5,7 +5,9 @@
 //! workstation rebalanced; base = the name without a Media Composer ending ".<number>": "Mac Studio.1" →
 //! "Mac Studio-rebalanced-1", "1" → "1-rebalanced-1"). Every run lays the whole group out anew from what is on the
 //! drive: all its MXF files sorted by creation date, the oldest `limit - 2` into "-rebalanced-1", the next into "-2" …,
-//! the youngest stay in the main folder. A lower limit spreads the files over more folders, a higher one moves them
+//! the youngest stay in the main folder. The files of one clip (video and audio, same master clip ID – from the
+//! folder's msmFMID.pmr, or the MXF header where the database is set aside) stay together: a clip that no longer fits
+//! starts the next folder; only a clip larger than a whole folder is split. A lower limit spreads the files over more folders, a higher one moves them
 //! back; rebalanced folders that end without media files are removed. Because the layout comes from the drive, a run
 //! that stopped half-way is simply finished by the next one.
 //! Media Composer's own folders ("1" local, "<computer>.<n>" on network drives) should get a name of their own first:
@@ -145,17 +147,73 @@ impl Plan {
     }
 }
 
+/// The files in folders of at most `per`, oldest first; the files of one clip (same master) stay in one folder unless
+/// the clip alone is larger than a folder. Files: (created, name, folder, master).
+fn layout(mut files: Vec<(u128, String, String, Option<crate::avb::MobId>)>, per: usize) -> Vec<Vec<(u128, String, String)>> {
+    files.sort();
+    let mut groups: Vec<Vec<(u128, String, String)>> = vec![];
+    let mut of_master: HashMap<crate::avb::MobId, usize> = HashMap::new();
+    for (t, n, f, m) in files {
+        match m.and_then(|m| of_master.get(&m).copied().map(|i| (m, i))) {
+            Some((_, i)) => groups[i].push((t, n, f)),
+            None => {
+                if let Some(m) = m {
+                    of_master.insert(m, groups.len());
+                }
+                groups.push(vec![(t, n, f)]);
+            }
+        }
+    }
+    // groups are in the order of their oldest file (files were sorted)
+    let mut chunks: Vec<Vec<(u128, String, String)>> = vec![vec![]];
+    for g in groups {
+        if !chunks.last().unwrap().is_empty() && chunks.last().unwrap().len() + g.len() > per {
+            chunks.push(vec![]);
+        }
+        for f in g {
+            if chunks.last().unwrap().len() == per {
+                chunks.push(vec![]);
+            }
+            chunks.last_mut().unwrap().push(f);
+        }
+    }
+    chunks
+}
+
+/// Master clip ID of each MXF file of a folder: from its msmFMID.pmr, else (database set aside) from the file header.
+fn masters(dir: &Path, names: &[String]) -> HashMap<String, crate::avb::MobId> {
+    let mut out: HashMap<String, crate::avb::MobId> = HashMap::new();
+    if let Some(entries) = fs::read(dir.join(crate::PMR)).ok().and_then(|d| crate::read_pmr_entries(&d).ok()) {
+        out.extend(entries.into_iter().filter(|e| e.id2 != [0; 32]).map(|e| (key(&e.name), e.id2)));
+    }
+    for n in names {
+        if !out.contains_key(&key(n))
+            && let Ok(m) = crate::mxf::master_mob_id(&dir.join(n))
+        {
+            out.insert(key(n), m);
+        }
+    }
+    out
+}
+
 /// Lays out the group of `main` for `per` media files per folder. `reserved` holds folder names (keys) already
 /// planned or in use elsewhere in the same MXF folder (e.g. renamed for Media Composer), so nothing picks them twice.
 pub fn plan(mxf: &Path, main: &str, per: usize, rename_to: Option<&str>, mc_folder: bool, reserved: &mut HashSet<String>) -> io::Result<Plan> {
     let members = members(mxf, main);
-    let mut files: Vec<(u128, String, String)> = vec![];
+    let mut files = vec![];
     for folder in std::iter::once(main.to_string()).chain(members.iter().cloned()) {
-        files.extend(mxf_dated(&mxf.join(&folder))?.into_iter().map(|(t, n)| (t, n, folder.clone())));
+        let dated = mxf_dated(&mxf.join(&folder))?;
+        let names: Vec<String> = dated.iter().map(|d| d.1.clone()).collect();
+        let master = masters(&mxf.join(&folder), &names);
+        files.extend(dated.into_iter().map(|(t, n)| {
+            let m = master.get(&key(&n)).copied();
+            (t, n, folder.clone(), m)
+        }));
     }
-    files.sort();
+    let count = files.len();
     let per = per.max(1);
-    let k = if files.len() <= per { 0 } else { (files.len() - 1) / per };
+    let chunks = layout(files, per);
+    let k = chunks.len() - 1;
     let base = rename_to.map_or_else(|| base_name(main).to_string(), str::to_string);
     let taken: HashSet<String> = subdirs(mxf).iter().map(|d| key(d)).collect();
     // the existing rebalanced folders keep their names, unless the group gets a new name
@@ -174,11 +232,13 @@ pub fn plan(mxf: &Path, main: &str, per: usize, rename_to: Option<&str>, mc_fold
     }
     let mut moves = vec![];
     let mut counts: HashMap<String, usize> = HashMap::new();
-    for (i, (_, file, from)) in files.iter().enumerate() {
-        let to = if i / per < k { targets[i / per].clone() } else { main.to_string() };
-        *counts.entry(to.clone()).or_default() += 1;
-        if &to != from {
-            moves.push(Move { file: file.clone(), from: from.clone(), to });
+    for (i, chunk) in chunks.iter().enumerate() {
+        let to = if i < k { targets[i].clone() } else { main.to_string() };
+        for (_, file, from) in chunk {
+            *counts.entry(to.clone()).or_default() += 1;
+            if &to != from {
+                moves.push(Move { file: file.clone(), from: from.clone(), to: to.clone() });
+            }
         }
     }
     let emptied = members.iter().filter(|m| !targets.contains(m)).cloned().collect();
@@ -186,7 +246,7 @@ pub fn plan(mxf: &Path, main: &str, per: usize, rename_to: Option<&str>, mc_fold
         mxf: mxf.to_path_buf(),
         main: main.to_string(),
         members,
-        count: files.len(),
+        count,
         rename_to: rename_to.map(str::to_string),
         folders: targets.iter().map(|t| (t.clone(), counts.get(t).copied().unwrap_or(0))).collect(),
         stays: counts.get(main).copied().unwrap_or(0),
@@ -536,6 +596,29 @@ pub fn undo(r: &Rebalanced) -> io::Result<Undone> {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn clips_stay_together() {
+        let m = |n: u8| Some([n; 32]);
+        // clip 1: 3 files, clip 2: 3 files, clip 3: 2 files, one file without master; 4 per folder
+        let files = vec![
+            (1, "V1".to_string(), "f".to_string(), m(1)),
+            (2, "A1".into(), "f".into(), m(1)),
+            (3, "B1".into(), "f".into(), m(1)),
+            (4, "V2".into(), "f".into(), m(2)),
+            (5, "A2".into(), "f".into(), m(2)),
+            (6, "B2".into(), "f".into(), m(2)),
+            (7, "x".into(), "f".into(), None),
+            (8, "V3".into(), "f".into(), m(3)),
+            (9, "A3".into(), "f".into(), m(3)),
+        ];
+        let names = |c: &Vec<(u128, String, String)>| c.iter().map(|f| f.1.clone()).collect::<Vec<_>>();
+        let chunks = layout(files.clone(), 4);
+        assert_eq!(chunks.iter().map(names).collect::<Vec<_>>(), [vec!["V1", "A1", "B1"], vec!["V2", "A2", "B2", "x"], vec!["V3", "A3"]]);
+        // a clip larger than a folder is split
+        let chunks = layout(files[..3].to_vec(), 2);
+        assert_eq!(chunks.iter().map(|c| c.len()).collect::<Vec<_>>(), [2, 1]);
+    }
     use super::*;
 
     fn setup(name: &str, folder: &str, n: usize) -> PathBuf {

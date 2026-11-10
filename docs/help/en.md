@@ -100,7 +100,7 @@ The original names are saved before anything is renamed, so they survive a crash
 
 We recommend no more than 5000 files per MXF folder. The limit (Settings → Rebalancing) counts every file of a folder, the two database files included.
 
-A folder and its rebalanced folders (`<name>-rebalanced-1`, `-2` …) belong together. Rebalancing lays out the whole group: the oldest media files go into `-rebalanced-1`, the next into `-2` …, the youngest stay in the main folder. Maintain › **Rebalancing** → **Find full folders…** lists every group on the switched-on drives that does not match the limit.
+A folder and its rebalanced folders (`<name>-rebalanced-1`, `-2` …) belong together. Rebalancing lays out the whole group: the oldest media files go into `-rebalanced-1`, the next into `-2` …, the youngest stay in the main folder. The video and audio files of a clip stay together, so a folder can end a few files below the limit. Maintain › **Rebalancing** → **Find full folders…** lists every group on the switched-on drives that does not match the limit.
 
 1. Quit Media Composer – on network drives on every workstation – and choose the groups.
 2. Click **Rebalance**. For a folder Media Composer creates itself (`1`, `<computer name>.1`) we recommend giving it a name of its own first. Nothing is copied or deleted; a rebalanced folder left without media files goes into `MediaFiles Check Database Backups` as a whole.

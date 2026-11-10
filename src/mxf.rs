@@ -3,7 +3,9 @@
 //! MXF (SMPTE 377M) starts with the header partition pack, followed by the header metadata as KLV local sets.
 //! The essence container data set (tag 0x2701, LinkedPackageUID) names the package of the media in the file –
 //! for Avid OP-Atom files that is the file source package, whose UMID is the file mob ID of the bins and of
-//! msmFMID.pmr. Only the header is read (normally a few KB).
+//! msmFMID.pmr. The material package (tag 0x4401, PackageUID) is the master clip – shared by the video and audio
+//! files of one clip, like the second ID in msmFMID.pmr. Only the header is read (normally a few KB, Media Composer
+//! writes up to ~100 KB).
 use crate::avb::MobId;
 use std::fs::File;
 use std::io::Read;
@@ -12,6 +14,7 @@ use std::path::Path;
 /// Header metadata set keys share everything but byte 14 (byte 7 is the registry version and is ignored).
 pub(crate) const SET: [u8; 16] = [0x06, 0x0e, 0x2b, 0x34, 0x02, 0x53, 0x01, 0x00, 0x0d, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00];
 pub(crate) const ESSENCE_CONTAINER_DATA: u8 = 0x23;
+pub(crate) const MATERIAL_PACKAGE: u8 = 0x36;
 pub(crate) const PARTITION: [u8; 13] = [0x06, 0x0e, 0x2b, 0x34, 0x02, 0x05, 0x01, 0x00, 0x0d, 0x01, 0x02, 0x01, 0x01];
 /// stop reading a header that claims to be larger than this
 const MAX_HEADER: u64 = 16 << 20;
@@ -46,6 +49,16 @@ fn to_mob_id(umid: &[u8]) -> MobId {
 
 /// File mob ID from the header bytes of an MXF file.
 pub fn parse(d: &[u8]) -> Result<MobId, String> {
+    find_set(d, ESSENCE_CONTAINER_DATA, 0x2701)?.ok_or_else(|| "essence container data without package".into())
+}
+
+/// Master clip mob ID (material package) from the header bytes of an MXF file.
+pub fn parse_master(d: &[u8]) -> Result<MobId, String> {
+    find_set(d, MATERIAL_PACKAGE, 0x4401)?.ok_or_else(|| "material package without ID".into())
+}
+
+/// The UMID under `tag` in the first header set of kind `kind`; Ok(None) if that set has no such UMID.
+fn find_set(d: &[u8], kind: u8, want: u16) -> Result<Option<MobId>, String> {
     if !same_key(d, &PARTITION, &[7]) {
         return Err("not an MXF file".into());
     }
@@ -55,18 +68,18 @@ pub fn parse(d: &[u8]) -> Result<MobId, String> {
         let (len, n) = ber(d, p + 16).ok_or("bad KLV length")?;
         let start = p + 16 + n;
         let end = start.checked_add(len as usize).filter(|&e| e <= d.len());
-        if same_key(key, &SET, &[7, 14]) && key[14] == ESSENCE_CONTAINER_DATA {
+        if same_key(key, &SET, &[7, 14]) && key[14] == kind {
             let end = end.ok_or("header ends too early")?;
             let mut q = start;
             while q + 4 <= end {
                 let tag = u16::from_be_bytes([d[q], d[q + 1]]);
                 let l = u16::from_be_bytes([d[q + 2], d[q + 3]]) as usize;
-                if tag == 0x2701 && l == 32 && q + 4 + 32 <= end {
-                    return Ok(to_mob_id(&d[q + 4..q + 36]));
+                if tag == want && l == 32 && q + 4 + 32 <= end {
+                    return Ok(Some(to_mob_id(&d[q + 4..q + 36])));
                 }
                 q += 4 + l;
             }
-            return Err("essence container data without package".into());
+            return Ok(None);
         }
         // essence or index data: the header metadata is over
         // (essence element 06 0e 2b 34 01 02 …, index table segment …0d 01 02 01 01 10 – not KLV fill 01 01 …)
@@ -78,11 +91,20 @@ pub fn parse(d: &[u8]) -> Result<MobId, String> {
             None => break,
         }
     }
-    Err("no essence container data in the header".into())
+    Err(if kind == MATERIAL_PACKAGE { "no material package in the header" } else { "no essence container data in the header" }.into())
 }
 
 /// File mob ID of an MXF file, read from its header.
 pub fn file_mob_id(path: &Path) -> Result<MobId, String> {
+    parse(&header(path)?)
+}
+
+/// Master clip mob ID of an MXF file, read from its header.
+pub fn master_mob_id(path: &Path) -> Result<MobId, String> {
+    parse_master(&header(path)?)
+}
+
+fn header(path: &Path) -> Result<Vec<u8>, String> {
     let mut f = File::open(path).map_err(|e| e.to_string())?;
     let mut d = vec![0u8; 64 << 10];
     let n = read_full(&mut f, &mut d)?;
@@ -101,7 +123,7 @@ pub fn file_mob_id(path: &Path) -> Result<MobId, String> {
             }
         }
     }
-    parse(&d)
+    Ok(d)
 }
 
 fn read_full(f: &mut File, buf: &mut [u8]) -> Result<usize, String> {
