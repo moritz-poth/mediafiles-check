@@ -19,14 +19,7 @@ pub struct ScanResult {
 
 /// Alle eingehängten Laufwerke (auch Netzlaufwerke) mit "Avid MediaFiles/MXF".
 pub fn find_volumes() -> Vec<PathBuf> {
-    let candidates: Vec<PathBuf> = if cfg!(windows) {
-        (b'A'..=b'Z').map(|c| PathBuf::from(format!("{}:\\", c as char))).collect()
-    } else {
-        fs::read_dir("/Volumes").map(|rd| rd.flatten().map(|e| e.path()).collect()).unwrap_or_default()
-    };
-    let mut found: Vec<PathBuf> = candidates.into_iter().filter(|p| mxf_dir(p).is_dir()).collect();
-    found.sort();
-    found
+    crate::find_volumes()
 }
 
 /// Ablage für Prüfsummen-Cache, Einstellungen und letztes Manifest.
@@ -41,6 +34,9 @@ pub fn app_dir() -> Option<PathBuf> {
 
 /// Der Name, den auch Avid für Ordner wie "Mac Studio von Alex.1" nimmt; der Hostname enthält oft das Netzwerk (".fritz.box").
 pub fn computer_name() -> String {
+    if let Some(n) = crate::lab_computer() {
+        return n;
+    }
     let mac = std::process::Command::new("scutil").args(["--get", "ComputerName"]).output().ok();
     match mac.filter(|o| o.status.success()) {
         Some(o) => String::from_utf8_lossy(&o.stdout).trim().to_string(),

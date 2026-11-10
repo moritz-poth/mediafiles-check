@@ -229,9 +229,19 @@ pub fn find_volumes() -> Vec<PathBuf> {
     } else {
         fs::read_dir("/Volumes").map(|rd| rd.flatten().map(|e| e.path()).collect()).unwrap_or_default()
     };
-    let mut found: Vec<PathBuf> = candidates.into_iter().filter(|p| mxf_dir(p).is_dir()).collect();
+    // test lab (scripts/testlab.sh): only these drive names, so tests never see real drives
+    let only: Option<Vec<String>> = std::env::var("MFC_LAB_DRIVES").ok().map(|v| v.split(',').map(str::to_string).collect());
+    let mut found: Vec<PathBuf> = candidates
+        .into_iter()
+        .filter(|p| mxf_dir(p).is_dir() && only.as_ref().is_none_or(|o| o.iter().any(|n| p.file_name().is_some_and(|f| f.to_string_lossy() == *n))))
+        .collect();
     found.sort();
     found
+}
+
+/// The test lab's stand-in computer name (MFC_LAB_COMPUTER), so two "systems" can run on one Mac.
+pub fn lab_computer() -> Option<String> {
+    std::env::var("MFC_LAB_COMPUTER").ok().filter(|n| !n.is_empty())
 }
 
 /// A recorded folder whose drive is mounted under another path now (after a crash macOS may mount "Media" as

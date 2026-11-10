@@ -84,6 +84,9 @@ pub fn mxf_files(dir: &Path) -> io::Result<Vec<(String, u64)>> {
 
 /// The name Media Composer uses for its network folders, e.g. "Mac Studio.1".
 pub fn computer_name() -> String {
+    if let Some(n) = crate::lab_computer() {
+        return n;
+    }
     let out = std::process::Command::new("scutil").args(["--get", "ComputerName"]).output().ok();
     match out.filter(|o| o.status.success()) {
         Some(o) => String::from_utf8_lossy(&o.stdout).trim().to_string(),
