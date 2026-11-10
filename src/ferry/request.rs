@@ -47,39 +47,9 @@ pub fn is_request(path: &Path) -> bool {
     fs::read(path).ok().and_then(|b| serde_json::from_slice::<Head>(&b).ok()).is_some_and(|h| h.format == REQUEST_FORMAT)
 }
 
-/// Media file names and their mob IDs from a msmFMID.pmr (format: see MediaFiles Check, src/lib.rs).
-/// Block 2 holds every name in UTF-8; block 1 (Mac Roman, incomplete) is skipped.
+/// Media file names and their mob IDs from a msmFMID.pmr.
 pub fn read_pmr(data: &[u8]) -> Result<Vec<([u8; 32], String)>, String> {
-    let mut p = 0usize;
-    let mut take = |n: usize| -> Result<&[u8], String> {
-        let end = p.checked_add(n).filter(|&e| e <= data.len()).ok_or("file ends too early")?;
-        let s = &data[p..end];
-        p = end;
-        Ok(s)
-    };
-    let u32le = |b: &[u8]| u32::from_le_bytes(b.try_into().unwrap()) as usize;
-    let u16le = |b: &[u8]| u16::from_le_bytes(b.try_into().unwrap()) as usize;
-    take(8)?;
-    let count = u32le(take(4)?);
-    for _ in 0..count {
-        take(32)?;
-        let n = u16le(take(2)?);
-        take(n)?;
-        let n = u16le(take(2)?);
-        take(n + 36)?;
-    }
-    take(4)?;
-    let count2 = u32le(take(4)?);
-    let mut out = Vec::with_capacity(count2.min(100_000));
-    for _ in 0..count2 {
-        let id: [u8; 32] = take(32)?.try_into().unwrap();
-        let n = u32le(take(4)?).checked_sub(2).ok_or("unexpected name length")?;
-        let name = String::from_utf8(take(n)?.to_vec()).map_err(|_| "a name is not valid UTF-8")?;
-        let n = u16le(take(2)?);
-        take(n + 36)?;
-        out.push((id, name));
-    }
-    Ok(out)
+    Ok(crate::read_pmr_entries(data)?.into_iter().map(|e| (e.id, e.name)).collect())
 }
 
 pub fn hex(id: &[u8; 32]) -> String {

@@ -37,6 +37,37 @@ use unicode_normalization::UnicodeNormalization;
 pub const PMR: &str = "msmFMID.pmr";
 pub const MDB: &str = "msmMMOB.mdb";
 
+/// Moves `from` to `to` but never replaces anything at `to` – not even when it appears between a check and the move
+/// (another workstation on a network drive). macOS refuses itself (renamex_np with RENAME_EXCL); where the file system
+/// cannot (some network shares), the check right before the move remains. Error AlreadyExists when `to` is taken.
+pub fn move_new(from: &Path, to: &Path) -> std::io::Result<()> {
+    let taken = || std::io::Error::new(std::io::ErrorKind::AlreadyExists, format!("{} exists already", to.display()));
+    // also first: a file system that ignores RENAME_EXCL (macFUSE without its own support) must not be worse than before
+    if to.symlink_metadata().is_ok() {
+        return Err(taken());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        let c = |p: &Path| std::ffi::CString::new(p.as_os_str().as_bytes()).map_err(std::io::Error::other);
+        let (f, t) = (c(from)?, c(to)?);
+        // SAFETY: two valid NUL-terminated paths
+        if unsafe { libc::renamex_np(f.as_ptr(), t.as_ptr(), libc::RENAME_EXCL) } == 0 {
+            return Ok(());
+        }
+        let e = std::io::Error::last_os_error();
+        match e.raw_os_error() {
+            Some(libc::EEXIST) => return Err(taken()),
+            Some(libc::ENOTSUP) | Some(libc::EINVAL) => {}
+            _ => return Err(e),
+        }
+    }
+    if to.symlink_metadata().is_ok() {
+        return Err(taken());
+    }
+    fs::rename(from, to)
+}
+
 /// Compare key: macOS stores umlauts decomposed (NFD), Windows composed (NFC) and ignores case.
 pub fn key(s: &str) -> String {
     s.nfc().collect::<String>().to_lowercase()
@@ -45,6 +76,8 @@ pub fn key(s: &str) -> String {
 struct Reader<'a> {
     data: &'a [u8],
     pos: usize,
+    /// little-endian (Intel and Apple silicon); databases from PowerPC Macs are big-endian
+    le: bool,
 }
 
 impl<'a> Reader<'a> {
@@ -55,17 +88,28 @@ impl<'a> Reader<'a> {
         Ok(s)
     }
     fn u16(&mut self) -> Result<usize, String> {
-        Ok(u16::from_le_bytes(self.take(2)?.try_into().unwrap()) as usize)
+        let b: [u8; 2] = self.take(2)?.try_into().unwrap();
+        Ok(if self.le { u16::from_le_bytes(b) } else { u16::from_be_bytes(b) } as usize)
     }
     fn u32(&mut self) -> Result<usize, String> {
-        Ok(u32::from_le_bytes(self.take(4)?.try_into().unwrap()) as usize)
+        let b: [u8; 4] = self.take(4)?.try_into().unwrap();
+        Ok(if self.le { u32::from_le_bytes(b) } else { u32::from_be_bytes(b) } as usize)
+    }
+    /// 16-bit length + bytes; 0xFFFF is an empty (null) text
+    fn counted(&mut self) -> Result<&'a [u8], String> {
+        match self.u16()? {
+            0xFFFF => Ok(&[]),
+            n => self.take(n),
+        }
     }
 }
 
 /// File names listed in a msmFMID.pmr.
-/// Block 1 holds the names in the old single-byte character set (Mac Roman on a Mac) and leaves out names it cannot
-/// represent (e.g. Turkish "İ"); block 2 holds every name in UTF-8 and is what counts. Block 1 is only a plausibility
-/// check: not longer than block 2, and its plain-ASCII names must be in block 2.
+/// Layout: magic 1961, version, count, then one record per file (mob ID, name, project, master mob ID, a modification
+/// word). Since version 8 the IDs have 32 bytes, before that 8. The names of this first list are Mac Roman and leave
+/// out names it cannot represent (e.g. Turkish "İ"); newer Media Composers add a second list (version 16) with every
+/// name in UTF-8, which then counts – the first is only a plausibility check: not longer, and its plain-ASCII names
+/// must be in the second. Older databases have only the first list; if the second one is unusable, the first is used.
 pub fn read_pmr(data: &[u8]) -> Result<Vec<String>, String> {
     Ok(read_pmr_entries(data)?.into_iter().map(|e| e.name).collect())
 }
@@ -80,41 +124,120 @@ pub struct PmrEntry {
     pub id2: [u8; 32],
 }
 
-/// Names and mob IDs of the media files in a msmFMID.pmr (see read_pmr for the two blocks).
-pub fn read_pmr_entries(data: &[u8]) -> Result<Vec<PmrEntry>, String> {
-    let mut r = Reader { data, pos: 0 };
-    let (_, _, count) = (r.u32()?, r.u32()?, r.u32()?);
-    let mut ascii = vec![];
+const PMR_MAGIC: usize = 1961;
+const PMR_UNICODE: usize = 16;
+
+struct PmrRaw<'a> {
+    id: &'a [u8],
+    name: &'a [u8],
+    id2: &'a [u8],
+}
+
+/// Frames one list without decoding it.
+fn pmr_list<'a>(r: &mut Reader<'a>, version: usize, count: usize) -> Result<Vec<PmrRaw<'a>>, String> {
+    let id_len = if version <= 7 { 8 } else { 32 };
+    let smallest = if version == 1 { 14 } else if version <= 7 { 24 } else { 72 };
+    if count > (r.data.len() - r.pos) / smallest {
+        return Err(format!("{count} entries announced, the file is too short for them"));
+    }
+    let mut out = Vec::with_capacity(count);
     for _ in 0..count {
-        r.take(32)?;
-        let len = r.u16()?;
-        let n = r.take(len)?;
-        if n.is_ascii() {
-            ascii.push(String::from_utf8_lossy(n).into_owned());
-        }
-        let len = r.u16()?;
-        r.take(len + 36)?;
-    }
-    let (_, count2) = (r.u32()?, r.u32()?);
-    if count2 < count {
-        return Err(format!("the second list is shorter than the first ({count2} / {count})"));
-    }
-    let mut entries = Vec::with_capacity(count2.min(100_000));
-    for _ in 0..count2 {
-        let id: [u8; 32] = r.take(32)?.try_into().unwrap();
-        let len = r.u32()?.checked_sub(2).ok_or("unexpected name length")?;
-        let name = String::from_utf8(r.take(len)?.to_vec()).map_err(|_| "a name is not valid UTF-8")?;
-        let len = r.u16()?;
-        r.take(len)?;
-        let id2: [u8; 32] = r.take(32)?.try_into().unwrap();
+        let id = r.take(id_len)?;
+        let name = r.counted()?;
+        let id2 = if version == 1 { &[][..] } else { r.counted().and_then(|_| r.take(id_len))? };
         r.take(4)?;
-        entries.push(PmrEntry { name, id, id2 });
+        out.push(PmrRaw { id, name, id2 });
     }
+    Ok(out)
+}
+
+/// A mob ID in the layout bins and MXF headers use: the material fields (32/16/16 bit) little-endian; the old 8-byte
+/// IDs are wrapped the way Media Composer wraps them.
+fn pmr_mob_id(raw: &[u8], le: bool) -> [u8; 32] {
+    let mut id = [0u8; 32];
+    match raw.len() {
+        32 => {
+            id.copy_from_slice(raw);
+            if !le {
+                id[16..20].reverse();
+                id[20..22].reverse();
+                id[22..24].reverse();
+            }
+        }
+        8 => {
+            id[..16].copy_from_slice(&[6, 0x0a, 0x2b, 0x34, 1, 1, 1, 1, 1, 1, 0x0f, 0, 0x13, 0, 0, 0]);
+            id[16..24].copy_from_slice(raw);
+            if !le {
+                id[16..20].reverse();
+                id[20..24].reverse();
+            }
+            id[24..].copy_from_slice(&[6, 0x0e, 0x2b, 0x34, 0x7f, 0x7f, 0x2a, 0x80]);
+        }
+        _ => {}
+    }
+    id
+}
+
+fn cut_nul(b: &[u8]) -> Vec<u8> {
+    b.iter().position(|&c| c == 0).map_or(b, |i| &b[..i]).to_vec()
+}
+
+fn pmr_decode(list: &[PmrRaw], version: usize, le: bool) -> Result<Vec<PmrEntry>, String> {
+    list.iter()
+        .map(|e| {
+            let name = if version == PMR_UNICODE {
+                // two bytes before the UTF-8 name, the first one 0
+                if e.name.len() < 2 || e.name[0] != 0 {
+                    return Err("unexpected name length".to_string());
+                }
+                String::from_utf8(cut_nul(&e.name[2..])).map_err(|_| "a name is not valid UTF-8")?
+            } else {
+                avb::mac_roman(&cut_nul(e.name))
+            };
+            if name.is_empty() {
+                return Err("a name is empty".into());
+            }
+            Ok(PmrEntry { name, id: pmr_mob_id(e.id, le), id2: pmr_mob_id(e.id2, le) })
+        })
+        .collect()
+}
+
+/// Names and mob IDs of the media files in a msmFMID.pmr (see read_pmr for the lists).
+pub fn read_pmr_entries(data: &[u8]) -> Result<Vec<PmrEntry>, String> {
+    let head: [u8; 4] = data.get(..4).ok_or("file ends too early")?.try_into().unwrap();
+    let le = if u32::from_le_bytes(head) as usize == PMR_MAGIC {
+        true
+    } else if u32::from_be_bytes(head) as usize == PMR_MAGIC {
+        false
+    } else {
+        return Err("not an Avid database (unknown beginning)".into());
+    };
+    let mut r = Reader { data, pos: 4, le };
+    let (version, count) = (r.u32()?, r.u32()?);
+    if !(1..=8).contains(&version) {
+        return Err(format!("unknown database version {version}"));
+    }
+    let first = pmr_list(&mut r, version, count)?;
+    if r.pos == data.len() {
+        return pmr_decode(&first, version, le);
+    }
+    let extension = r.u32()?;
+    if extension != PMR_UNICODE {
+        return Err(format!("unknown second list (version {extension})"));
+    }
+    let count2 = r.u32()?;
+    let second = pmr_list(&mut r, PMR_UNICODE, count2)?;
     if r.pos != data.len() {
         return Err(format!("{} unexpected bytes at the end", data.len() - r.pos));
     }
+    let Ok(entries) = pmr_decode(&second, PMR_UNICODE, le) else {
+        return pmr_decode(&first, version, le);
+    };
+    if count2 < count {
+        return Err(format!("the second list is shorter than the first ({count2} / {count})"));
+    }
     let all: HashSet<&str> = entries.iter().map(|e| e.name.as_str()).collect();
-    if ascii.iter().any(|n| !all.contains(n.as_str())) {
+    if first.iter().any(|e| e.name.is_ascii() && !all.contains(String::from_utf8_lossy(&cut_nul(e.name)).as_ref())) {
         return Err("the two lists differ".into());
     }
     Ok(entries)
@@ -385,6 +508,72 @@ mod tests {
         let i = changed.len() - 50; // inside the last name of block 2
         changed[i] = b'X';
         assert!(read_pmr(&changed).is_err());
+    }
+
+    /// A database with only the first list, as older Media Composers write it.
+    fn old_pmr(version: u32, names: &[&[u8]], le: bool) -> Vec<u8> {
+        let n32 = |v: u32| if le { v.to_le_bytes() } else { v.to_be_bytes() };
+        let n16 = |v: u16| if le { v.to_le_bytes() } else { v.to_be_bytes() };
+        let id_len = if version <= 7 { 8 } else { 32 };
+        let mut d = vec![];
+        d.extend(n32(1961));
+        d.extend(n32(version));
+        d.extend(n32(names.len() as u32));
+        for (i, n) in names.iter().enumerate() {
+            let mut id = vec![0u8; id_len];
+            let at = if id_len == 32 { 16 } else { 0 };
+            id[at..at + 4].copy_from_slice(&n32(0x0102_0300 + i as u32));
+            d.extend(&id);
+            d.extend(n16(n.len() as u16));
+            d.extend(*n);
+            d.extend(n16(0xFFFF)); // no project
+            d.extend(&id);
+            d.extend([0; 4]);
+        }
+        d
+    }
+
+    #[test]
+    fn reads_older_databases() {
+        // version 7: 8-byte IDs, only the Mac Roman list ("\x9a" = ö), both byte orders give the same IDs
+        let le = read_pmr_entries(&old_pmr(7, &[b"K\x9alsch.mxf", b"b.mxf"], true)).unwrap();
+        let be = read_pmr_entries(&old_pmr(7, &[b"K\x9alsch.mxf", b"b.mxf"], false)).unwrap();
+        assert_eq!(le.iter().map(|e| e.name.as_str()).collect::<Vec<_>>(), ["Kölsch.mxf", "b.mxf"]);
+        assert_eq!(le[1].id, be[1].id);
+        assert_eq!(&le[1].id[..4], &[6, 0x0a, 0x2b, 0x34]);
+        assert_eq!(&le[1].id[16..20], &0x0102_0301u32.to_le_bytes());
+        // version 8 big-endian: the material fields are turned around
+        let be8 = read_pmr_entries(&old_pmr(8, &[b"a.mxf"], false)).unwrap();
+        assert_eq!(&be8[0].id[16..20], &0x0102_0300u32.to_le_bytes());
+        // a name cut by a 0 byte, an unknown beginning, an unknown version
+        assert_eq!(read_pmr(&old_pmr(8, &[b"c.mxf\0\0"], true)).unwrap(), ["c.mxf"]);
+        assert!(read_pmr(&[0, 0, 0, 0]).is_err());
+        assert!(read_pmr(&old_pmr(9, &[b"a.mxf"], true)).is_err());
+    }
+
+    #[test]
+    fn broken_utf8_list_falls_back_to_the_first() {
+        let mut d = pmr(&["a.mxf", "b.mxf"]);
+        let i = d.len() - 50; // inside the last name of the UTF-8 list
+        d[i] = 0xff;
+        assert_eq!(read_pmr(&d).unwrap(), ["a.mxf", "b.mxf"]);
+    }
+
+    #[test]
+    fn move_new_never_replaces() {
+        let dir = std::env::temp_dir().join(format!("mfc-move-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("empty")).unwrap();
+        fs::write(dir.join("a"), "a").unwrap();
+        fs::write(dir.join("b"), "b").unwrap();
+        fs::create_dir(dir.join("d")).unwrap();
+        assert_eq!(move_new(&dir.join("a"), &dir.join("b")).unwrap_err().kind(), std::io::ErrorKind::AlreadyExists);
+        assert_eq!(fs::read_to_string(dir.join("b")).unwrap(), "b");
+        // rename() would replace an empty folder
+        assert!(move_new(&dir.join("d"), &dir.join("empty")).is_err());
+        move_new(&dir.join("a"), &dir.join("c")).unwrap();
+        assert_eq!(fs::read_to_string(dir.join("c")).unwrap(), "a");
+        fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

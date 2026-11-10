@@ -2592,14 +2592,14 @@ fn main() -> Result<(), slint::PlatformError> {
                 return;
             }
             let renamed = renamed_dirs(&renames.borrow());
-            let copies: Vec<duplicates::Copy> = {
+            let copies: Vec<(duplicates::Copy, Vec<duplicates::Copy>)> = {
                 let d = dups.borrow();
                 d.found
                     .groups
                     .iter()
                     .zip(&d.selected)
                     .filter(|(g, s)| **s && !dup_blocked(g, &renamed))
-                    .flat_map(|(g, _)| g.copies.iter().enumerate().filter(|(i, _)| *i != g.keep).map(|(_, c)| c.clone()))
+                    .map(|(g, _)| (g.copies[g.keep].clone(), g.copies.iter().enumerate().filter(|(i, _)| *i != g.keep).map(|(_, c)| c.clone()).collect()))
                     .collect()
             };
             app.set_work_value(0.0);

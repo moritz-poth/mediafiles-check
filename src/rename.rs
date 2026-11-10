@@ -169,7 +169,7 @@ pub fn rename_for_avid(folder: &Path, new_name: &str, journal: &mut Journal, jou
     let original = folder.file_name().unwrap_or_default().to_string_lossy().into_owned();
     journal.entries.push(Renamed { mxf, original, current: new_name.into(), files: mxf_files(folder)?, db: db_stamps(folder) });
     journal.save(journal_path)?;
-    if let Err(e) = fs::rename(folder, &target) {
+    if let Err(e) = crate::move_new(folder, &target) {
         journal.entries.pop();
         journal.save(journal_path)?;
         return Err(e);
@@ -270,7 +270,7 @@ pub fn rename_back(r: &Renamed, added: &[String], choice: Added, computer: &str)
         return Err(io::Error::new(io::ErrorKind::AlreadyExists, format!("{} exists already", original.display())));
     }
     let network = is_network(&r.dir());
-    fs::rename(r.dir(), &original)?;
+    crate::move_new(&r.dir(), &original)?;
     let mut back = Back::default();
     if added.is_empty() || choice == Added::Keep {
         return Ok(back);
@@ -284,11 +284,12 @@ pub fn rename_back(r: &Renamed, added: &[String], choice: Added, computer: &str)
     let mut moved = 0;
     for f in added {
         let dst = target.join(f);
-        if dst.exists() {
-            back.not_moved.push(f.clone());
-        } else {
-            fs::rename(original.join(f), dst)?;
-            moved += 1;
+        match crate::move_new(&original.join(f), &dst) {
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => back.not_moved.push(f.clone()),
+            r => {
+                r?;
+                moved += 1;
+            }
         }
     }
     back.moved_to = Some((target_name, moved));

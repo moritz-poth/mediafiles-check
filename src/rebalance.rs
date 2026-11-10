@@ -369,7 +369,7 @@ fn apply(p: &Plan) -> io::Result<Moved> {
         if target.exists() {
             return Err(io::Error::new(io::ErrorKind::AlreadyExists, format!("{} exists already", target.display())));
         }
-        fs::rename(p.mxf.join(&p.main), target)?;
+        crate::move_new(&p.mxf.join(&p.main), &target)?;
     }
     let name = |f: &str| if f == p.main { main.clone() } else { f.to_string() };
     let mut out = Moved::default();
@@ -382,7 +382,13 @@ fn apply(p: &Plan) -> io::Result<Moved> {
             out.skipped.push(m.file.clone());
             continue;
         }
-        fs::rename(&src, &dst)?;
+        match crate::move_new(&src, &dst) {
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
+                out.skipped.push(m.file.clone());
+                continue;
+            }
+            r => r?,
+        }
         out.moved += 1;
     }
     for e in &p.emptied {
@@ -453,7 +459,7 @@ pub fn set_aside_database(folder: &Path) -> io::Result<Option<PathBuf>> {
         if backup.join(f).exists() {
             return Err(io::Error::new(io::ErrorKind::AlreadyExists, format!("{} exists already", backup.join(f).display())));
         }
-        fs::rename(folder.join(f), backup.join(f))?;
+        crate::move_new(&folder.join(f), &backup.join(f))?;
     }
     Ok(Some(backup))
 }
@@ -489,7 +495,7 @@ pub fn move_leftover(dir: &Path, into: &Path) -> io::Result<()> {
     }
     fs::create_dir_all(into)?;
     for n in &names {
-        fs::rename(dir.join(n), into.join(n))?;
+        crate::move_new(&dir.join(n), &into.join(n))?;
     }
     fs::remove_dir(dir)
 }
@@ -522,7 +528,7 @@ pub fn undo(r: &Rebalanced) -> io::Result<Undone> {
     if let Some(old) = &r.renamed_from
         && !r.mxf.join(old).exists()
     {
-        fs::rename(&main, r.mxf.join(old))?;
+        crate::move_new(&main, &r.mxf.join(old))?;
         out.renamed_back = Some(old.clone());
     }
     Ok(out)

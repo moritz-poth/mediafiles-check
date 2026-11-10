@@ -244,7 +244,7 @@ pub fn import(dest: &Path, map: &HashMap<String, String>, progress: &mut dyn FnM
             if target.exists() && hash_file(&target)? != f.hash {
                 let saved = volumes[&vol].join("Avid MediaFiles").join(BACKUP_DIR).join(&backup).join(&folder);
                 fs::create_dir_all(&saved)?;
-                fs::rename(&target, saved.join(&name))?;
+                crate::move_new(&target, &saved.join(&name))?;
             }
             if let Err(e) = copy_verified(&dest.join(&f.path), &target, Some(&f.hash)) {
                 problems.push(format!("{}: {e} – old database is in {BACKUP_DIR}/{backup}", f.path));

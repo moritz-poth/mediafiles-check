@@ -24,6 +24,8 @@ pub struct Copy {
     pub size: u64,
     /// creation date (ns), modification date where the file system has none
     pub created: u128,
+    /// modification date (ns) at the search: setting aside skips a copy changed since
+    pub modified: u128,
     /// the database of its folder lists this file
     pub in_db: bool,
 }
@@ -51,6 +53,15 @@ impl Group {
     pub fn extra(&self) -> u64 {
         self.copies.iter().enumerate().filter(|(i, _)| *i != self.keep).map(|(_, c)| c.size).sum()
     }
+}
+
+fn nanos(t: io::Result<std::time::SystemTime>) -> u128 {
+    t.ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok()).map_or(0, |d| d.as_nanos())
+}
+
+/// still the file the search found: same size and modification date
+fn unchanged(c: &Copy) -> bool {
+    fs::metadata(&c.path).is_ok_and(|m| m.len() == c.size && nanos(m.modified()) == c.modified)
 }
 
 fn file_name(p: &Path) -> String {
@@ -148,9 +159,10 @@ pub fn find(roots: &[PathBuf], progress: &mut dyn FnMut(usize, usize, &str)) -> 
             }
             out.files += 1;
             let created = m.created().or_else(|_| m.modified()).ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok()).map_or(0, |d| d.as_nanos());
+            let modified = nanos(m.modified());
             let known = db.get(&key(&name)).copied();
             let id = mxf::file_mob_id(&path).ok().or(known);
-            let copy = Copy { path, size: m.len(), created, in_db: known.is_some() && known == id };
+            let copy = Copy { path, size: m.len(), created, modified, in_db: known.is_some() && known == id };
             match id {
                 Some(id) => by_id.entry(id).or_default().push(copy),
                 None => by_name.entry((key(&name), m.len())).or_default().push(copy),
@@ -235,34 +247,53 @@ pub fn save<T: Serialize>(value: &T, path: &Path) -> io::Result<()> {
 #[derive(Debug, Default, PartialEq)]
 pub struct Moved {
     pub moved: usize,
-    /// files left where they are (gone, changed size, or the target name exists)
+    /// files left where they are (gone or changed since the search, the copy that stays gone or changed, or the target
+    /// name exists)
     pub skipped: Vec<String>,
 }
 
-/// Moves these copies into "<drive>/MediaFiles Check Duplicates/<time>/<folder>/". The run is saved in the journal
-/// before the first file moves; a copy that is gone or changed in size meanwhile is skipped.
-pub fn set_aside(copies: &[Copy], journal_path: &Path) -> io::Result<(Run, Moved)> {
+/// Moves the extra copies of each group (copy that stays, extra copies) into
+/// "<drive>/MediaFiles Check Duplicates/<time>/<folder>/". The run is saved in the journal before the first file
+/// moves. A copy changed since the search (size or modification date) is skipped, and so is every extra copy of a
+/// group whose copy that stays is gone or changed – the media must never end up with no copy in place.
+pub fn set_aside(groups: &[(Copy, Vec<Copy>)], journal_path: &Path) -> io::Result<(Run, Moved)> {
     let stamp = chrono::Local::now();
     let mut run = Run { date: stamp.format("%Y-%m-%d %H:%M").to_string(), moved: vec![], changed: vec![], db_done: false, leftovers: vec![] };
-    for c in copies {
-        let (Some(drive), Some(folder)) = (drive_of(&c.path), c.path.parent()) else { continue };
-        let to = drive.join("MediaFiles Check Duplicates").join(stamp.format("%Y-%m-%d %H%M%S").to_string()).join(folder.file_name().unwrap_or_default()).join(c.path.file_name().unwrap_or_default());
-        run.moved.push((c.path.clone(), to, c.size));
-        if !run.changed.contains(&folder.to_path_buf()) {
-            run.changed.push(folder.to_path_buf());
+    let mut out = Moved::default();
+    for (keep, extras) in groups {
+        let keep_ok = unchanged(keep);
+        for c in extras {
+            let (Some(drive), Some(folder)) = (drive_of(&c.path), c.path.parent()) else { continue };
+            if !keep_ok || !unchanged(c) {
+                out.skipped.push(file_name(&c.path));
+                continue;
+            }
+            let to = drive.join("MediaFiles Check Duplicates").join(stamp.format("%Y-%m-%d %H%M%S").to_string()).join(folder.file_name().unwrap_or_default()).join(c.path.file_name().unwrap_or_default());
+            run.moved.push((c.path.clone(), to, c.size));
+            if !run.changed.contains(&folder.to_path_buf()) {
+                run.changed.push(folder.to_path_buf());
+            }
         }
+    }
+    if run.moved.is_empty() {
+        return Ok((run, out));
     }
     let mut journal: Journal = load(journal_path)?;
     journal.entries.push(run.clone());
     save(&journal, journal_path)?;
-    let mut out = Moved::default();
     for (from, to, size) in &run.moved {
         if to.exists() || fs::metadata(from).map(|m| m.len()).ok() != Some(*size) {
             out.skipped.push(file_name(from));
             continue;
         }
         fs::create_dir_all(to.parent().unwrap_or(Path::new(".")))?;
-        fs::rename(from, to)?;
+        match crate::move_new(from, to) {
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
+                out.skipped.push(file_name(from));
+                continue;
+            }
+            r => r?,
+        }
         out.moved += 1;
     }
     // a folder now without media files goes aside with its database, next to its copies (recorded first, for undo)
@@ -292,7 +323,7 @@ pub fn undo(run: &Run) -> io::Result<Moved> {
         for e in rd.flatten() {
             let to = folder.join(e.file_name());
             if crate::rebalance::is_leftover_entry(&e.path()) && !to.exists() {
-                fs::rename(e.path(), to)?;
+                crate::move_new(&e.path(), &to)?;
             }
         }
         dirs.push(from.clone());
@@ -302,7 +333,13 @@ pub fn undo(run: &Run) -> io::Result<Moved> {
             out.skipped.push(file_name(from));
             continue;
         }
-        fs::rename(to, from)?;
+        match crate::move_new(to, from) {
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
+                out.skipped.push(file_name(from));
+                continue;
+            }
+            r => r?,
+        }
         out.moved += 1;
         dirs.extend(to.parent().map(Path::to_path_buf));
     }
@@ -385,9 +422,9 @@ mod tests {
         assert!(found.groups.iter().any(|g| !g.by_id && g.name() == "plain.mxf"));
         assert!(report_text(&found, "de").contains("bleibt"));
 
-        let extra: Vec<Copy> = found.groups.iter().flat_map(|g| g.copies.iter().enumerate().filter(|(i, _)| *i != g.keep).map(|(_, c)| c.clone())).collect();
+        let groups: Vec<(Copy, Vec<Copy>)> = found.groups.iter().map(|g| (g.copies[g.keep].clone(), g.copies.iter().enumerate().filter(|(i, _)| *i != g.keep).map(|(_, c)| c.clone()).collect())).collect();
         let jp = root.join("duplicates.json");
-        let (run, m) = set_aside(&extra, &jp).unwrap();
+        let (run, m) = set_aside(&groups, &jp).unwrap();
         assert_eq!(m.moved, 2);
         assert!(!fb.join("renamed.mxf").exists() && run.moved.iter().all(|r| r.1.exists()));
         assert!(run.moved[0].1.starts_with(b.join("MediaFiles Check Duplicates")), "on the same drive");
@@ -412,9 +449,18 @@ mod tests {
         fs::write(folder.join("clip.mxf"), b"copy").unwrap();
         fs::write(folder.join(crate::PMR), b"db").unwrap();
         fs::write(folder.join(crate::MDB), b"db").unwrap();
-        let copy = Copy { path: folder.join("clip.mxf"), size: 4, created: 0, in_db: false };
+        let keep_dir = root.join("A/Avid MediaFiles/MXF/1");
+        fs::create_dir_all(&keep_dir).unwrap();
+        fs::write(keep_dir.join("clip.mxf"), b"copy").unwrap();
+        let copy = |p: PathBuf| Copy { modified: nanos(fs::metadata(&p).unwrap().modified()), path: p, size: 4, created: 0, in_db: false };
+        let (keep, extra) = (copy(keep_dir.join("clip.mxf")), copy(folder.join("clip.mxf")));
         let jp = root.join("duplicates.json");
-        let (run, m) = set_aside(&[copy], &jp).unwrap();
+        // the copy that stays changed since the search: nothing moves, nothing is recorded
+        let stale = Copy { modified: 1, ..keep.clone() };
+        let (_, m) = set_aside(&[(stale, vec![extra.clone()])], &jp).unwrap();
+        assert_eq!((m.moved, m.skipped.len()), (0, 1));
+        assert!(folder.join("clip.mxf").exists() && !jp.exists());
+        let (run, m) = set_aside(&[(keep, vec![extra])], &jp).unwrap();
         assert_eq!(m.moved, 1);
         assert!(!folder.exists(), "folder went aside");
         let into = run.moved[0].1.parent().unwrap();

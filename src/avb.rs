@@ -162,7 +162,7 @@ impl<'a> R<'a> {
 }
 
 /// Mac Roman upper half (0x80–0xFF).
-fn mac_roman(b: &[u8]) -> String {
+pub(crate) fn mac_roman(b: &[u8]) -> String {
     const HIGH: &str = "ÄÅÇÉÑÖÜáàâäãåçéèêëíìîïñóòôöõúùûü†°¢£§•¶ß®©™´¨≠ÆØ∞±≤≥¥µ∂∑∏π∫ªºΩæø¿¡¬√ƒ≈∆«»… ÀÃÕŒœ–—“”‘’÷◊ÿŸ⁄€‹›ﬁﬂ‡·‚„‰ÂÊÁËÈÍÎÏÌÓÔÒÚÛÙıˆ˜¯˘˙˚¸˝˛ˇ";
     let high: Vec<char> = HIGH.chars().collect();
     b.iter().map(|&c| if c < 0x80 { c as char } else { high.get(c as usize - 0x80).copied().unwrap_or('?') }).collect()
