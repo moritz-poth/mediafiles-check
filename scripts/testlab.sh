@@ -54,6 +54,7 @@ setup() {
         -c:v libx264 -pix_fmt yuv420p -c:a aac "$LAB/clips/Clip_$i.mov"
     done
   fi
+  foreign
   say "Testlabor liegt in $LAB"
   cat <<EOF
 
@@ -71,6 +72,17 @@ Einmalig von Hand:
      Media Composer beenden.
   3. scripts/testlab.sh snapshot
 EOF
+}
+
+# MXF files from another program (ffmpeg): no clip name, no Avid fields, in no bin
+foreign() {
+  [ -n "$(ls "$LAB/foreign" 2>/dev/null)" ] && return 0
+  command -v ffmpeg >/dev/null || { say "ffmpeg fehlt – keine fremden MXF-Dateien."; return 0; }
+  mkdir -p "$LAB/foreign"
+  local src="testsrc2=size=1920x1080:rate=25:duration=1"
+  ffmpeg -loglevel error -f lavfi -i "$src" -c:v dnxhd -profile:v dnxhr_lb -pix_fmt yuv422p -f mxf_opatom "$LAB/foreign/Fremd_DNxHR.mxf"
+  ffmpeg -loglevel error -f lavfi -i "$src" -c:v prores_ks -profile:v 3 -f mxf "$LAB/foreign/Fremd_ProRes.mxf"
+  ffmpeg -loglevel error -f lavfi -i "$src" -f lavfi -i "sine=duration=1:sample_rate=48000" -c:v mpeg2video -c:a pcm_s24le -f mxf "$LAB/foreign/Fremd_MPEG2.mxf"
 }
 
 snapshot() {
@@ -123,6 +135,10 @@ reset() {
   local dup="$LAB/drives/MFC_A2/Avid MediaFiles/MXF/Kopie"
   mkdir -p "$dup"
   mxfs "$f1" | head -4 | while read -r m; do cp -c "$m" "$dup/"; done
+  # Media table: files from another program in a folder of their own, used by no bin
+  foreign
+  mkdir -p "$LAB/drives/MFC_A2/Avid MediaFiles/MXF/Fremd"
+  cp -c "$LAB/foreign/"*.mxf "$LAB/drives/MFC_A2/Avid MediaFiles/MXF/Fremd/" 2>/dev/null || true
   # Rebalancing: A1 holds every clip of bin A1 (> $LIMIT files); the limit is set to $LIMIT below
 
   for s in a b; do
@@ -135,7 +151,7 @@ reset() {
   done
   touch "$LAB/.after-reset"
   say "Zurückgesetzt. MFC_A1: $(mxfs "$f1" | wc -l | tr -d ' ') Dateien in „$(basename "$f1")“, Grenze $LIMIT."
-  say "A2: 2 Medien fehlen (in aside/), Ordner „Kopie“ mit 4 Duplikaten; B1 hat „$(basename "$f2")“ komplett."
+  say "A2: 2 Medien fehlen (in aside/), Ordner „Kopie“ mit 4 Duplikaten, „Fremd“ mit 3 ffmpeg-Dateien; B1 hat „$(basename "$f2")“ komplett."
 }
 
 start() {
