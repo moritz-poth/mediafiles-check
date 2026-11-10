@@ -9,6 +9,7 @@
 //! a wrong report.
 pub mod avb;
 pub mod duplicates;
+pub mod inventory;
 pub mod ferry;
 pub mod log;
 pub mod mxf;
@@ -120,8 +121,10 @@ pub struct PmrEntry {
     pub name: String,
     /// mob ID of the media file (same layout as in bins and MXF headers)
     pub id: [u8; 32],
-    /// second mob ID of the record
+    /// second mob ID of the record (the master clip)
     pub id2: [u8; 32],
+    /// project the file was made in (may be empty)
+    pub project: String,
 }
 
 const PMR_MAGIC: usize = 1961;
@@ -130,6 +133,7 @@ const PMR_UNICODE: usize = 16;
 struct PmrRaw<'a> {
     id: &'a [u8],
     name: &'a [u8],
+    project: &'a [u8],
     id2: &'a [u8],
 }
 
@@ -144,9 +148,9 @@ fn pmr_list<'a>(r: &mut Reader<'a>, version: usize, count: usize) -> Result<Vec<
     for _ in 0..count {
         let id = r.take(id_len)?;
         let name = r.counted()?;
-        let id2 = if version == 1 { &[][..] } else { r.counted().and_then(|_| r.take(id_len))? };
+        let (project, id2) = if version == 1 { (&[][..], &[][..]) } else { (r.counted()?, r.take(id_len)?) };
         r.take(4)?;
-        out.push(PmrRaw { id, name, id2 });
+        out.push(PmrRaw { id, name, project, id2 });
     }
     Ok(out)
 }
@@ -197,7 +201,7 @@ fn pmr_decode(list: &[PmrRaw], version: usize, le: bool) -> Result<Vec<PmrEntry>
             if name.is_empty() {
                 return Err("a name is empty".into());
             }
-            Ok(PmrEntry { name, id: pmr_mob_id(e.id, le), id2: pmr_mob_id(e.id2, le) })
+            Ok(PmrEntry { name, id: pmr_mob_id(e.id, le), id2: pmr_mob_id(e.id2, le), project: avb::mac_roman(&cut_nul(e.project)) })
         })
         .collect()
 }

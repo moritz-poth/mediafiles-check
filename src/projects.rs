@@ -206,6 +206,67 @@ fn kind_of(kind: MobKind, usage: i32) -> Option<ClipKind> {
     }
 }
 
+/// The media files the bins of some projects use: `media` through their clips, subclips and sequences, `renders`
+/// through the effects of those (a render whose effect is gone from every sequence is in neither).
+#[derive(Debug, Default)]
+pub struct Refs {
+    pub media: HashSet<MobId>,
+    pub renders: HashSet<MobId>,
+    pub bins: usize,
+    /// bins that could not be read: (bin, error) – their media count as unused, so the caller must say so
+    pub failed: Vec<(PathBuf, String)>,
+}
+
+/// Reads every bin of the projects (see `Refs`). Clips stored in another bin of the same project are resolved over
+/// the project. progress gets (bins done, bins total, bin).
+pub fn references(projects: &[PathBuf], progress: &mut dyn FnMut(usize, usize, &str)) -> Refs {
+    let all: Vec<(usize, PathBuf)> = projects.iter().enumerate().flat_map(|(i, p)| bins(p).into_iter().map(move |b| (i, b))).collect();
+    let mut r = Refs { bins: all.len(), ..Default::default() };
+    // per project: mob -> its media files; mobs from another bin, waiting for the end of the project (render?)
+    let mut media_of: HashMap<MobId, Vec<MobId>> = HashMap::new();
+    let mut waiting: Vec<(MobId, bool)> = vec![];
+    let finish = |media_of: &mut HashMap<MobId, Vec<MobId>>, waiting: &mut Vec<(MobId, bool)>, r: &mut Refs| {
+        for (mob, render) in waiting.drain(..) {
+            let set = if render { &mut r.renders } else { &mut r.media };
+            set.extend(media_of.get(&mob).into_iter().flatten());
+        }
+        media_of.clear();
+    };
+    let mut current = usize::MAX;
+    for (i, (pi, path)) in all.iter().enumerate() {
+        if *pi != current {
+            finish(&mut media_of, &mut waiting, &mut r);
+            current = *pi;
+        }
+        progress(i, all.len(), &format!("{}/{}", name_of(&projects[*pi]), name_of(path)));
+        let bin = match Bin::read(path) {
+            Ok(b) => b,
+            Err(e) => {
+                r.failed.push((path.clone(), e));
+                continue;
+            }
+        };
+        for &item in &bin.items {
+            let mob = &bin.mobs[item];
+            let (mut gone, mut gone_renders) = (HashSet::new(), HashSet::new());
+            let media = bin.media_of(item, &mut gone);
+            if mob.kind != MobKind::Composition {
+                media_of.insert(mob.id, media.clone());
+            }
+            // a render's own master clip is no use of it – only an effect that still points to it is
+            if kind_of(mob.kind, mob.usage).is_none() {
+                continue;
+            }
+            r.renders.extend(bin.renders_of(item, &mut gone_renders));
+            r.media.extend(media);
+            waiting.extend(gone.into_iter().map(|id| (id, false)));
+            waiting.extend(gone_renders.into_iter().map(|id| (id, true)));
+        }
+    }
+    finish(&mut media_of, &mut waiting, &mut r);
+    r
+}
+
 /// Reads every bin of the projects and collects the media files their clips, subclips and sequences need that are
 /// not in `available`. References to clips stored in another bin of the same project are resolved over the project.
 /// progress gets (bins done, bins total, bin).

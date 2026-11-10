@@ -139,9 +139,256 @@ fn read_full(f: &mut File, buf: &mut [u8]) -> Result<usize, String> {
     Ok(n)
 }
 
+/// What the header of an MXF file says about it. Every field is optional: files from other software (or older
+/// Media Composers) may leave any of them out – nothing is guessed.
+#[derive(Debug, Default, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Info {
+    /// file mob ID (essence container data)
+    pub file_id: Option<MobId>,
+    /// master clip mob ID (material package)
+    pub master_id: Option<MobId>,
+    /// name of the master clip
+    pub clip: Option<String>,
+    /// Some(true): a render (precompute); Some(false): media written by a known program without the render mark;
+    /// None: nothing in the header says
+    pub render: Option<bool>,
+    /// product that wrote the file (identification set)
+    pub writer: Option<String>,
+    pub codec: Option<String>,
+    /// picture width × height as displayed
+    pub picture: Option<(u32, u32)>,
+    /// edit rate (numerator, denominator)
+    pub rate: Option<(u32, u32)>,
+    /// length in edit units
+    pub duration: Option<u64>,
+    /// sound: sample rate (Hz), bits, channels
+    pub sound: Option<(u32, u32, u32)>,
+}
+
+/// Avid's "usage" of a package (dynamic tag, found by its key in the primer); 1 = precompute (render).
+const AVID_USAGE: [u8; 16] = [0xa0, 0x22, 0x00, 0x60, 0x94, 0xeb, 0x75, 0xcb, 0x96, 0xc4, 0x69, 0x92, 0x4f, 0x62, 0x11, 0xd3];
+const PRIMER: u8 = 0x05;
+const IDENTIFICATION: u8 = 0x30;
+const SOURCE_PACKAGE: u8 = 0x37;
+const PICTURE: [u8; 3] = [0x27, 0x28, 0x29]; // generic picture, CDCI, RGBA
+const MPEG_VIDEO: u8 = 0x51;
+const SOUND: [u8; 3] = [0x42, 0x47, 0x48]; // generic sound, AES3, wave
+
+/// Readable name of a picture essence coding (SMPTE registry; byte 7, the registry version, is ignored).
+fn codec_name(ul: &[u8]) -> Option<String> {
+    if ul.len() != 16 || ul[..4] != [0x06, 0x0e, 0x2b, 0x34] || ul[8..10] != [0x04, 0x01] {
+        return None;
+    }
+    let tail = &ul[10..];
+    Some(match tail {
+        // VC-3: byte 13 = compression ID − 1234
+        [0x02, 0x02, 0x71, n, ..] => match 1234 + *n as u32 {
+            1270 => "DNxHR 444".into(),
+            1271 => "DNxHR HQX".into(),
+            1272 => "DNxHR HQ".into(),
+            1273 => "DNxHR SQ".into(),
+            1274 => "DNxHR LB".into(),
+            cid => format!("DNxHD {cid}"),
+        },
+        [0x02, 0x02, 0x03, 0x06, n, ..] => match n {
+            1 => "ProRes 422 Proxy",
+            2 => "ProRes 422 LT",
+            3 => "ProRes 422",
+            4 => "ProRes 422 HQ",
+            5 => "ProRes 4444",
+            6 => "ProRes 4444 XQ",
+            _ => "ProRes",
+        }
+        .into(),
+        [0x02, 0x02, 0x01, 0x32, ..] => "H.264".into(),
+        [0x02, 0x02, 0x01, ..] => "MPEG-2".into(),
+        [0x02, 0x02, 0x02, 0x01, ..] => "DV".into(),
+        [0x02, 0x02, 0x03, 0x01, ..] => "JPEG 2000".into(),
+        [0x02, 0x01, ..] => "Uncompressed".into(),
+        _ => return None,
+    })
+}
+
+fn be32(v: &[u8]) -> Option<u32> {
+    Some(u32::from_be_bytes(v.get(..4)?.try_into().ok()?))
+}
+
+fn rational(v: &[u8]) -> Option<(u32, u32)> {
+    Some((be32(v)?, be32(v.get(4..)?)?)).filter(|r| r.0 > 0 && r.1 > 0)
+}
+
+fn utf16(v: &[u8]) -> Option<String> {
+    let units: Vec<u16> = v.chunks_exact(2).map(|c| u16::from_be_bytes([c[0], c[1]])).take_while(|&u| u != 0).collect();
+    Some(String::from_utf16_lossy(&units)).filter(|s| !s.trim().is_empty())
+}
+
+/// Everything `Info` holds, from the header bytes of an MXF file (one pass over the header metadata).
+pub fn info(d: &[u8]) -> Result<Info, String> {
+    if !same_key(d, &PARTITION, &[7]) {
+        return Err("not an MXF file".into());
+    }
+    let mut out = Info::default();
+    let mut usage_tag: Option<u16> = None;
+    let (mut usage, mut precompute_source, mut company) = (None, false, None::<String>);
+    let mut layout = 0u8;
+    let mut stored: (u32, u32) = (0, 0);
+    let mut p = 0;
+    while p + 16 < d.len() {
+        let key = &d[p..p + 16];
+        let Some((len, n)) = ber(d, p + 16) else { break };
+        let start = p + 16 + n;
+        let Some(end) = start.checked_add(len as usize).filter(|&e| e <= d.len()) else { break };
+        if key[..4] == SET[..4] && ((key[4] == 0x01 && key[5] == 0x02) || (key[4] == 0x02 && key[5] == 0x53 && key[13] == 0x10)) {
+            break;
+        }
+        let body = &d[start..end];
+        if same_key(key, &PARTITION, &[7]) && key[13] == PRIMER && body.len() >= 8 {
+            // primer pack: local tag -> key; Avid's usage tag is dynamic
+            for e in body[8..].chunks_exact(18) {
+                if e[2..] == AVID_USAGE {
+                    usage_tag = Some(u16::from_be_bytes([e[0], e[1]]));
+                }
+            }
+        } else if same_key(key, &SET, &[7, 14]) {
+            let mut q = 0;
+            while q + 4 <= body.len() {
+                let tag = u16::from_be_bytes([body[q], body[q + 1]]);
+                let l = u16::from_be_bytes([body[q + 2], body[q + 3]]) as usize;
+                let Some(v) = body.get(q + 4..q + 4 + l) else { break };
+                let kind = key[14];
+                match (kind, tag) {
+                    (ESSENCE_CONTAINER_DATA, 0x2701) if l == 32 => out.file_id = Some(to_mob_id(v)),
+                    (MATERIAL_PACKAGE, 0x4401) if l == 32 => out.master_id = Some(to_mob_id(v)),
+                    (MATERIAL_PACKAGE, 0x4402) => out.clip = utf16(v),
+                    (MATERIAL_PACKAGE, t) if Some(t) == usage_tag => usage = be32(v),
+                    (SOURCE_PACKAGE, 0x4402) => precompute_source |= utf16(v).is_some_and(|n| n == "Precompute Source Mob"),
+                    (IDENTIFICATION, 0x3c01) => company = company.take().or_else(|| utf16(v)),
+                    (IDENTIFICATION, 0x3c02) => out.writer = out.writer.take().or_else(|| utf16(v)),
+                    (k, 0x3201) if PICTURE.contains(&k) || k == MPEG_VIDEO => out.codec = codec_name(v),
+                    (k, 0x3209) if PICTURE.contains(&k) || k == MPEG_VIDEO => out.picture = be32(v).map(|w| (w, out.picture.map_or(0, |p| p.1))),
+                    (k, 0x3208) if PICTURE.contains(&k) || k == MPEG_VIDEO => out.picture = be32(v).map(|h| (out.picture.map_or(0, |p| p.0), h)),
+                    (k, 0x3203) if PICTURE.contains(&k) || k == MPEG_VIDEO => stored.0 = be32(v).unwrap_or(0),
+                    (k, 0x3202) if PICTURE.contains(&k) || k == MPEG_VIDEO => stored.1 = be32(v).unwrap_or(0),
+                    (k, 0x320c) if PICTURE.contains(&k) || k == MPEG_VIDEO => layout = v.first().copied().unwrap_or(0),
+                    (k, 0x3001) if PICTURE.contains(&k) || k == MPEG_VIDEO || SOUND.contains(&k) || k == 0x44 => out.rate = out.rate.or(rational(v)),
+                    (k, 0x3002) if PICTURE.contains(&k) || k == MPEG_VIDEO || SOUND.contains(&k) => {
+                        out.duration = v.get(..8).map(|b| u64::from_be_bytes(b.try_into().unwrap())).filter(|&d| d > 0 && d < u64::MAX / 2)
+                    }
+                    (k, 0x3d03) if SOUND.contains(&k) => out.sound = rational(v).map(|r| (r.0 / r.1, out.sound.map_or(0, |s| s.1), out.sound.map_or(0, |s| s.2))),
+                    (k, 0x3d01) if SOUND.contains(&k) => out.sound = be32(v).map(|b| (out.sound.map_or(0, |s| s.0), b, out.sound.map_or(0, |s| s.2))),
+                    (k, 0x3d07) if SOUND.contains(&k) => out.sound = be32(v).map(|c| (out.sound.map_or(0, |s| s.0), out.sound.map_or(0, |s| s.1), c)),
+                    _ => {}
+                }
+                q += 4 + l;
+            }
+        }
+        p = end;
+    }
+    // displayed size, else stored size; separate fields / segmented frame: the height is that of one field
+    if out.picture.is_none_or(|p| p.0 == 0 || p.1 == 0) && stored.0 > 0 && stored.1 > 0 {
+        out.picture = Some(stored);
+    }
+    if matches!(layout, 1 | 4) {
+        out.picture = out.picture.map(|(w, h)| (w, h * 2));
+    }
+    out.picture = out.picture.filter(|p| p.0 > 0 && p.1 > 0);
+    // "OP1a Muxer" says little without "FFmpeg"; Avid's product name already holds the company
+    if let (Some(c), Some(w)) = (&company, &out.writer)
+        && !w.contains(c.split_whitespace().next().unwrap_or(c))
+    {
+        out.writer = Some(format!("{c} {w}"));
+    }
+    out.render = if usage == Some(1) || precompute_source {
+        Some(true)
+    } else if company.is_some() || out.writer.is_some() {
+        // only Media Composer makes renders and it always marks them; a file from another program is no render
+        Some(false)
+    } else {
+        None
+    };
+    Ok(out)
+}
+
+/// `Info` of an MXF file, read from its header.
+pub fn file_info(path: &Path) -> Result<Info, String> {
+    info(&header(path)?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn klv(key: [u8; 16], body: &[u8]) -> Vec<u8> {
+        let mut d = key.to_vec();
+        d.push(0x83);
+        d.extend(&(body.len() as u32).to_be_bytes()[1..]);
+        d.extend(body);
+        d
+    }
+
+    fn set(kind: u8, items: &[(u16, &[u8])]) -> Vec<u8> {
+        let mut key = SET;
+        key[14] = kind;
+        let mut body = vec![];
+        for (tag, v) in items {
+            body.extend(tag.to_be_bytes());
+            body.extend((v.len() as u16).to_be_bytes());
+            body.extend(*v);
+        }
+        klv(key, &body)
+    }
+
+    fn text(s: &str) -> Vec<u8> {
+        s.encode_utf16().flat_map(|u| u.to_be_bytes()).collect()
+    }
+
+    /// header of a Media Composer file: primer with the usage tag, identification, material package
+    fn avid_header(usage: Option<u32>, company: Option<&str>) -> Vec<u8> {
+        let mut partition = PARTITION.to_vec();
+        partition.extend([0x02, 0x04, 0x00]);
+        let mut d = klv(partition.clone().try_into().unwrap(), &[0; 88]);
+        let mut primer: [u8; 16] = partition.try_into().unwrap();
+        primer[13] = PRIMER;
+        primer[14] = 0x01;
+        let mut body = 1u32.to_be_bytes().to_vec();
+        body.extend(18u32.to_be_bytes());
+        body.extend(0xfffau16.to_be_bytes());
+        body.extend(AVID_USAGE);
+        d.extend(klv(primer, &body));
+        if let Some(c) = company {
+            d.extend(set(IDENTIFICATION, &[(0x3c01, &text(c)), (0x3c02, &text("Avid Media Composer 26.8"))]));
+        }
+        let (name, umid) = (text("TEST,Dissolve+2"), [7u8; 32]);
+        let u = usage.map(|u| u.to_be_bytes());
+        let mut items: Vec<(u16, &[u8])> = vec![(0x4401, &umid), (0x4402, &name)];
+        if let Some(u) = &u {
+            items.push((0xfffa, u));
+        }
+        d.extend(set(MATERIAL_PACKAGE, &items));
+        d
+    }
+
+    #[test]
+    fn render_mark_and_writer() {
+        let r = info(&avid_header(Some(1), Some("Avid Technology, Inc."))).unwrap();
+        assert_eq!((r.render, r.clip.as_deref(), r.writer.as_deref()), (Some(true), Some("TEST,Dissolve+2"), Some("Avid Media Composer 26.8")));
+        assert!(r.master_id.is_some());
+        // Media Composer always marks renders: its file without the mark is media
+        assert_eq!(info(&avid_header(None, Some("Avid Technology, Inc."))).unwrap().render, Some(false));
+        // nothing says who wrote it: unknown, never guessed
+        assert_eq!(info(&avid_header(None, None)).unwrap().render, None);
+        assert_eq!(info(&avid_header(Some(0), None)).unwrap().render, None);
+    }
+
+    #[test]
+    fn files_from_other_software() {
+        // written by ffmpeg: no clip name, no duration, stored height 1088 shown as 1080
+        let a = info(include_bytes!("../testdata/ff_opatom.hdr")).unwrap();
+        assert_eq!((a.codec.as_deref(), a.picture, a.rate, a.clip, a.duration, a.render), (Some("DNxHR LB"), Some((1920, 1080)), Some((25, 1)), None, None, Some(false)));
+        assert!(a.writer.unwrap().starts_with("FFmpeg"));
+        let b = info(include_bytes!("../testdata/ff_op1a.hdr")).unwrap();
+        assert_eq!((b.codec.as_deref(), b.sound), (Some("MPEG-2"), Some((48000, 24, 1))));
+    }
 
     #[test]
     fn reads_the_linked_package_of_the_essence_container_data() {

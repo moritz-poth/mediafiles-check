@@ -68,6 +68,8 @@ pub struct Bin {
     parts: HashMap<u32, Part>,
     /// media kind of every parsed component, by object index
     kinds: HashMap<u32, u16>,
+    /// component object -> object of its render (a source clip of the render's master clip)
+    precomputed: HashMap<u32, u32>,
     by_id: HashMap<MobId, usize>,
 }
 
@@ -169,7 +171,8 @@ pub(crate) fn mac_roman(b: &[u8]) -> String {
 }
 
 /// Component header shared by clips, sequences and track groups; returns the name and the media kind.
-fn component(r: &mut R) -> Res<(String, u16)> {
+/// Component header: name, media kind and the object of its render (precomputed source clip, 0 = none).
+fn component(r: &mut R) -> Res<(String, u16, u32)> {
     r.tag(0x02)?;
     r.tag(0x03)?;
     r.u32()?; // left bob
@@ -181,7 +184,7 @@ fn component(r: &mut R) -> Res<(String, u16)> {
     r.string()?; // effect id
     r.u32()?; // attributes
     r.u32()?; // session attributes
-    r.u32()?; // precomputed
+    let precomputed = r.u32()?;
     while let Some(t) = r.ext()? {
         match t {
             0x01 => {
@@ -191,7 +194,7 @@ fn component(r: &mut R) -> Res<(String, u16)> {
             _ => return Err(format!("unknown component extension {t}")),
         }
     }
-    Ok((name, kind))
+    Ok((name, kind, precomputed))
 }
 
 /// Track group part after the component header: track number and component of every track.
@@ -256,13 +259,17 @@ struct Raw {
     kind: Option<u16>,
     /// descriptor class, locator index, AMA plugin id present
     descriptor: Option<(String, u32, bool)>,
+    /// object of the component's render
+    precomputed: Option<u32>,
 }
 
 fn parse_object(class: &[u8; 4], d: &[u8], le: bool) -> Res<Raw> {
     let mut r = R { d, p: 0, le };
-    let mut raw = Raw { mob: None, part: None, kind: None, descriptor: None };
+    let mut raw = Raw { mob: None, part: None, kind: None, descriptor: None, precomputed: None };
     if class == b"SCLP" {
-        raw.kind = Some(component(&mut r)?.1);
+        let c = component(&mut r)?;
+        raw.kind = Some(c.1);
+        raw.precomputed = Some(c.2).filter(|&o| o != 0);
         r.tag(0x02)?;
         r.tag(0x01)?;
         r.u32()?; // length
@@ -283,14 +290,17 @@ fn parse_object(class: &[u8; 4], d: &[u8], le: bool) -> Res<Raw> {
             raw.part = Some(Part::Clip(id, track));
         }
     } else if class == b"SEQU" {
-        raw.kind = Some(component(&mut r)?.1);
+        let c = component(&mut r)?;
+        raw.kind = Some(c.1);
+        raw.precomputed = Some(c.2).filter(|&o| o != 0);
         r.tag(0x02)?;
         r.tag(0x03)?;
         let n = r.u32()?;
         raw.part = Some(Part::Parts((0..n).map(|_| r.u32()).collect::<Res<_>>()?));
     } else if TRACK_GROUPS.contains(&class) {
-        let (name, kind) = component(&mut r)?;
+        let (name, kind, precomputed) = component(&mut r)?;
         raw.kind = Some(kind);
+        raw.precomputed = Some(precomputed).filter(|&o| o != 0);
         let (track_numbers, tracks): (Vec<Option<u16>>, Vec<u32>) = track_group(&mut r)?.into_iter().unzip();
         if class == b"CMPO" {
             r.tag(0x02)?;
@@ -406,6 +416,7 @@ impl Bin {
         let mut mob_at = HashMap::new();
         let mut descriptors = HashMap::new();
         let mut kinds = HashMap::new();
+        let mut precomputed = HashMap::new();
         for (i, (class, d)) in objects.iter().enumerate().skip(1) {
             let raw = parse_object(class, d, le).map_err(|e| format!("object {i} ({}): {e}", String::from_utf8_lossy(class)))?;
             if let Some(p) = raw.part {
@@ -413,6 +424,9 @@ impl Bin {
             }
             if let Some(k) = raw.kind {
                 kinds.insert(i as u32, k);
+            }
+            if let Some(o) = raw.precomputed {
+                precomputed.insert(i as u32, o);
             }
             if let Some(d) = raw.descriptor {
                 descriptors.insert(i as u32, d);
@@ -463,7 +477,7 @@ impl Bin {
             }
         }
         let by_id = mobs.iter().enumerate().map(|(i, m)| (m.id, i)).collect();
-        Ok(Bin { creator, mobs, items, parts, kinds, by_id })
+        Ok(Bin { creator, mobs, items, parts, kinds, precomputed, by_id })
     }
 
     pub fn mob(&self, id: &MobId) -> Option<&Mob> {
@@ -507,13 +521,29 @@ impl Bin {
     /// Media files a mob uses: file source mobs reached through its tracks, sequences, groups and clips.
     /// `missing` gets mob ids that are referenced but not stored in this bin.
     pub fn media_of(&self, mob: usize, missing: &mut HashSet<MobId>) -> Vec<MobId> {
+        self.walk(self.mobs[mob].tracks.clone(), missing, None)
+    }
+
+    /// Render files a mob uses: the renders of the effects (and other components) reached like in `media_of`.
+    pub fn renders_of(&self, mob: usize, missing: &mut HashSet<MobId>) -> Vec<MobId> {
+        let mut renders = vec![];
+        // clips from other bins met on the way are media, not renders: only the render walk reports to `missing`
+        self.walk(self.mobs[mob].tracks.clone(), &mut HashSet::new(), Some(&mut renders));
+        self.walk(renders, missing, None)
+    }
+
+    /// File mobs reached from these parts; `renders` (if given) collects the render objects met on the way.
+    fn walk(&self, start: Vec<u32>, missing: &mut HashSet<MobId>, mut renders: Option<&mut Vec<u32>>) -> Vec<MobId> {
         let mut found = vec![];
         let mut seen_mobs = HashSet::new();
-        let mut stack: Vec<u32> = self.mobs[mob].tracks.clone();
+        let mut stack: Vec<u32> = start;
         let mut seen_parts = HashSet::new();
         while let Some(p) = stack.pop() {
             if !seen_parts.insert(p) {
                 continue;
+            }
+            if let (Some(r), Some(&o)) = (renders.as_deref_mut(), self.precomputed.get(&p)) {
+                r.push(o);
             }
             match self.parts.get(&p) {
                 Some(Part::Parts(v)) => stack.extend(v),
