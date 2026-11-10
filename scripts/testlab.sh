@@ -3,7 +3,8 @@
 # Mountpoint mounts the drive folders as volumes; the app runs with its own HOME and only sees the lab drives.
 #
 #   scripts/testlab.sh setup      create the lab and the test clips (once)
-#   scripts/testlab.sh snapshot   save the current lab drives + projects as the clean state (after Media Composer made them)
+#   scripts/testlab.sh snapshot   save the current lab drives + projects as the clean state (after Media Composer made them);
+#                                 after a reset only the project is saved (delete .after-reset to save the drives again)
 #   scripts/testlab.sh reset      restore the clean state, apply the test situations, clear the app state
 #   scripts/testlab.sh start a|b  start the app as system A or B
 #   scripts/testlab.sh status
@@ -74,6 +75,16 @@ EOF
 
 snapshot() {
   guard; quiet
+  # after a reset the drives hold the test situations (and Media Composer may have rewritten databases): keep only the project
+  if [ -f "$LAB/.after-reset" ]; then
+    [ -d "$LAB/golden" ] || die "Kein sauberer Stand vorhanden."
+    rm -rf "$LAB/golden/projects.new"
+    cp -cR "$LAB/projects" "$LAB/golden/projects.new"
+    rm -rf "$LAB/golden/projects"
+    mv "$LAB/golden/projects.new" "$LAB/golden/projects"
+    say "Nur das Projekt übernommen – die Laufwerke stehen im Test-Zustand, ihr sauberer Stand bleibt."
+    return
+  fi
   for d in MFC_A1 MFC_A2; do [ -n "$(main_folder $d)" ] || die "Auf $d gibt es noch keinen MXF-Ordner – erst in Media Composer importieren."; done
   rm -rf "$LAB/golden.new"
   mkdir -p "$LAB/golden.new/drives"
@@ -122,6 +133,7 @@ reset() {
     printf 'de\ndark\n0\nfinal\n%s\n' "$LIMIT" > "$dir/settings.txt"
     [ "${FRESH:-}" = 1 ] || touch "$dir/welcome-seen"
   done
+  touch "$LAB/.after-reset"
   say "Zurückgesetzt. MFC_A1: $(mxfs "$f1" | wc -l | tr -d ' ') Dateien in „$(basename "$f1")“, Grenze $LIMIT."
   say "A2: 2 Medien fehlen (in aside/), Ordner „Kopie“ mit 4 Duplikaten; B1 hat „$(basename "$f2")“ komplett."
 }
