@@ -165,9 +165,6 @@ pub struct Info {
     pub sound: Option<(u32, u32, u32)>,
 }
 
-/// Avid's "usage" of a package (dynamic tag, found by its key in the primer); 1 = precompute (render).
-const AVID_USAGE: [u8; 16] = [0xa0, 0x22, 0x00, 0x60, 0x94, 0xeb, 0x75, 0xcb, 0x96, 0xc4, 0x69, 0x92, 0x4f, 0x62, 0x11, 0xd3];
-const PRIMER: u8 = 0x05;
 const IDENTIFICATION: u8 = 0x30;
 const SOURCE_PACKAGE: u8 = 0x37;
 const PICTURE: [u8; 3] = [0x27, 0x28, 0x29]; // generic picture, CDCI, RGBA
@@ -228,8 +225,7 @@ pub fn info(d: &[u8]) -> Result<Info, String> {
         return Err("not an MXF file".into());
     }
     let mut out = Info::default();
-    let mut usage_tag: Option<u16> = None;
-    let (mut usage, mut precompute_source, mut company) = (None, false, None::<String>);
+    let (mut precompute_source, mut company) = (false, None::<String>);
     let mut layout = 0u8;
     let mut stored: (u32, u32) = (0, 0);
     let mut p = 0;
@@ -242,14 +238,7 @@ pub fn info(d: &[u8]) -> Result<Info, String> {
             break;
         }
         let body = &d[start..end];
-        if same_key(key, &PARTITION, &[7]) && key[13] == PRIMER && body.len() >= 8 {
-            // primer pack: local tag -> key; Avid's usage tag is dynamic
-            for e in body[8..].chunks_exact(18) {
-                if e[2..] == AVID_USAGE {
-                    usage_tag = Some(u16::from_be_bytes([e[0], e[1]]));
-                }
-            }
-        } else if same_key(key, &SET, &[7, 14]) {
+        if same_key(key, &SET, &[7, 14]) {
             let mut q = 0;
             while q + 4 <= body.len() {
                 let tag = u16::from_be_bytes([body[q], body[q + 1]]);
@@ -260,7 +249,6 @@ pub fn info(d: &[u8]) -> Result<Info, String> {
                     (ESSENCE_CONTAINER_DATA, 0x2701) if l == 32 => out.file_id = Some(to_mob_id(v)),
                     (MATERIAL_PACKAGE, 0x4401) if l == 32 => out.master_id = Some(to_mob_id(v)),
                     (MATERIAL_PACKAGE, 0x4402) => out.clip = utf16(v),
-                    (MATERIAL_PACKAGE, t) if Some(t) == usage_tag => usage = be32(v),
                     (SOURCE_PACKAGE, 0x4402) => precompute_source |= utf16(v).is_some_and(|n| n == "Precompute Source Mob"),
                     (IDENTIFICATION, 0x3c01) => company = company.take().or_else(|| utf16(v)),
                     (IDENTIFICATION, 0x3c02) => out.writer = out.writer.take().or_else(|| utf16(v)),
@@ -298,7 +286,9 @@ pub fn info(d: &[u8]) -> Result<Info, String> {
     {
         out.writer = Some(format!("{c} {w}"));
     }
-    out.render = if usage == Some(1) || precompute_source {
+    // a render's source is the "Precompute Source Mob". Avid's usage mark (1 = precompute) is no proof: imported
+    // graphics with alpha carry it too (checked on 187,000 real files, 2026-11-11)
+    out.render = if precompute_source {
         Some(true)
     } else if company.is_some() || out.writer.is_some() {
         // only Media Composer makes renders and it always marks them; a file from another program is no render
@@ -342,42 +332,32 @@ mod tests {
         s.encode_utf16().flat_map(|u| u.to_be_bytes()).collect()
     }
 
-    /// header of a Media Composer file: primer with the usage tag, identification, material package
-    fn avid_header(usage: Option<u32>, company: Option<&str>) -> Vec<u8> {
+    /// header of a Media Composer file: identification, material package, source package named `source`
+    fn avid_header(source: Option<&str>, company: Option<&str>) -> Vec<u8> {
         let mut partition = PARTITION.to_vec();
         partition.extend([0x02, 0x04, 0x00]);
-        let mut d = klv(partition.clone().try_into().unwrap(), &[0; 88]);
-        let mut primer: [u8; 16] = partition.try_into().unwrap();
-        primer[13] = PRIMER;
-        primer[14] = 0x01;
-        let mut body = 1u32.to_be_bytes().to_vec();
-        body.extend(18u32.to_be_bytes());
-        body.extend(0xfffau16.to_be_bytes());
-        body.extend(AVID_USAGE);
-        d.extend(klv(primer, &body));
+        let mut d = klv(partition.try_into().unwrap(), &[0; 88]);
         if let Some(c) = company {
             d.extend(set(IDENTIFICATION, &[(0x3c01, &text(c)), (0x3c02, &text("Avid Media Composer 26.8"))]));
         }
         let (name, umid) = (text("TEST,Dissolve+2"), [7u8; 32]);
-        let u = usage.map(|u| u.to_be_bytes());
-        let mut items: Vec<(u16, &[u8])> = vec![(0x4401, &umid), (0x4402, &name)];
-        if let Some(u) = &u {
-            items.push((0xfffa, u));
+        d.extend(set(MATERIAL_PACKAGE, &[(0x4401, &umid), (0x4402, &name)]));
+        if let Some(s) = source {
+            d.extend(set(SOURCE_PACKAGE, &[(0x4402, &text(s))]));
         }
-        d.extend(set(MATERIAL_PACKAGE, &items));
         d
     }
 
     #[test]
     fn render_mark_and_writer() {
-        let r = info(&avid_header(Some(1), Some("Avid Technology, Inc."))).unwrap();
+        let r = info(&avid_header(Some("Precompute Source Mob"), Some("Avid Technology, Inc."))).unwrap();
         assert_eq!((r.render, r.clip.as_deref(), r.writer.as_deref()), (Some(true), Some("TEST,Dissolve+2"), Some("Avid Media Composer 26.8")));
         assert!(r.master_id.is_some());
-        // Media Composer always marks renders: its file without the mark is media
+        // a graphic with alpha names its imported file; a Media Composer file without a render source is media
+        assert_eq!(info(&avid_header(Some("Baum.png"), Some("Avid Technology, Inc."))).unwrap().render, Some(false));
         assert_eq!(info(&avid_header(None, Some("Avid Technology, Inc."))).unwrap().render, Some(false));
         // nothing says who wrote it: unknown, never guessed
         assert_eq!(info(&avid_header(None, None)).unwrap().render, None);
-        assert_eq!(info(&avid_header(Some(0), None)).unwrap().render, None);
     }
 
     #[test]

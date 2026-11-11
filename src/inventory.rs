@@ -1,8 +1,8 @@
 //! Media inventory: every MXF file on the chosen drives with what its header (mxf::Info), its folder's database
 //! (msmFMID.pmr) and the chosen projects (projects::references) say about it.
 //!
-//! Kind: a render (precompute) or media. The header decides where it knows (Media Composer marks every render; a
-//! file from another program is never a render), otherwise the projects (a render reached through an effect, media
+//! Kind: a render (precompute) or media. The header decides where it knows (a render's source is Media Composer's
+//! "Precompute Source Mob"; a file from another program is never a render), otherwise the projects (a render reached through an effect, media
 //! through a clip). Nothing else is guessed: a file neither knows stays Unknown and is never moved as media or render.
 //! Headers are read once and cached by path, size and modification date.
 use crate::avb::MobId;
@@ -62,8 +62,13 @@ impl Item {
     }
 }
 
+/// Raised when what `mxf::info` reads or decides changes: an older cache is read anew.
+const CACHE_VERSION: u32 = 2;
+
 #[derive(Serialize, Deserialize, Default)]
 struct Cache {
+    #[serde(default)]
+    version: u32,
     /// path -> (size, modification date, header)
     files: HashMap<String, (u64, u128, mxf::Info)>,
 }
@@ -120,7 +125,8 @@ pub fn scan(drives: &[PathBuf], cache: Option<&Path>, progress: &(dyn Fn(usize, 
     }
     items.sort_by(|a, b| a.path.cmp(&b.path));
 
-    let mut cached: Cache = cache.and_then(|c| fs::read(c).ok()).and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
+    let mut cached: Cache = cache.and_then(|c| fs::read(c).ok()).and_then(|b| serde_json::from_slice::<Cache>(&b).ok()).filter(|c| c.version == CACHE_VERSION).unwrap_or_default();
+    cached.version = CACHE_VERSION;
     let todo: Vec<usize> = (0..items.len())
         .filter(|&i| {
             let it = &items[i];
