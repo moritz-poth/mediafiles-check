@@ -1440,6 +1440,13 @@ export struct MediaRow {
     selected: bool,
 }
 
+// Beiseitelegen: ein Ordner mit Dateien, die mitkämen; selected = wird einbezogen
+export struct FolderRow {
+    name: string,
+    detail: string,
+    selected: bool,
+}
+
 export global Inventory {
     // 0 nichts gelesen, 1 liest, 2 Ergebnis da
     in property <int> step;
@@ -1492,6 +1499,14 @@ export global Inventory {
     // Datenbanken neu schreiben: -1 der eben fertige Lauf, sonst Eintrag im Verlauf
     callback db(int);
     callback undo(int);
+    // Beiseitelegen: 0 unbenutzte Renders, 1 alle Renders (auch benutzte), 2 unbenutzte Medien
+    in property <[bool]> aside-options: [true, false, false];
+    in property <[FolderRow]> aside-folders;
+    callback aside-option(int);
+    callback toggle-folder(int);
+    // von den Projekten benutzt, auf keinem gelesenen Laufwerk
+    in property <int> missing-media;
+    in property <int> missing-renders;
 }
 
 component CountRow inherits HorizontalLayout {
@@ -1689,6 +1704,10 @@ component InventoryPane inherits VerticalLayout {
         Para {
             text: Inventory.projects == 0 ? @tr("No project was switched on, so nothing can be called unused.") : @tr("Used or not: by the bins of {n} project." | "Used or not: by the bins of {n} projects." % Inventory.projects);
         }
+        if Inventory.projects > 0 && Inventory.missing-media + Inventory.missing-renders > 0: Para {
+            text: @tr("Used by the projects but on none of the scanned drives: {} media files, {} render files.", Inventory.missing-media, Inventory.missing-renders);
+            color: Theme.text;
+        }
         if Inventory.failed-bins > 0: Para {
             text: @tr("{n} bin could not be read – what only it uses counts as unused." | "{n} bins could not be read – what only they use counts as unused." % Inventory.failed-bins);
             color: Theme.warning;
@@ -1715,9 +1734,9 @@ component InventoryPane inherits VerticalLayout {
             clicked => { Inventory.prepare(2); }
         }
         ActionRow {
-            text: @tr("Files no switched-on project uses");
+            text: @tr("Render files and files no switched-on project uses");
             button: @tr("Set aside…");
-            enabled: Inventory.projects > 0 && Inventory.counts[2] + Inventory.counts[3] > 0;
+            enabled: Inventory.counts[6] > 0 || Inventory.counts[2] + Inventory.counts[3] > 0;
             clicked => { Inventory.prepare(0); }
         }
     }
@@ -1788,10 +1807,70 @@ component InventoryPane inherits VerticalLayout {
                 color: Inventory.delete-originals ? Theme.warning : Theme.muted;
             }
         }
+        if Inventory.task == 0: VerticalLayout {
+            spacing: 4px;
+            for o[i] in [@tr("Render files no switched-on project uses"), @tr("Also render files in use (Media Composer renders them again)"), @tr("Media files no switched-on project uses")]: HorizontalLayout {
+                height: 26px;
+                spacing: 10px;
+                Text {
+                    text: o;
+                    horizontal-stretch: 1;
+                    vertical-alignment: center;
+                    overflow: elide;
+                    font-size: 12px;
+                    color: i == 1 || Inventory.projects > 0 ? Theme.text : Theme.faint;
+                }
+                VerticalLayout {
+                    alignment: center;
+                    if i == 1 || Inventory.projects > 0: Switch {
+                        on: Inventory.aside-options[i];
+                        label: o;
+                        toggled => { Inventory.aside-option(i); }
+                    }
+                }
+            }
+        }
         if Inventory.task != 2: Text {
             text: @tr("{n} file" | "{n} files" % Inventory.plan-count) + " · " + Inventory.plan-size;
             font-size: 12px;
             color: Theme.text;
+        }
+        if Inventory.task == 0 && Inventory.aside-folders.length > 0: Text {
+            text: @tr("FOLDERS – switch off what stays (remembered)");
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            color: Theme.muted;
+        }
+        if Inventory.task == 0 && Inventory.aside-folders.length > 0: ScrollBox {
+            limit: 5 * 26px + 4 * 2px;
+            spacing: 2px;
+            for f[i] in Inventory.aside-folders: HorizontalLayout {
+                height: 26px;
+                spacing: 10px;
+                Text {
+                    text: f.name;
+                    horizontal-stretch: 1;
+                    vertical-alignment: center;
+                    overflow: elide;
+                    font-size: 12px;
+                    color: f.selected ? Theme.text : Theme.faint;
+                }
+                Text {
+                    text: f.detail;
+                    vertical-alignment: center;
+                    font-size: 12px;
+                    color: Theme.muted;
+                }
+                VerticalLayout {
+                    alignment: center;
+                    Switch {
+                        on: f.selected;
+                        label: f.name;
+                        toggled => { Inventory.toggle-folder(i); }
+                    }
+                }
+            }
         }
         if Inventory.plan-text != "": ScrollBox {
             limit: 110px;

@@ -139,7 +139,7 @@ Bon à savoir :
 ## Médias
 
 1. Médias › **Disques et projets** : activez les disques et les projets dont les chutiers comptent, puis **Analyser**. La première analyse lit l’en-tête de chaque fichier média ; les suivantes seulement les fichiers nouveaux ou modifiés.
-2. **Vue d’ensemble** compte médias et rendus, utilisés ou non. **Afficher le tableau…** ouvre le tableau des médias : chaque fichier avec clip, type, codec, image, fps, durée, son, taille, projet et dossier – filtrer, chercher, trier par colonne, sélectionner, **Enregistrer la liste…**.
+2. **Vue d’ensemble** compte médias et rendus, utilisés ou non, et combien de fichiers utilisés par les projets ne sont sur aucun des disques lus. **Afficher le tableau…** ouvre le tableau des médias : chaque fichier avec clip, type, codec, image, fps, durée, son, taille, projet et dossier – filtrer, chercher, trier par colonne, sélectionner, **Enregistrer la liste…**.
 
 Comment un fichier est classé :
 
@@ -151,7 +151,7 @@ Actions (Media Composer doit être fermé) :
 
 - **Fichiers de rendu dans leurs propres dossiers** : les rendus vont dans des dossiers comme `Mac Studio-renderfiles-1` à côté de leur dossier, au plus autant que la limite de rééquilibrage le permet.
 - **Échanger** : choisissez le disque d’import et le disque de rendu. Les rendus du disque d’import vont sur le disque de rendu, les médias du disque de rendu sur le disque d’import, chaque fois dans un dossier du même nom. Chaque fichier est copié et la copie vérifiée par somme de contrôle ; ensuite l’original est supprimé ou mis dans `MediaFiles Check Aside` – vous choisissez à chaque fois.
-- **Mettre de côté** : les fichiers inutilisés, ou ceux sélectionnés dans le tableau, vont dans `MediaFiles Check Aside` sur leur disque.
+- **Mettre de côté** : choisissez ce qui part – fichiers de rendu qu’aucun projet activé n’utilise (activé par défaut), aussi les fichiers de rendu utilisés (Media Composer les recalcule), fichiers média qu’aucun projet activé n’utilise (désactivé, pour garder les médias). Les dossiers désactivés dans la liste restent tels quels et sont mémorisés, par ex. des bibliothèques de bruitages. Les fichiers sélectionnés dans le tableau peuvent aussi être mis de côté. Tout va dans `MediaFiles Check Aside` sur son disque.
 
 Rien n’est jamais écrasé ; un fichier modifié depuis l’analyse reste en place. Ensuite, les bases de données des dossiers modifiés sont réécrites comme pour le rééquilibrage. Médias › **Historique** liste chaque opération : **Réécrire les bases**, **Annuler**.
 

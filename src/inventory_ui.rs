@@ -20,12 +20,25 @@ pub struct InvState {
     shown: Vec<usize>,
     pub win: Win<MediaTableWindow>,
     stop: Arc<AtomicBool>,
-    /// filled by the scan thread, taken by Inventory.scanned on the event loop
-    result: Arc<Mutex<Option<(Vec<Item>, usize, usize)>>>,
+    /// filled by the scan thread, taken by Inventory.scanned on the event loop: items, projects read, unreadable
+    /// bins, media and renders the projects use that are on none of the scanned drives
+    result: Arc<Mutex<Option<(Vec<Item>, usize, usize, usize, usize)>>>,
+    /// set aside: unused renders, all renders, unused media; the folders shown (in order)
+    aside_options: [bool; 3],
+    aside_folders: Vec<PathBuf>,
     /// the action being confirmed and its steps; the run just done (for "Start")
     action: Option<Action>,
     plan: Vec<Step>,
     done: Option<media_moves::Run>,
+}
+
+/// Folders never set aside from (one path per line), remembered across launches.
+fn kept_path() -> Option<PathBuf> {
+    app_dir().map(|d| d.join("media-kept-folders.txt"))
+}
+
+fn kept_folders() -> HashSet<PathBuf> {
+    kept_path().and_then(|p| fs::read_to_string(p).ok()).map(|t| t.lines().filter(|l| !l.is_empty()).map(PathBuf::from).collect()).unwrap_or_default()
 }
 
 fn journal_path() -> PathBuf {
@@ -90,7 +103,8 @@ fn show_plan(app: &AppWindow, st: &InvState) {
     let g = app.global::<Inventory>();
     g.set_plan_count(st.plan.len() as i32);
     g.set_plan_size(size_text(st.plan.iter().map(|s| s.size).sum()).into());
-    g.set_plan_text(plan_text(&st.plan).into());
+    // set aside: the folder list shows where the files come from
+    g.set_plan_text(if st.action == Some(Action::Aside) && g.get_task() == 0 { String::new() } else { plan_text(&st.plan) }.into());
 }
 
 /// Plans an action (0 unused aside, 1 renderfiles, 2 two drives, 3 the table's selection aside) and shows it.
@@ -100,7 +114,44 @@ fn prepare(app: &AppWindow, st: &mut InvState, kind: i32, limit: usize) {
     let all: Vec<&Item> = st.items.iter().collect();
     let (action, plan) = match kind {
         // unknown files are never moved by a rule – only when picked in the table
-        0 => (Action::Aside, media_moves::plan_aside(&all.iter().copied().filter(|i| i.used == Some(false) && i.kind != Kind::Unknown).collect::<Vec<_>>())),
+        0 => {
+            if g.get_task() != 0 {
+                st.aside_options = [true, false, false];
+            }
+            let [unused_renders, all_renders, unused_media] = st.aside_options;
+            let wanted: Vec<&Item> = all
+                .iter()
+                .copied()
+                .filter(|i| match i.kind {
+                    Kind::Render => all_renders || (unused_renders && i.used == Some(false)),
+                    Kind::Media => unused_media && i.used == Some(false),
+                    Kind::Unknown => false,
+                })
+                .collect();
+            // per folder, largest first; kept folders stay switched off
+            let kept = kept_folders();
+            let mut folders: Vec<(PathBuf, usize, u64)> = vec![];
+            for i in &wanted {
+                let dir = i.path.parent().map(Path::to_path_buf).unwrap_or_default();
+                match folders.iter_mut().find(|f| f.0 == dir) {
+                    Some(f) => {
+                        f.1 += 1;
+                        f.2 += i.size;
+                    }
+                    None => folders.push((dir, 1, i.size)),
+                }
+            }
+            folders.sort_by(|a, b| b.2.cmp(&a.2));
+            let rows: Vec<FolderRow> = folders
+                .iter()
+                .map(|(dir, n, size)| FolderRow { name: folder_label(dir).into(), detail: format!("{n} · {}", size_text(*size)).into(), selected: !kept.contains(dir) })
+                .collect();
+            g.set_aside_folders(ModelRc::new(VecModel::from(rows)));
+            g.set_aside_options(ModelRc::new(VecModel::from(st.aside_options.to_vec())));
+            st.aside_folders = folders.into_iter().map(|f| f.0).collect();
+            let chosen: Vec<&Item> = wanted.into_iter().filter(|i| i.path.parent().is_none_or(|d| !kept.contains(d))).collect();
+            (Action::Aside, media_moves::plan_aside(&chosen))
+        }
         1 => (Action::Renderfiles, media_moves::plan_renderfiles(&all, rebalance::per_folder(limit))),
         2 => {
             let drives = scanned_drives(st);
@@ -123,8 +174,8 @@ fn prepare(app: &AppWindow, st: &mut InvState, kind: i32, limit: usize) {
     if g.get_task() != kind {
         g.set_delete_originals(false);
     }
-    show_plan(app, st);
     g.set_task(kind);
+    show_plan(app, st);
     g.set_view(1);
     app.set_page(Page::Media);
 }
@@ -511,7 +562,10 @@ fn start_scan(app: &AppWindow, st: &mut InvState, drives: &[(PathBuf, bool)], pr
             log::write(&format!("  unreadable bin {}: {e}", p.display()));
         }
         let n = if refs.is_some() { projects.len() } else { 0 };
-        *result.lock().unwrap() = Some((items, n, failed));
+        let present: HashSet<_> = items.iter().filter_map(|i| i.file_id).collect();
+        let missing = |set: Option<&HashSet<_>>| set.map_or(0, |s| s.iter().filter(|id| !present.contains(*id)).count());
+        let (mm, mr) = (missing(refs.as_ref().map(|r| &r.media)), missing(refs.as_ref().map(|r| &r.renders)));
+        *result.lock().unwrap() = Some((items, n, failed, mm, mr));
         let _ = slint::invoke_from_event_loop(move || {
             if let Some(w) = weak.upgrade() {
                 w.global::<Inventory>().invoke_scanned();
@@ -635,6 +689,35 @@ pub fn wire(app: &AppWindow, inv: &Inv, drives: &Drives, projects: &Rc<RefCell<P
         let (ww, inv, settings) = (app.as_weak(), inv.clone(), settings.clone());
         move |k| prepare(&ww.unwrap(), &mut inv.borrow_mut(), k, settings.borrow().limit)
     });
+    g.on_aside_option({
+        let (ww, inv, settings) = (app.as_weak(), inv.clone(), settings.clone());
+        move |i| {
+            let mut st = inv.borrow_mut();
+            if let Some(o) = st.aside_options.get_mut(i as usize) {
+                *o = !*o;
+            }
+            prepare(&ww.unwrap(), &mut st, 0, settings.borrow().limit);
+        }
+    });
+    g.on_toggle_folder({
+        let (ww, inv, settings) = (app.as_weak(), inv.clone(), settings.clone());
+        move |i| {
+            let mut st = inv.borrow_mut();
+            let Some(dir) = st.aside_folders.get(i as usize).cloned() else { return };
+            let mut kept = kept_folders();
+            if !kept.remove(&dir) {
+                kept.insert(dir);
+            }
+            if let Some(p) = kept_path() {
+                let mut lines: Vec<String> = kept.iter().map(|d| d.display().to_string()).collect();
+                lines.sort();
+                let _ = fs::create_dir_all(p.parent().unwrap());
+                // comfort only: if it cannot be saved, the folder is still kept for this run
+                let _ = fs::write(p, lines.join("\n"));
+            }
+            prepare(&ww.unwrap(), &mut st, 0, settings.borrow().limit);
+        }
+    });
     g.on_swap_changed({
         let (ww, inv, settings) = (app.as_weak(), inv.clone(), settings.clone());
         move || prepare(&ww.unwrap(), &mut inv.borrow_mut(), 2, settings.borrow().limit)
@@ -668,7 +751,9 @@ pub fn wire(app: &AppWindow, inv: &Inv, drives: &Drives, projects: &Rc<RefCell<P
         move || {
             let app = ww.unwrap();
             let mut st = inv.borrow_mut();
-            let Some((items, projects, failed)) = st.result.lock().unwrap().take() else { return };
+            let Some((items, projects, failed, missing_media, missing_renders)) = st.result.lock().unwrap().take() else { return };
+            app.global::<Inventory>().set_missing_media(missing_media as i32);
+            app.global::<Inventory>().set_missing_renders(missing_renders as i32);
             let present: HashSet<PathBuf> = items.iter().map(|i| i.path.clone()).collect();
             st.selected.retain(|p| present.contains(p));
             st.items = items;

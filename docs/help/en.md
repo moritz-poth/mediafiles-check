@@ -139,7 +139,7 @@ Good to know:
 ## Media
 
 1. Media › **Drives and projects**: switch on the drives and the projects whose bins count, then **Scan**. The first scan reads the header of every media file; later ones only new or changed files.
-2. **Overview** counts media and renders, in use or not. **Show table…** opens the media table: every file with clip, kind, codec, picture, fps, duration, sound, size, project and folder – filter, search, sort by a column, select files, **Save list…**.
+2. **Overview** counts media and renders, in use or not, and how many files the projects use that are on none of the scanned drives. **Show table…** opens the media table: every file with clip, kind, codec, picture, fps, duration, sound, size, project and folder – filter, search, sort by a column, select files, **Save list…**.
 
 How a file is sorted:
 
@@ -151,7 +151,7 @@ Actions (Media Composer must be closed):
 
 - **Render files into folders of their own**: render files go into folders like `Mac Studio-renderfiles-1` next to their folder, at most as many as the rebalancing limit allows.
 - **Swap**: choose the import drive and the render drive. Render files on the import drive go to the render drive, media on the render drive to the import drive, each into a folder of the same name. Every file is copied and the copy checked by checksum; then the original is deleted or put into `MediaFiles Check Aside` – you choose each time.
-- **Set aside**: unused files, or the files selected in the table, go into `MediaFiles Check Aside` on their drive.
+- **Set aside**: choose what goes – render files no switched-on project uses (on by default), also render files in use (Media Composer renders them again), media files no switched-on project uses (off by default, so media stay). Folders you switch off in the list stay as they are and are remembered, e.g. sound effect libraries. Files selected in the table can be set aside too. Everything goes into `MediaFiles Check Aside` on its drive.
 
 Nothing is ever overwritten; a file changed since the scan stays where it is. Afterwards the databases of the changed folders are rewritten as for rebalancing. Media › **History** lists every run: **Rewrite databases**, **Undo**.
 

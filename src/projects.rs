@@ -246,10 +246,12 @@ pub fn references(projects: &[PathBuf], progress: &mut dyn FnMut(usize, usize, &
                 continue;
             }
         };
+        // only Avid-managed media (AMA-linked and other linked files are not in Avid MediaFiles)
+        let managed = |ids: Vec<MobId>| -> Vec<MobId> { ids.into_iter().filter(|id| bin.mob(id).is_none_or(|m| !m.ama && m.locator.as_deref().is_none_or(|l| l == "MSML"))).collect() };
         for &item in &bin.items {
             let mob = &bin.mobs[item];
             let (mut gone, mut gone_renders) = (HashSet::new(), HashSet::new());
-            let media = bin.media_of(item, &mut gone);
+            let media = managed(bin.media_of(item, &mut gone));
             if mob.kind != MobKind::Composition {
                 media_of.insert(mob.id, media.clone());
             }
@@ -257,7 +259,7 @@ pub fn references(projects: &[PathBuf], progress: &mut dyn FnMut(usize, usize, &
             if kind_of(mob.kind, mob.usage).is_none() {
                 continue;
             }
-            r.renders.extend(bin.renders_of(item, &mut gone_renders));
+            r.renders.extend(managed(bin.renders_of(item, &mut gone_renders)));
             r.media.extend(media);
             waiting.extend(gone.into_iter().map(|id| (id, false)));
             waiting.extend(gone_renders.into_iter().map(|id| (id, true)));

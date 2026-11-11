@@ -8,11 +8,26 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 
+msgid "Media files no switched-on project uses"
+msgstr "Fichiers média qu’aucun projet activé n’utilise"
+
+msgid "Render files no switched-on project uses"
+msgstr "Fichiers de rendu qu’aucun projet activé n’utilise"
+
+msgid "Render files and files no switched-on project uses"
+msgstr "Fichiers de rendu et fichiers qu’aucun projet activé n’utilise"
+
+msgid "FOLDERS – switch off what stays (remembered)"
+msgstr "DOSSIERS – désactivez ce qui reste (mémorisé)"
+
+msgid "Also render files in use (Media Composer renders them again)"
+msgstr "Aussi les fichiers de rendu utilisés (Media Composer les recalcule)"
+
+msgid "Used by the projects but on none of the scanned drives: {} media files, {} render files."
+msgstr "Utilisés par les projets mais sur aucun des disques lus : {} fichiers média, {} fichiers de rendu."
+
 msgid "{} render files to the render drive, {} media files to the import drive"
 msgstr "{} fichiers de rendu vers le disque de rendu, {} fichiers média vers le disque d’import"
-
-msgid "Files no switched-on project uses"
-msgstr "Fichiers qu’aucun projet activé n’utilise"
 
 msgid "Every file is copied and the copy checked by checksum; the original goes into “MediaFiles Check Aside” on its drive – delete that folder yourself once all works."
 msgstr "Chaque fichier est copié et la copie vérifiée par somme de contrôle ; l’original va dans « MediaFiles Check Aside » sur son disque – supprimez ce dossier vous-même quand tout fonctionne."
