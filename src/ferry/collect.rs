@@ -255,7 +255,7 @@ pub fn import(dest: &Path, map: &HashMap<String, String>, progress: &mut dyn FnM
 }
 
 /// Kopiert über eine Teildatei, prüft Quelle (gegen den Scan) und Ziel (nachgelesen) per Hash und überschreibt nie.
-fn copy_verified(src: &Path, dst: &Path, expected: Option<&str>) -> io::Result<(u64, String)> {
+pub(crate) fn copy_verified(src: &Path, dst: &Path, expected: Option<&str>) -> io::Result<(u64, String)> {
     if dst.exists() {
         // Wiederaufnahme: gleiche Datei schon da -> überspringen
         let have = hash_file(dst)?;
@@ -309,7 +309,7 @@ fn copy_verified(src: &Path, dst: &Path, expected: Option<&str>) -> io::Result<(
     if hash_file(&part)? != hash {
         return fail("copy is faulty – check the target drive");
     }
-    fs::rename(&part, dst)?;
+    crate::move_new(&part, dst)?;
     Ok((size, hash))
 }
 

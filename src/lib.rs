@@ -12,6 +12,7 @@ pub mod duplicates;
 pub mod inventory;
 pub mod ferry;
 pub mod log;
+pub mod media_moves;
 pub mod mxf;
 pub mod projects;
 pub mod rebalance;
