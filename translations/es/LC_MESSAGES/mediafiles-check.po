@@ -8,6 +8,168 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+msgid "DRIVES"
+msgstr "UNIDADES"
+
+msgid "PROJECTS"
+msgstr "PROYECTOS"
+
+msgid "Media"
+msgstr "Medios"
+
+msgid "Renders"
+msgstr "Renders"
+
+msgid "Render"
+msgstr "Render"
+
+msgid "Unknown"
+msgstr "Desconocido"
+
+msgid "reading…"
+msgstr "leyendo…"
+
+msgid "Not used"
+msgstr "Sin usar"
+
+msgid "Size"
+msgstr "Tamaño"
+
+msgid "Choose the folder with your Avid projects under Projects. Without projects, the files are only sorted into media and renders – nothing can be called unused."
+msgstr "Elige la carpeta con tus proyectos de Avid en Proyectos. Sin proyectos, los archivos solo se separan en medios y renders: nada puede considerarse sin usar."
+
+msgid "Renders in use"
+msgstr "Renders en uso"
+
+msgid "Renders not used"
+msgstr "Renders sin usar"
+
+msgid "Media in use"
+msgstr "Medios en uso"
+
+msgid "Media not used"
+msgstr "Medios sin usar"
+
+msgid "header"
+msgstr "cabecera"
+
+msgid "project"
+msgstr "proyecto"
+
+msgid "Known by"
+msgstr "Reconocido por"
+
+msgid "File"
+msgstr "Archivo"
+
+msgid "yes"
+msgstr "sí"
+
+msgid "no"
+msgstr "no"
+
+msgid "Renders are recognised by the mark Media Composer writes into them, or by the effect that uses them. A file nothing tells apart stays unknown and is never moved as media or render."
+msgstr "Los renders se reconocen por la marca que Media Composer escribe en ellos o por el efecto que los usa. Un archivo que nada distingue queda como desconocido y nunca se mueve como medio o render."
+
+msgid "Search"
+msgstr "Buscar"
+
+msgid "Media table"
+msgstr "Tabla de medios"
+
+msgid "Duration"
+msgstr "Duración"
+
+msgid "Clip"
+msgstr "Clip"
+
+msgid "The first scan reads the header of every media file; later scans only read new or changed files."
+msgstr "El primer análisis lee la cabecera de cada archivo de medios; los siguientes solo leen archivos nuevos o cambiados."
+
+msgid "Reading media files…"
+msgstr "Leyendo archivos de medios…"
+
+msgid "Used"
+msgstr "Usado"
+
+msgid "Overview"
+msgstr "Resumen"
+
+msgid "No project was switched on, so nothing can be called unused."
+msgstr "No había ningún proyecto activado, así que nada puede considerarse sin usar."
+
+msgid "Drive / folder"
+msgstr "Unidad / carpeta"
+
+msgid "Picture"
+msgstr "Imagen"
+
+msgid "Clear selection"
+msgstr "Quitar selección"
+
+msgid "Kind"
+msgstr "Tipo"
+
+msgid "Stop"
+msgstr "Detener"
+
+msgid "Lists every media file on the switched-on drives with its clip, codec and size, and sorts out render files. A file the switched-on projects do not use is unused – media of other projects on the same drives would count as unused too. Nothing is changed."
+msgstr "Muestra cada archivo de medios de las unidades activadas con su clip, códec y tamaño, y separa los archivos de render. Un archivo que los proyectos activados no usan está sin usar; los medios de otros proyectos en las mismas unidades también contarían. No se cambia nada."
+
+msgid "All"
+msgstr "Todos"
+
+msgid "Project"
+msgstr "Proyecto"
+
+msgid "Sound"
+msgstr "Sonido"
+
+msgid "Codec"
+msgstr "Códec"
+
+msgid "Select all shown"
+msgstr "Seleccionar todo lo mostrado"
+
+msgid "Show table…"
+msgstr "Mostrar tabla…"
+
+msgid "Drives and projects"
+msgstr "Unidades y proyectos"
+
+msgid "Search clip, file, codec, project…"
+msgstr "Buscar clip, archivo, códec, proyecto…"
+
+msgid "{n} bin could not be read – what only it uses counts as unused."
+msgid_plural "{n} bins could not be read – what only they use counts as unused."
+msgstr[0] "{n} bin no se pudo leer: lo que solo él usa cuenta como sin usar."
+msgstr[1] "{n} bins no se pudieron leer: lo que solo ellos usan cuenta como sin usar."
+
+msgid "{n} selected"
+msgid_plural "{n} selected"
+msgstr[0] "{n} seleccionado"
+msgstr[1] "{n} seleccionados"
+
+msgid "{n} file shown"
+msgid_plural "{n} files shown"
+msgstr[0] "{n} archivo mostrado"
+msgstr[1] "{n} archivos mostrados"
+
+msgid "Used or not: by the bins of {n} project."
+msgid_plural "Used or not: by the bins of {n} projects."
+msgstr[0] "Usado o no: según los bins de {n} proyecto."
+msgstr[1] "Usado o no: según los bins de {n} proyectos."
+
+msgid "{n} file could not be read."
+msgid_plural "{n} files could not be read."
+msgstr[0] "{n} archivo no se pudo leer."
+msgstr[1] "{n} archivos no se pudieron leer."
+
+msgid "{n} media file"
+msgid_plural "{n} media files"
+msgstr[0] "{n} archivo de medios"
+msgstr[1] "{n} archivos de medios"
+
 msgid "Show media…"
 msgstr "Mostrar medios…"
 

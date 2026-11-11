@@ -211,6 +211,7 @@ fn show_drives(app: &AppWindow, drives: &[(PathBuf, bool)]) {
     let rows: Vec<DriveRow> = drives.iter().map(|(p, sel)| DriveRow { name: volume_name(p).into(), selected: *sel }).collect();
     app.set_selected_count(drives.iter().filter(|d| d.1).count() as i32);
     app.set_drives(ModelRc::new(VecModel::from(rows)));
+    inventory_ui::show_drives(app, drives);
 }
 
 /// Picks up drives that were connected or ejected; ticks stay, new drives come ticked.
@@ -1066,6 +1067,7 @@ struct Others {
     help: Win<HelpWindow>,
     settings: Win<SettingsWindow>,
     media: Win<MediaWindow>,
+    table: Win<MediaTableWindow>,
 }
 
 /// Language or appearance changed: every open window follows.
@@ -1074,6 +1076,7 @@ fn apply_all(app: &AppWindow, others: &Others, s: &Settings) {
     others.settings.borrow().iter().for_each(|w| apply_menus(&w.global::<Shared>(), s));
     others.help.borrow().iter().for_each(|h| update_help(h, s));
     others.media.borrow().iter().for_each(|w| apply_menus(&w.global::<Shared>(), s));
+    others.table.borrow().iter().for_each(|w| apply_menus(&w.global::<Shared>(), s));
     #[cfg(target_os = "macos")]
     {
         // Slint rebuilds the menu after this event; add the item back once that is done
@@ -1162,6 +1165,9 @@ macro_rules! repaint_on_resize {
         $w.global::<Shared>().on_resized(move || weak.upgrade().iter().for_each(repaint_soon));
     }};
 }
+
+// after repaint_on_resize!: macros are visible from their definition on
+mod inventory_ui;
 
 fn repaint_soon<T: ComponentHandle + 'static>(c: &T) {
     for ms in [50, 200, 600, 1500] {
@@ -2989,6 +2995,9 @@ fn main() -> Result<(), slint::PlatformError> {
     let projects_state: Rc<RefCell<ProjectsState>> = Rc::default();
     projects_state.borrow_mut().media = others.media.clone();
     wire_projects(&app, &projects_state, &settings);
+    let inv: inventory_ui::Inv = Rc::default();
+    inv.borrow_mut().win = others.table.clone();
+    inventory_ui::wire(&app, &inv, &drives, &projects_state, &settings);
 
     app.on_start_media_composer({
         let weak = app.as_weak();

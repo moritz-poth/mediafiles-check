@@ -3,7 +3,7 @@
 import AppKit
 
 let icons = ["general": "gearshape", "updates": "arrow.triangle.2.circlepath", "support": "lifepreserver", "about": "info.circle", "rebalance": "rectangle.split.3x1",
-             "exchange": "arrow.left.arrow.right", "check": "checkmark.circle", "projects": "film.stack", "maintain": "wrench.and.screwdriver", "tasks": "checklist",
+             "exchange": "arrow.left.arrow.right", "check": "checkmark.circle", "projects": "film.stack", "maintain": "wrench.and.screwdriver", "tasks": "checklist", "media": "tablecells",
              "pass": "checkmark.circle.fill", "fail": "xmark.circle.fill", "skip": "minus.circle"]
 for (name, symbol) in icons {
     let config = NSImage.SymbolConfiguration(pointSize: 40, weight: .regular)

@@ -1,5 +1,5 @@
 // Oberfläche von MediaFiles Check (gleicher Look wie MediaFiles Ferry). Texte auf Englisch in @tr(); Deutsch in translations/.
-import { Palette, Spinner } from "std-widgets.slint";
+import { Palette, Spinner, ListView } from "std-widgets.slint";
 import "fonts/JetBrainsMono-Regular.ttf";
 import "fonts/JetBrainsMono-Medium.ttf";
 import "fonts/JetBrainsMono-SemiBold.ttf";
@@ -1416,8 +1416,243 @@ component TasksPane inherits VerticalLayout {
 }
 
 // Seiten des Hauptfensters; jede gehört zu einem Reiter (tab-of) und einem Schritt der Seitenleiste (step-of)
+// ── Medien: Inventar aller MXF-Dateien, Renders und unbenutzte Dateien ──
+// kind: 0 Medium, 1 Render, 2 unbekannt; from: 0 Dateikopf, 1 Projekt, 2 nichts; used: -1 ohne Projekte, 0 nein, 1 ja
+export struct MediaRow {
+    clip: string,
+    kind: int,
+    from: int,
+    used: int,
+    codec: string,
+    picture: string,
+    fps: string,
+    duration: string,
+    sound: string,
+    size: string,
+    project: string,
+    place: string,
+    file: string,
+    selected: bool,
+}
+
+export global Inventory {
+    // 0 nichts gelesen, 1 liest, 2 Ergebnis da
+    in property <int> step;
+    // Schritt in der Seitenleiste: 0 Auswahl, 1 Übersicht
+    in-out property <int> view;
+    in property <[DriveRow]> drives;
+    in property <int> drive-count;
+    in property <string> work-text;
+    in property <float> work-value;
+    in property <string> error;
+    // Übersicht: 0 Medien benutzt, 1 Renders benutzt, 2 Medien unbenutzt, 3 Renders unbenutzt, 4 unbekannt,
+    // 5 Medien gesamt, 6 Renders gesamt (Anzahl und Größe)
+    in property <[int]> counts: [0, 0, 0, 0, 0, 0, 0];
+    in property <[string]> sizes: ["", "", "", "", "", "", ""];
+    in property <int> files;
+    in property <string> total;
+    // Projekte, deren Bins gelesen wurden (0: benutzt/unbenutzt unbekannt), davon unlesbare Bins
+    in property <int> projects;
+    in property <int> failed-bins;
+    // Dateien, deren Kopf nicht lesbar war
+    in property <int> unreadable;
+    callback toggle-drive(int);
+    callback scan();
+    callback stop();
+    callback show-table();
+    // Rust intern: das Lesen ist fertig (Ergebnis liegt in Rust bereit)
+    callback scanned();
+}
+
+component CountRow inherits HorizontalLayout {
+    in property <string> name;
+    in property <int> count;
+    in property <string> size;
+    in property <bool> warn;
+    height: 24px;
+    spacing: 10px;
+    Text {
+        text: root.name;
+        horizontal-stretch: 1;
+        overflow: elide;
+        vertical-alignment: center;
+        color: root.count == 0 ? Theme.faint : Theme.text;
+    }
+    Text {
+        width: 70px;
+        text: root.count;
+        horizontal-alignment: right;
+        vertical-alignment: center;
+        font-weight: root.warn && root.count > 0 ? 600 : 400;
+        color: root.count == 0 ? Theme.faint : root.warn ? Theme.warning : Theme.text;
+    }
+    Text {
+        width: 90px;
+        text: root.count == 0 ? "" : root.size;
+        horizontal-alignment: right;
+        vertical-alignment: center;
+        color: Theme.muted;
+    }
+}
+
+component InventoryPane inherits VerticalLayout {
+    spacing: Metrics.spacing;
+
+    // ── Auswahl ──
+    if Inventory.view == 0 && Inventory.step != 1: VerticalLayout {
+        spacing: 14px;
+        PageHead {
+            title: @tr("Drives and projects");
+            CheckButton {
+                text: @tr("Scan");
+                primary: true;
+                enabled: Inventory.drive-count > 0;
+                clicked => { Inventory.scan(); }
+            }
+        }
+        Text {
+            text: @tr("DRIVES");
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            color: Theme.muted;
+        }
+        if Inventory.drives.length == 0: Text {
+            text: @tr("No drive with “Avid MediaFiles/MXF” found.");
+            color: Theme.muted;
+        }
+        if Inventory.drives.length > 0: ScrollBox {
+            limit: 4 * 26px + 3 * 2px;
+            spacing: 2px;
+            for d[i] in Inventory.drives: HorizontalLayout {
+                height: 26px;
+                spacing: 10px;
+                Text {
+                    text: d.name;
+                    horizontal-stretch: 1;
+                    overflow: elide;
+                    vertical-alignment: center;
+                    color: d.selected ? Theme.text : Theme.muted;
+                }
+                VerticalLayout {
+                    alignment: center;
+                    Switch {
+                        on: d.selected;
+                        label: d.name;
+                        toggled => { Inventory.toggle-drive(i); }
+                    }
+                }
+            }
+        }
+        Text {
+            text: @tr("PROJECTS");
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            color: Theme.muted;
+        }
+        if Projects.projects.length == 0: Para {
+            text: @tr("Choose the folder with your Avid projects under Projects. Without projects, the files are only sorted into media and renders – nothing can be called unused.");
+        }
+        if Projects.projects.length > 0: ScrollBox {
+            limit: 4 * 26px + 3 * 2px;
+            spacing: 2px;
+            for p[i] in Projects.projects: HorizontalLayout {
+                height: 26px;
+                spacing: 10px;
+                Text {
+                    text: p.name;
+                    horizontal-stretch: 1;
+                    overflow: elide;
+                    vertical-alignment: center;
+                    color: p.selected ? Theme.text : Theme.muted;
+                }
+                VerticalLayout {
+                    alignment: center;
+                    Switch {
+                        on: p.selected;
+                        label: p.name;
+                        toggled => { Projects.toggle(i); }
+                    }
+                }
+            }
+        }
+        Para {
+            text: @tr("Lists every media file on the switched-on drives with its clip, codec and size, and sorts out render files. A file the switched-on projects do not use is unused – media of other projects on the same drives would count as unused too. Nothing is changed.");
+        }
+        if Inventory.error != "": Text {
+            text: Inventory.error;
+            wrap: word-wrap;
+            font-size: 12px;
+            color: Theme.error;
+        }
+    }
+
+    // ── liest ──
+    if Inventory.step == 1: VerticalLayout {
+        spacing: 14px;
+        PageHead {
+            title: @tr("Reading media files…");
+            CheckButton {
+                text: @tr("Stop");
+                clicked => { Inventory.stop(); }
+            }
+        }
+        ProgressBar { value: Inventory.work-value; }
+        StatusLine {
+            text: Inventory.work-text;
+            color: Theme.muted;
+        }
+        Para {
+            text: @tr("The first scan reads the header of every media file; later scans only read new or changed files.");
+        }
+    }
+
+    // ── Übersicht ──
+    if Inventory.view == 1 && Inventory.step == 2: VerticalLayout {
+        spacing: 14px;
+        PageHead {
+            title: @tr("{n} media file" | "{n} media files" % Inventory.files) + " · " + Inventory.total;
+            CheckButton {
+                text: @tr("Show table…");
+                primary: true;
+                clicked => { Inventory.show-table(); }
+            }
+        }
+        if Inventory.projects > 0: VerticalLayout {
+            spacing: 2px;
+            CountRow { name: @tr("Media in use"); count: Inventory.counts[0]; size: Inventory.sizes[0]; }
+            CountRow { name: @tr("Renders in use"); count: Inventory.counts[1]; size: Inventory.sizes[1]; }
+            CountRow { name: @tr("Media not used"); count: Inventory.counts[2]; size: Inventory.sizes[2]; warn: true; }
+            CountRow { name: @tr("Renders not used"); count: Inventory.counts[3]; size: Inventory.sizes[3]; warn: true; }
+            CountRow { name: @tr("Unknown"); count: Inventory.counts[4]; size: Inventory.sizes[4]; }
+        }
+        if Inventory.projects == 0: VerticalLayout {
+            spacing: 2px;
+            CountRow { name: @tr("Media"); count: Inventory.counts[5]; size: Inventory.sizes[5]; }
+            CountRow { name: @tr("Renders"); count: Inventory.counts[6]; size: Inventory.sizes[6]; }
+            CountRow { name: @tr("Unknown"); count: Inventory.counts[4]; size: Inventory.sizes[4]; }
+        }
+        Para {
+            text: Inventory.projects == 0 ? @tr("No project was switched on, so nothing can be called unused.") : @tr("Used or not: by the bins of {n} project." | "Used or not: by the bins of {n} projects." % Inventory.projects);
+        }
+        if Inventory.failed-bins > 0: Para {
+            text: @tr("{n} bin could not be read – what only it uses counts as unused." | "{n} bins could not be read – what only they use counts as unused." % Inventory.failed-bins);
+            color: Theme.warning;
+        }
+        if Inventory.unreadable > 0: Para {
+            text: @tr("{n} file could not be read." | "{n} files could not be read." % Inventory.unreadable);
+            color: Theme.warning;
+        }
+        Para {
+            text: @tr("Renders are recognised by the mark Media Composer writes into them, or by the effect that uses them. A file nothing tells apart stays unknown and is never moved as media or render.");
+            color: Theme.faint;
+        }
+    }
+}
+
 export enum Page { home, working, result, rename, question, notice, rebalance, rebalanced, runs, askname, dups, dupsdone,
-    maintain, rebalstart, dupsstart, exchange, projects, tasks }
+    maintain, rebalstart, dupsstart, exchange, projects, tasks, media }
 
 // Schritt in der Seitenleiste: Name und darunter klein sein Stand (Variante C: keine Ziffern, kein Häkchen)
 export struct SideStep {
@@ -1500,7 +1735,7 @@ export struct RebalRow {
 }
 
 export component AppWindow inherits CheckWindow {
-    title: root.tab == 0 ? @tr("Exchange") : root.tab == 1 ? @tr("Check") : root.tab == 2 ? @tr("Projects") : root.tab == 3 ? @tr("Maintain") : @tr("Tasks");
+    title: root.tab == 0 ? @tr("Exchange") : root.tab == 1 ? @tr("Check") : root.tab == 2 ? @tr("Projects") : root.tab == 3 ? @tr("Maintain") : root.tab == 5 ? @tr("Media") : @tr("Tasks");
     width: 800px;
     // nie höher als der Bildschirm (Rust: nutzbare Höhe minus Titelleiste); längere Seiten scrollen
     in property <length> screen-height: 100000px;
@@ -1511,7 +1746,7 @@ export component AppWindow inherits CheckWindow {
 
     in property <string> language: "en";
     in-out property <Page> page: Page.home;
-    // Reiter: 0 Austausch, 1 Prüfen, 2 Projekte, 3 Pflegen, 4 Aufgaben; jeder merkt sich seine Seite
+    // Reiter: 0 Austausch, 1 Prüfen, 2 Projekte, 3 Pflegen, 4 Aufgaben, 5 Medien; jeder merkt sich seine Seite
     in-out property <int> tab: 1;
     property <int> step;
     property <Page> page0: Page.exchange;
@@ -1519,6 +1754,7 @@ export component AppWindow inherits CheckWindow {
     property <Page> page2: Page.projects;
     property <Page> page3: Page.maintain;
     property <Page> page4: Page.tasks;
+    property <Page> page5: Page.media;
     in-out property <bool> has-result;
     // erster Start: Überblick über die Reiter (Rust merkt sich das Schließen in welcome-seen)
     in-out property <bool> show-welcome;
@@ -1530,6 +1766,7 @@ export component AppWindow inherits CheckWindow {
         if p == Page.home || p == Page.result { return 1; }
         if p == Page.projects { return 2; }
         if p == Page.tasks { return 4; }
+        if p == Page.media { return 5; }
         if p == Page.working || p == Page.notice { return -1; }
         return 3;
     }
@@ -1547,6 +1784,7 @@ export component AppWindow inherits CheckWindow {
         if t == 1 { return s == 1 && root.has-result ? Page.result : Page.home; }
         if t == 2 { return Page.projects; }
         if t == 4 { return Page.tasks; }
+        if t == 5 { return Page.media; }
         return s == 1 ? Page.rebalstart : s == 2 ? Page.dupsstart : s == 3 ? Page.runs : Page.maintain;
     }
     // Rust: „zurück zum Anfang“ = Anfang des Schritts, in dem man gerade ist
@@ -1556,7 +1794,7 @@ export component AppWindow inherits CheckWindow {
     }
     function select-tab(t: int) {
         root.tab = t;
-        root.page = t == 0 ? root.page0 : t == 1 ? root.page1 : t == 2 ? root.page2 : t == 3 ? root.page3 : root.page4;
+        root.page = t == 0 ? root.page0 : t == 1 ? root.page1 : t == 2 ? root.page2 : t == 3 ? root.page3 : t == 5 ? root.page5 : root.page4;
         if root.step-of(root.page) >= 0 { root.step = root.step-of(root.page); }
     }
     changed page => {
@@ -1569,6 +1807,7 @@ export component AppWindow inherits CheckWindow {
         if root.tab == 2 { root.page2 = root.page; }
         if root.tab == 3 { root.page3 = root.page; }
         if root.tab == 4 { root.page4 = root.page; }
+        if root.tab == 5 { root.page5 = root.page; }
     }
     property <int> runs-open: root.rebalance-pending + root.dup-pending;
     property <[SideStep]> steps: root.tab == 0 ? [
@@ -1589,6 +1828,9 @@ export component AppWindow inherits CheckWindow {
             { name: @tr("Rebalancing"), status: root.rebalance-pending > 0 ? @tr("databases pending") : "", enabled: true },
             { name: @tr("Duplicates"), status: root.dup-pending > 0 ? @tr("databases pending") : "", enabled: true },
             { name: @tr("History"), status: root.rebalanced.length + root.dup-runs.length == 0 ? "" : @tr("{n} run" | "{n} runs" % (root.rebalanced.length + root.dup-runs.length)), enabled: true },
+        ] : root.tab == 5 ? [
+            { name: @tr("Drives and projects"), status: @tr("{} of {} on", Inventory.drive-count, Inventory.drives.length), enabled: true },
+            { name: @tr("Overview"), status: Inventory.step == 1 ? @tr("reading…") : Inventory.step != 2 ? "" : @tr("{n} file" | "{n} files" % Inventory.files), enabled: Inventory.step == 2 },
         ] : [
             { name: @tr("Open"), status: Tasks.open.length == 0 ? "" : Tasks.open.length, enabled: true },
             { name: @tr("Import by hand"), status: @tr("instructions"), enabled: true },
@@ -1736,6 +1978,12 @@ export component AppWindow inherits CheckWindow {
                     clicked => { root.select-tab(2); }
                 }
                 SettingsTab {
+                    icon: @image-url("../assets/tabs/media.png");
+                    text: @tr("Media");
+                    selected: root.tab == 5;
+                    clicked => { root.select-tab(5); }
+                }
+                SettingsTab {
                     icon: @image-url("../assets/tabs/tasks.png");
                     text: @tr("Tasks");
                     selected: root.tab == 4;
@@ -1795,9 +2043,10 @@ export component AppWindow inherits CheckWindow {
                 alignment: start;
                 for st[i] in root.steps: SideItem {
                     step: st;
-                    selected: i == (root.tab == 2 ? Projects.view : root.tab == 0 ? Exchange.view : root.tab == 4 ? Tasks.view : root.step);
+                    selected: i == (root.tab == 2 ? Projects.view : root.tab == 0 ? Exchange.view : root.tab == 4 ? Tasks.view : root.tab == 5 ? Inventory.view : root.step);
                     clicked => {
                         if root.tab == 4 { Tasks.view = i; }
+                        if root.tab == 5 { Inventory.view = i; }
                         if root.tab == 2 { Projects.view = i; }
                         if root.tab == 0 { Exchange.view = i; }
                         root.page = root.start-of(root.tab, i);
@@ -2008,6 +2257,8 @@ export component AppWindow inherits CheckWindow {
         if root.page == Page.exchange: ExchangePane { }
 
         if root.page == Page.tasks: TasksPane { }
+
+        if root.page == Page.media: InventoryPane { }
 
         // ── Fortschritt ────────────────────────────────────────
         if root.page == Page.working: Section {
@@ -3397,6 +3648,259 @@ export component MediaWindow inherits CheckWindow {
                 rows: root.rows;
                 limit: list-area.height;
                 toggle(i) => { root.toggle-group(i); }
+            }
+        }
+    }
+}
+
+// Medientabelle: eigenes, frei skalierbares Fenster; Filtern, Suchen und Sortieren macht Rust (Spalte, aufsteigend)
+component ColumnHead inherits Rectangle {
+    in property <string> text;
+    in property <int> column;
+    in property <int> sorted;
+    in property <bool> up;
+    in property <TextHorizontalAlignment> align: left;
+    callback clicked(int);
+    accessible-role: button;
+    accessible-label: root.text;
+    accessible-action-default => { root.clicked(root.column); }
+    HorizontalLayout {
+        spacing: 3px;
+        if root.align == TextHorizontalAlignment.right: Rectangle { horizontal-stretch: 1; }
+        Text {
+            text: root.text;
+            horizontal-alignment: root.align;
+            vertical-alignment: center;
+            overflow: elide;
+            font-size: 11px;
+            font-weight: 600;
+            color: root.sorted == root.column ? Theme.text : Theme.muted;
+        }
+        if root.sorted == root.column: Text {
+            text: root.up ? "▲" : "▼";
+            vertical-alignment: center;
+            font-size: 8px;
+            color: Theme.text;
+        }
+        if root.align != TextHorizontalAlignment.right: Rectangle { horizontal-stretch: 1; }
+    }
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(root.column); }
+    }
+}
+
+component Cell inherits Text {
+    vertical-alignment: center;
+    overflow: elide;
+    font-size: 12px;
+}
+
+export component MediaTableWindow inherits CheckWindow {
+    title: @tr("Media table");
+    preferred-width: 1400px;
+    preferred-height: 760px;
+    min-width: 760px;
+    min-height: 420px;
+    in property <[MediaRow]> rows;
+    // Zahlen der Filter: 0 alle, 1 Medien, 2 Renders, 3 unbenutzt, 4 unbekannt
+    in property <[int]> filter-counts: [0, 0, 0, 0, 0];
+    in-out property <int> filter;
+    in property <bool> with-projects;
+    in property <int> sort-column;
+    in property <bool> sort-up: true;
+    in property <int> selected;
+    in property <string> selected-size;
+    callback filter-changed(int);
+    callback search(string);
+    callback sort(int);
+    callback toggle(int);
+    callback select-all();
+    callback select-none();
+    callback save-list();
+    callback close();
+
+    // Spaltenbreiten (Clip und Datei teilen sich den Rest)
+    property <length> w-mark: 22px;
+    property <length> w-kind: 70px;
+    property <length> w-from: 110px;
+    property <length> w-used: 54px;
+    property <length> w-codec: 110px;
+    property <length> w-pic: 92px;
+    property <length> w-fps: 52px;
+    property <length> w-dur: 96px;
+    property <length> w-sound: 110px;
+    property <length> w-size: 72px;
+    property <length> w-project: 110px;
+    property <length> w-place: 170px;
+    property <length> fixed: w-mark + w-kind + w-from + w-used + w-codec + w-pic + w-fps + w-dur + w-sound + w-size + w-project + w-place + 13 * 8px;
+    // schmaleres Fenster: die Tabelle scrollt waagerecht, Clip und Datei behalten 160 px
+    property <length> table-width: max(root.width - 2 * 20px - 2px, root.fixed + 2 * 160px);
+    property <length> w-clip: (root.table-width - root.fixed) * 0.5;
+    property <length> w-file: (root.table-width - root.fixed) * 0.5;
+
+    VerticalLayout {
+        padding: 20px;
+        spacing: 12px;
+        HorizontalLayout {
+            spacing: 6px;
+            for f[i] in [@tr("All"), @tr("Media"), @tr("Renders"), @tr("Not used"), @tr("Unknown")]: Rectangle {
+                visible: i != 3 || root.with-projects;
+                width: self.visible ? label.preferred-width + 20px : 0px;
+                height: 26px;
+                border-radius: 6px;
+                background: root.filter == i ? Theme.selection : touch.has-hover ? Theme.selection.with-alpha(0.5) : transparent;
+                accessible-role: tab;
+                accessible-label: f;
+                accessible-checked: root.filter == i;
+                accessible-action-default => { root.filter = i; root.filter-changed(i); }
+                label := Text {
+                    text: f + "  " + root.filter-counts[i];
+                    font-size: 12px;
+                    color: root.filter == i ? Theme.text : Theme.muted;
+                }
+                touch := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.filter = i; root.filter-changed(i); }
+                }
+            }
+            Rectangle { horizontal-stretch: 1; }
+            Rectangle {
+                width: 240px;
+                height: 26px;
+                border-radius: 6px;
+                border-width: 1px;
+                border-color: search.has-focus ? Theme.text : Theme.line;
+                search := TextInput {
+                    x: 8px;
+                    width: parent.width - 16px;
+                    vertical-alignment: center;
+                    font-size: 12px;
+                    color: Theme.text;
+                    accessible-label: @tr("Search");
+                    edited => { root.search(self.text); }
+                }
+                if search.text == "": Text {
+                    x: 8px;
+                    text: @tr("Search clip, file, codec, project…");
+                    vertical-alignment: center;
+                    font-size: 12px;
+                    color: Theme.faint;
+                }
+            }
+        }
+        table-area := Rectangle {
+            vertical-stretch: 1;
+            border-width: 1px;
+            border-color: Theme.line;
+            border-radius: 6px;
+            clip: true;
+            Flickable {
+                x: 1px;
+                y: 1px;
+                width: table-area.width - 2px;
+                height: table-area.height - 2px;
+                viewport-width: root.table-width;
+                viewport-height: self.height;
+                VerticalLayout {
+                    width: root.table-width;
+                    height: table-area.height;
+                    Rectangle {
+                        height: 30px;
+                        background: Theme.sidebar;
+                        HorizontalLayout {
+                            padding-left: 8px;
+                            padding-right: 8px;
+                            spacing: 8px;
+                            Rectangle { width: root.w-mark; }
+                            ColumnHead { width: root.w-clip; text: @tr("Clip"); column: 0; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
+                            ColumnHead { width: root.w-kind; text: @tr("Kind"); column: 1; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
+                            ColumnHead { width: root.w-from; text: @tr("Known by"); column: 2; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
+                            ColumnHead { width: root.w-used; text: @tr("Used"); column: 3; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
+                            ColumnHead { width: root.w-codec; text: @tr("Codec"); column: 4; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
+                            ColumnHead { width: root.w-pic; text: @tr("Picture"); column: 5; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
+                            ColumnHead { width: root.w-fps; text: "fps"; column: 6; sorted: root.sort-column; up: root.sort-up; align: right; clicked(c) => { root.sort(c); } }
+                            ColumnHead { width: root.w-dur; text: @tr("Duration"); column: 7; sorted: root.sort-column; up: root.sort-up; align: right; clicked(c) => { root.sort(c); } }
+                            ColumnHead { width: root.w-sound; text: @tr("Sound"); column: 8; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
+                            ColumnHead { width: root.w-size; text: @tr("Size"); column: 9; sorted: root.sort-column; up: root.sort-up; align: right; clicked(c) => { root.sort(c); } }
+                            ColumnHead { width: root.w-project; text: @tr("Project"); column: 10; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
+                            ColumnHead { width: root.w-place; text: @tr("Drive / folder"); column: 11; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
+                            ColumnHead { width: root.w-file; text: @tr("File"); column: 12; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
+                        }
+                    }
+                    Rectangle { height: 1px; background: Theme.line; }
+                    ListView {
+                        vertical-stretch: 1;
+                        for r[i] in root.rows: Rectangle {
+                            height: 24px;
+                            background: r.selected ? Theme.selection : row-touch.has-hover ? Theme.selection.with-alpha(0.4) : transparent;
+                            accessible-role: list-item;
+                            accessible-label: r.clip != "" ? r.clip : r.file;
+                            accessible-checked: r.selected;
+                            accessible-action-default => { root.toggle(i); }
+                            HorizontalLayout {
+                                padding-left: 8px;
+                                padding-right: 8px;
+                                spacing: 8px;
+                                Cell { width: root.w-mark; text: r.selected ? "✓" : ""; horizontal-alignment: center; color: Theme.text; }
+                                Cell { width: root.w-clip; text: r.clip; color: r.clip == "" ? Theme.faint : Theme.text; }
+                                Cell {
+                                    width: root.w-kind;
+                                    text: r.kind == 0 ? @tr("Media") : r.kind == 1 ? @tr("Render") : @tr("Unknown");
+                                    font-weight: r.kind == 1 ? 600 : 400;
+                                    color: r.kind == 2 ? Theme.warning : Theme.text;
+                                }
+                                Cell { width: root.w-from; text: r.from == 0 ? @tr("header") : r.from == 1 ? @tr("project") : "–"; color: Theme.muted; }
+                                Cell {
+                                    width: root.w-used;
+                                    text: r.used == 1 ? @tr("yes") : r.used == 0 ? @tr("no") : "–";
+                                    font-weight: r.used == 0 ? 600 : 400;
+                                    color: r.used == 0 ? Theme.warning : Theme.muted;
+                                }
+                                Cell { width: root.w-codec; text: r.codec; color: Theme.muted; }
+                                Cell { width: root.w-pic; text: r.picture; color: Theme.muted; }
+                                Cell { width: root.w-fps; text: r.fps; horizontal-alignment: right; color: Theme.muted; }
+                                Cell { width: root.w-dur; text: r.duration; horizontal-alignment: right; color: Theme.muted; }
+                                Cell { width: root.w-sound; text: r.sound; color: Theme.muted; }
+                                Cell { width: root.w-size; text: r.size; horizontal-alignment: right; color: Theme.muted; }
+                                Cell { width: root.w-project; text: r.project; color: Theme.muted; }
+                                Cell { width: root.w-place; text: r.place; color: Theme.muted; }
+                                Cell { width: root.w-file; text: r.file; color: Theme.muted; }
+                            }
+                            row-touch := TouchArea {
+                                clicked => { root.toggle(i); }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            Text {
+                text: root.selected == 0 ? @tr("{n} file shown" | "{n} files shown" % root.rows.length) : @tr("{n} selected" | "{n} selected" % root.selected) + " · " + root.selected-size;
+                horizontal-stretch: 1;
+                vertical-alignment: center;
+                overflow: elide;
+                font-size: 12px;
+                color: Theme.muted;
+            }
+            CheckButton {
+                text: @tr("Select all shown");
+                clicked => { root.select-all(); }
+            }
+            if root.selected > 0: CheckButton {
+                text: @tr("Clear selection");
+                clicked => { root.select-none(); }
+            }
+            CheckButton {
+                text: @tr("Save list…");
+                clicked => { root.save-list(); }
+            }
+            CheckButton {
+                text: @tr("Done");
+                primary: true;
+                clicked => { root.close(); }
             }
         }
     }
