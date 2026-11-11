@@ -135,32 +135,43 @@ pub fn scan(drives: &[PathBuf], cache: Option<&Path>, progress: &(dyn Fn(usize, 
         .collect();
     let (total, done) = (items.len(), AtomicUsize::new(items.len() - todo.len()));
     progress(done.load(Ordering::Relaxed), total);
-    // headers are small; a few readers in parallel keep a network drive busy
-    let next = AtomicUsize::new(0);
-    let results: Mutex<Vec<(usize, Result<mxf::Info, String>)>> = Mutex::new(vec![]);
-    std::thread::scope(|s| {
-        for _ in 0..4 {
-            s.spawn(|| {
-                loop {
-                    if stop.load(Ordering::Relaxed) {
-                        break;
-                    }
-                    let n = next.fetch_add(1, Ordering::Relaxed);
-                    let Some(&i) = todo.get(n) else { break };
-                    let r = mxf::file_info(&items[i].path);
-                    results.lock().unwrap().push((i, r));
-                    progress(done.fetch_add(1, Ordering::Relaxed) + 1, total);
-                }
-            });
+    // headers are small; a few readers in parallel keep a network drive busy. In chunks: after each one the cache is
+    // saved (at most once a minute), so a long first scan that is stopped keeps what it read.
+    let mut saved = std::time::Instant::now();
+    for chunk in todo.chunks(500) {
+        if stop.load(Ordering::Relaxed) {
+            break;
         }
-    });
-    for (i, r) in results.into_inner().unwrap() {
-        match r {
-            Ok(info) => {
-                cached.files.insert(items[i].path.to_string_lossy().into_owned(), (items[i].size, items[i].modified, info.clone()));
-                items[i].info = Some(info);
+        let next = AtomicUsize::new(0);
+        let results: Mutex<Vec<(usize, Result<mxf::Info, String>)>> = Mutex::new(vec![]);
+        std::thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(|| {
+                    loop {
+                        if stop.load(Ordering::Relaxed) {
+                            break;
+                        }
+                        let n = next.fetch_add(1, Ordering::Relaxed);
+                        let Some(&i) = chunk.get(n) else { break };
+                        let r = mxf::file_info(&items[i].path);
+                        results.lock().unwrap().push((i, r));
+                        progress(done.fetch_add(1, Ordering::Relaxed) + 1, total);
+                    }
+                });
             }
-            Err(e) => items[i].error = Some(e),
+        });
+        for (i, r) in results.into_inner().unwrap() {
+            match r {
+                Ok(info) => {
+                    cached.files.insert(items[i].path.to_string_lossy().into_owned(), (items[i].size, items[i].modified, info.clone()));
+                    items[i].info = Some(info);
+                }
+                Err(e) => items[i].error = Some(e),
+            }
+        }
+        if let Some(c) = cache.filter(|_| saved.elapsed() > std::time::Duration::from_secs(60)) {
+            save_cache(c, &cached);
+            saved = std::time::Instant::now();
         }
     }
     if stop.load(Ordering::Relaxed) {
@@ -177,15 +188,19 @@ pub fn scan(drives: &[PathBuf], cache: Option<&Path>, progress: &(dyn Fn(usize, 
         let scanned: Vec<String> = drives.iter().map(|d| d.to_string_lossy().into_owned()).collect();
         let present: std::collections::HashSet<String> = items.iter().map(|i| i.path.to_string_lossy().into_owned()).collect();
         cached.files.retain(|p, _| present.contains(p) || !scanned.iter().any(|d| p.starts_with(d.as_str())));
-        // comfort only: without the cache the next scan reads the headers again
-        if let Ok(b) = serde_json::to_vec(&cached) {
-            let tmp = c.with_extension("tmp");
-            if fs::write(&tmp, b).is_ok() {
-                let _ = fs::rename(&tmp, c);
-            }
-        }
+        save_cache(c, &cached);
     }
     items
+}
+
+/// Comfort only: without the cache the next scan reads the headers again.
+fn save_cache(c: &Path, cached: &Cache) {
+    if let Ok(b) = serde_json::to_vec(cached) {
+        let tmp = c.with_extension("tmp");
+        if fs::write(&tmp, b).is_ok() {
+            let _ = fs::rename(&tmp, c);
+        }
+    }
 }
 
 /// Sets kind and use of every item from its header and, if projects were read, from `refs`.
