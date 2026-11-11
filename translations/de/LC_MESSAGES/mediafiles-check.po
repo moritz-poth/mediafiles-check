@@ -8,6 +8,81 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+msgid "{} render files to the render drive, {} media files to the import drive"
+msgstr "{} Render-Dateien aufs Render-Laufwerk, {} Mediendateien aufs Import-Laufwerk"
+
+msgid "Files no switched-on project uses"
+msgstr "Dateien, die kein eingeschaltetes Projekt benutzt"
+
+msgid "Every file is copied and the copy checked by checksum; the original goes into “MediaFiles Check Aside” on its drive – delete that folder yourself once all works."
+msgstr "Jede Datei wird kopiert und die Kopie per Prüfsumme geprüft; das Original kommt nach „MediaFiles Check Aside“ auf seinem Laufwerk – lösche diesen Ordner selbst, wenn alles läuft."
+
+msgid "Afterwards the databases of the changed folders have to be rewritten. Everything can be undone under History."
+msgstr "Danach müssen die Datenbanken der geänderten Ordner neu geschrieben werden. Unter Verlauf lässt sich alles rückgängig machen."
+
+msgid "The files go into “MediaFiles Check Aside” on their drive – Media Composer no longer sees them. Only the switched-on projects count: media of other projects on these drives would go offline."
+msgstr "Die Dateien kommen nach „MediaFiles Check Aside“ auf ihrem Laufwerk – Media Composer sieht sie dann nicht mehr. Es zählen nur die eingeschalteten Projekte: Medien anderer Projekte auf diesen Laufwerken gingen offline."
+
+msgid "Moving files…"
+msgstr "Dateien werden verschoben…"
+
+msgid "Render drive"
+msgstr "Render-Laufwerk"
+
+msgid "Import drive"
+msgstr "Import-Laufwerk"
+
+msgid "Swap…"
+msgstr "Tauschen…"
+
+msgid "Swap"
+msgstr "Tauschen"
+
+msgid "Media › History"
+msgstr "Medien › Verlauf"
+
+msgid "Render files go into folders like “Mac Studio-renderfiles-1” next to their folder, at most {} files each (Settings → Rebalancing). Within a drive nothing is copied."
+msgstr "Render-Dateien kommen in Ordner wie „Mac Studio-renderfiles-1“ neben ihrem Ordner, höchstens {} je Ordner (Einstellungen → Rebalancing). Innerhalb eines Laufwerks wird nichts kopiert."
+
+msgid "Render files to the render drive, media to the import drive"
+msgstr "Render-Dateien aufs Render-Laufwerk, Medien aufs Import-Laufwerk"
+
+msgid "Set files aside"
+msgstr "Dateien beiseitelegen"
+
+msgid "Every file is copied, the copy checked by checksum, then the original deleted."
+msgstr "Jede Datei wird kopiert, die Kopie per Prüfsumme geprüft und dann das Original gelöscht."
+
+msgid "Set aside…"
+msgstr "Beiseitelegen…"
+
+msgid "Cancel leaves the databases as they are – you can start it later under Media › History."
+msgstr "Abbrechen lässt die Datenbanken, wie sie sind – du kannst es später unter Medien › Verlauf starten."
+
+msgid "Separate"
+msgstr "Trennen"
+
+msgid "Separate…"
+msgstr "Trennen…"
+
+msgid "Choose two different drives."
+msgstr "Wähle zwei verschiedene Laufwerke."
+
+msgid "Each file goes into a folder of the same name on the other drive. Unknown files stay where they are."
+msgstr "Jede Datei kommt in einen Ordner mit demselben Namen auf dem anderen Laufwerk. Unbekannte Dateien bleiben, wo sie sind."
+
+msgid "Files moved"
+msgstr "Dateien verschoben"
+
+msgid "Render files into folders of their own"
+msgstr "Render-Dateien in eigene Ordner"
+
+msgid "Delete each original after its copy is checked"
+msgstr "Original nach geprüfter Kopie löschen"
+
+msgid "Swap render files and media"
+msgstr "Render-Dateien und Medien tauschen"
+
 msgid "DRIVES"
 msgstr "LAUFWERKE"
 

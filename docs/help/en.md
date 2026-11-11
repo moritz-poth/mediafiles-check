@@ -8,6 +8,7 @@ MediaFiles Check looks after the Avid media files (MXF) of your edit systems:
 - **Check** compares every folder in `Avid MediaFiles/MXF` with its Avid database and shows where the two don't match.
 - **Maintain** has the tools that change something: rename folders for Media Composer, rebalancing, duplicates, and their history.
 - **Projects** finds the media files the bins of your Avid projects need that are on none of the drives, and requests them.
+- **Media** lists every media file with clip, codec and size, separates render files and sets unused files aside.
 - **Tasks** collects everything that has to be done by hand.
 
 MediaFiles Check **never deletes** a media file and **never overwrites** one. Checking only reads.
@@ -134,6 +135,25 @@ Good to know:
 - Files without an Avid media reference (e.g. imported via AAF) are counted separately; the exchange only finds them if the other system has them in Avid MediaFiles.
 - Camera sound tracks that never had a media file, and missing render files, are only counted.
 - A drive that does not answer for 30 seconds is skipped and named in the result.
+
+## Media
+
+1. Media › **Drives and projects**: switch on the drives and the projects whose bins count, then **Scan**. The first scan reads the header of every media file; later ones only new or changed files.
+2. **Overview** counts media and renders, in use or not. **Show table…** opens the media table: every file with clip, kind, codec, picture, fps, duration, sound, size, project and folder – filter, search, sort by a column, select files, **Save list…**.
+
+How a file is sorted:
+
+- **Render**: Media Composer marks every render file in its header; a render an effect still uses is also known from the bins.
+- **Media**: everything else Media Composer or another program wrote. A file nothing tells apart stays **Unknown** and is never moved by a rule.
+- **Not used**: no clip, sequence or effect of the switched-on projects uses it. Media of other projects on the same drives count as unused too – switch on every project that uses these drives.
+
+Actions (Media Composer must be closed):
+
+- **Render files into folders of their own**: render files go into folders like `Mac Studio-renderfiles-1` next to their folder, at most as many as the rebalancing limit allows.
+- **Swap**: choose the import drive and the render drive. Render files on the import drive go to the render drive, media on the render drive to the import drive, each into a folder of the same name. Every file is copied and the copy checked by checksum; then the original is deleted or put into `MediaFiles Check Aside` – you choose each time.
+- **Set aside**: unused files, or the files selected in the table, go into `MediaFiles Check Aside` on their drive.
+
+Nothing is ever overwritten; a file changed since the scan stays where it is. Afterwards the databases of the changed folders are rewritten as for rebalancing. Media › **History** lists every run: **Rewrite databases**, **Undo**.
 
 ## Tasks
 

@@ -8,6 +8,7 @@ MediaFiles Check prend soin des fichiers média Avid (MXF) de vos postes de mont
 - **Vérifier** compare chaque dossier de `Avid MediaFiles/MXF` à sa base de données Avid et montre où les deux ne concordent pas.
 - **Entretien** regroupe les outils qui modifient quelque chose : renommer des dossiers pour Media Composer, rééquilibrage, doublons et leur historique.
 - **Projets** trouve les fichiers média dont les chutiers de vos projets Avid ont besoin et qui ne sont sur aucun disque, et les demande.
+- **Médias** liste chaque fichier média avec clip, codec et taille, sépare les fichiers de rendu et met de côté les fichiers inutilisés.
 - **Tâches** réunit tout ce qu’il faut faire à la main.
 
 MediaFiles Check **ne supprime jamais** un fichier média et **n’en écrase jamais**. Vérifier ne fait que lire.
@@ -134,6 +135,25 @@ Bon à savoir :
 - Les fichiers sans référence média Avid (p. ex. importés par AAF) sont comptés à part ; l’échange ne les trouve que si l’autre poste les a dans Avid MediaFiles.
 - Les pistes son de caméra qui n’ont jamais eu de fichier média et les fichiers de rendu manquants sont seulement comptés.
 - Un disque qui ne répond pas pendant 30 secondes est ignoré et nommé dans le résultat.
+
+## Médias
+
+1. Médias › **Disques et projets** : activez les disques et les projets dont les chutiers comptent, puis **Analyser**. La première analyse lit l’en-tête de chaque fichier média ; les suivantes seulement les fichiers nouveaux ou modifiés.
+2. **Vue d’ensemble** compte médias et rendus, utilisés ou non. **Afficher le tableau…** ouvre le tableau des médias : chaque fichier avec clip, type, codec, image, fps, durée, son, taille, projet et dossier – filtrer, chercher, trier par colonne, sélectionner, **Enregistrer la liste…**.
+
+Comment un fichier est classé :
+
+- **Rendu** : Media Composer marque chaque fichier de rendu dans son en-tête ; un rendu qu’un effet utilise encore est aussi connu par les chutiers.
+- **Média** : tout le reste écrit par Media Composer ou un autre programme. Un fichier que rien ne distingue reste **Inconnu** et n’est jamais déplacé par une règle.
+- **Inutilisé** : aucun clip, séquence ou effet des projets activés ne l’utilise. Les médias d’autres projets sur les mêmes disques comptent aussi comme inutilisés – activez chaque projet qui utilise ces disques.
+
+Actions (Media Composer doit être fermé) :
+
+- **Fichiers de rendu dans leurs propres dossiers** : les rendus vont dans des dossiers comme `Mac Studio-renderfiles-1` à côté de leur dossier, au plus autant que la limite de rééquilibrage le permet.
+- **Échanger** : choisissez le disque d’import et le disque de rendu. Les rendus du disque d’import vont sur le disque de rendu, les médias du disque de rendu sur le disque d’import, chaque fois dans un dossier du même nom. Chaque fichier est copié et la copie vérifiée par somme de contrôle ; ensuite l’original est supprimé ou mis dans `MediaFiles Check Aside` – vous choisissez à chaque fois.
+- **Mettre de côté** : les fichiers inutilisés, ou ceux sélectionnés dans le tableau, vont dans `MediaFiles Check Aside` sur leur disque.
+
+Rien n’est jamais écrasé ; un fichier modifié depuis l’analyse reste en place. Ensuite, les bases de données des dossiers modifiés sont réécrites comme pour le rééquilibrage. Médias › **Historique** liste chaque opération : **Réécrire les bases**, **Annuler**.
 
 ## Tâches
 

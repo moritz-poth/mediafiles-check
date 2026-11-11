@@ -8,6 +8,7 @@ MediaFiles Check cuida de los archivos de medios de Avid (MXF) de tus puestos de
 - **Comprobar** compara cada carpeta de `Avid MediaFiles/MXF` con su base de datos de Avid y muestra dónde no coinciden.
 - **Mantenimiento** reúne las herramientas que cambian algo: renombrar carpetas para Media Composer, reequilibrado, duplicados y su historial.
 - **Proyectos** encuentra los archivos de medios que necesitan los bins de tus proyectos de Avid y que no están en ninguna unidad, y los solicita.
+- **Medios** muestra cada archivo de medios con clip, códec y tamaño, separa los archivos de render y aparta los archivos sin usar.
 - **Tareas** recoge todo lo que hay que hacer a mano.
 
 MediaFiles Check **nunca borra** un archivo de medios y **nunca sobrescribe** ninguno. Comprobar solo lee.
@@ -134,6 +135,25 @@ Conviene saber:
 - Los archivos sin referencia de medios de Avid (p. ej. importados por AAF) se cuentan aparte; el intercambio solo los encuentra si el otro puesto los tiene en Avid MediaFiles.
 - Las pistas de sonido de cámara que nunca tuvieron archivo de medios y los archivos de render que faltan solo se cuentan.
 - Una unidad que no responde durante 30 segundos se omite y se nombra en el resultado.
+
+## Medios
+
+1. Medios › **Unidades y proyectos**: activa las unidades y los proyectos cuyos bins cuentan y pulsa **Analizar**. El primer análisis lee la cabecera de cada archivo de medios; los siguientes solo los archivos nuevos o cambiados.
+2. **Resumen** cuenta medios y renders, en uso o no. **Mostrar tabla…** abre la tabla de medios: cada archivo con clip, tipo, códec, imagen, fps, duración, sonido, tamaño, proyecto y carpeta; filtrar, buscar, ordenar por columna, seleccionar archivos, **Guardar lista…**.
+
+Cómo se clasifica un archivo:
+
+- **Render**: Media Composer marca cada archivo de render en su cabecera; un render que un efecto aún usa también se conoce por los bins.
+- **Medio**: todo lo demás que escribió Media Composer u otro programa. Un archivo que nada distingue queda como **Desconocido** y nunca se mueve por una regla.
+- **Sin usar**: ningún clip, secuencia ni efecto de los proyectos activados lo usa. Los medios de otros proyectos en las mismas unidades también cuentan como sin usar; activa todos los proyectos que usan estas unidades.
+
+Acciones (Media Composer debe estar cerrado):
+
+- **Archivos de render en sus propias carpetas**: los renders van a carpetas como `Mac Studio-renderfiles-1` junto a su carpeta, como máximo tantos como permite el límite de reequilibrado.
+- **Intercambiar**: elige la unidad de importación y la de render. Los renders de la unidad de importación van a la de render y los medios de la unidad de render a la de importación, cada uno a una carpeta con el mismo nombre. Cada archivo se copia y la copia se comprueba con una suma de control; después el original se borra o va a `MediaFiles Check Aside`: lo eliges cada vez.
+- **Apartar**: los archivos sin usar, o los seleccionados en la tabla, van a `MediaFiles Check Aside` en su unidad.
+
+Nunca se sobrescribe nada; un archivo cambiado desde el análisis se queda donde está. Después se reescriben las bases de datos de las carpetas cambiadas, como en el reequilibrado. Medios › **Historial** muestra cada operación: **Reescribir bases de datos**, **Deshacer**.
 
 ## Tareas
 

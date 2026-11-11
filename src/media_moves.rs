@@ -222,7 +222,14 @@ pub fn execute(action: Action, steps: &[Step], delete_originals: bool, journal_p
                     out.skipped.push((file_name(&s.from), "the name is taken at the target".into()));
                     continue;
                 }
-                Err(e) => return Err(e),
+                Err(e) => {
+                    // a folder made for this file only goes again; what moved so far is in the journal
+                    if let Some(dir) = s.to.parent() {
+                        let _ = fs::remove_dir(dir);
+                    }
+                    save(&run)?;
+                    return Err(e);
+                }
             }
             run.moved.push((s.from.clone(), s.to.clone(), s.size));
             run.originals.push(None);

@@ -8,6 +8,81 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+msgid "{} render files to the render drive, {} media files to the import drive"
+msgstr "{} archivos de render a la unidad de render, {} archivos de medios a la unidad de importación"
+
+msgid "Files no switched-on project uses"
+msgstr "Archivos que ningún proyecto activado usa"
+
+msgid "Every file is copied and the copy checked by checksum; the original goes into “MediaFiles Check Aside” on its drive – delete that folder yourself once all works."
+msgstr "Cada archivo se copia y la copia se comprueba con una suma de control; el original va a «MediaFiles Check Aside» en su unidad: borra esa carpeta tú mismo cuando todo funcione."
+
+msgid "Afterwards the databases of the changed folders have to be rewritten. Everything can be undone under History."
+msgstr "Después hay que reescribir las bases de datos de las carpetas cambiadas. Todo se puede deshacer en Historial."
+
+msgid "The files go into “MediaFiles Check Aside” on their drive – Media Composer no longer sees them. Only the switched-on projects count: media of other projects on these drives would go offline."
+msgstr "Los archivos van a «MediaFiles Check Aside» en su unidad: Media Composer ya no los ve. Solo cuentan los proyectos activados: los medios de otros proyectos en estas unidades quedarían offline."
+
+msgid "Moving files…"
+msgstr "Moviendo archivos…"
+
+msgid "Render drive"
+msgstr "Unidad de render"
+
+msgid "Import drive"
+msgstr "Unidad de importación"
+
+msgid "Swap…"
+msgstr "Intercambiar…"
+
+msgid "Swap"
+msgstr "Intercambiar"
+
+msgid "Media › History"
+msgstr "Medios › Historial"
+
+msgid "Render files go into folders like “Mac Studio-renderfiles-1” next to their folder, at most {} files each (Settings → Rebalancing). Within a drive nothing is copied."
+msgstr "Los archivos de render van a carpetas como «Mac Studio-renderfiles-1» junto a su carpeta, {} como máximo por carpeta (Ajustes → Reequilibrado). Dentro de una unidad no se copia nada."
+
+msgid "Render files to the render drive, media to the import drive"
+msgstr "Archivos de render a la unidad de render, medios a la de importación"
+
+msgid "Set files aside"
+msgstr "Apartar archivos"
+
+msgid "Every file is copied, the copy checked by checksum, then the original deleted."
+msgstr "Cada archivo se copia, la copia se comprueba con una suma de control y luego se borra el original."
+
+msgid "Set aside…"
+msgstr "Apartar…"
+
+msgid "Cancel leaves the databases as they are – you can start it later under Media › History."
+msgstr "Cancelar deja las bases de datos como están; puedes iniciarlo más tarde en Medios › Historial."
+
+msgid "Separate"
+msgstr "Separar"
+
+msgid "Separate…"
+msgstr "Separar…"
+
+msgid "Choose two different drives."
+msgstr "Elige dos unidades distintas."
+
+msgid "Each file goes into a folder of the same name on the other drive. Unknown files stay where they are."
+msgstr "Cada archivo va a una carpeta con el mismo nombre en la otra unidad. Los archivos desconocidos se quedan donde están."
+
+msgid "Files moved"
+msgstr "Archivos movidos"
+
+msgid "Render files into folders of their own"
+msgstr "Archivos de render en sus propias carpetas"
+
+msgid "Delete each original after its copy is checked"
+msgstr "Borrar el original tras comprobar la copia"
+
+msgid "Swap render files and media"
+msgstr "Intercambiar archivos de render y medios"
+
 msgid "DRIVES"
 msgstr "UNIDADES"
 

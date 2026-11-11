@@ -2,6 +2,7 @@
 //! renders and unknown, used or not by the switched-on projects.
 use super::*;
 use mediafiles_check::inventory::{self, From, Item, Kind};
+use mediafiles_check::media_moves::{self, Action, Step};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 #[derive(Default)]
@@ -21,6 +22,262 @@ pub struct InvState {
     stop: Arc<AtomicBool>,
     /// filled by the scan thread, taken by Inventory.scanned on the event loop
     result: Arc<Mutex<Option<(Vec<Item>, usize, usize)>>>,
+    /// the action being confirmed and its steps; the run just done (for "Start")
+    action: Option<Action>,
+    plan: Vec<Step>,
+    done: Option<media_moves::Run>,
+}
+
+fn journal_path() -> PathBuf {
+    app_dir().unwrap_or_else(|| PathBuf::from(".")).join("media-runs.json")
+}
+
+fn lang_of(app: &AppWindow) -> String {
+    app.get_language().to_string()
+}
+
+/// The History of the Media tab (also read by Tasks for databases still to rewrite).
+pub fn show_runs(app: &AppWindow) {
+    let lang = lang_of(app);
+    let runs: media_moves::Journal = mediafiles_check::duplicates::load(&journal_path()).unwrap_or_default();
+    let rows: Vec<RunRow> = runs
+        .entries
+        .iter()
+        .map(|r| {
+            let what = match r.action {
+                Action::Aside => ["{n} files set aside ({size}) · {date}", "{n} Dateien beiseitegelegt ({size}) · {date}", "{n} fichiers mis de côté ({size}) · {date}", "{n} archivos apartados ({size}) · {date}"],
+                Action::Renderfiles => ["{n} render files into folders of their own ({size}) · {date}", "{n} Render-Dateien in eigene Ordner ({size}) · {date}", "{n} fichiers de rendu dans leurs propres dossiers ({size}) · {date}", "{n} archivos de render en sus propias carpetas ({size}) · {date}"],
+                Action::Swap => ["{n} files moved between the import and the render drive ({size}) · {date}", "{n} Dateien zwischen Import- und Render-Laufwerk verschoben ({size}) · {date}", "{n} fichiers déplacés entre le disque d’import et le disque de rendu ({size}) · {date}", "{n} archivos movidos entre la unidad de importación y la de render ({size}) · {date}"],
+            };
+            let text = pick(&lang, what).replace("{n}", &r.moved.len().to_string()).replace("{size}", &size_text(r.bytes())).replace("{date}", &r.date);
+            RunRow { text: text.into(), db_done: r.db_done }
+        })
+        .collect();
+    app.global::<Inventory>().set_runs(ModelRc::new(VecModel::from(rows)));
+}
+
+/// "drive / folder" of a target folder; everything below "MediaFiles Check Aside" is shown as that folder.
+fn folder_label(dir: &Path) -> String {
+    if dir.components().any(|c| c.as_os_str() == media_moves::ASIDE_DIR) {
+        return media_moves::ASIDE_DIR.to_string();
+    }
+    let name = |p: Option<&Path>| p.and_then(|p| p.file_name()).map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    format!("{} / {}", name(dir.parent().and_then(Path::parent).and_then(Path::parent)), name(Some(dir)))
+}
+
+/// One line per (source folder, target folder) with the number of files.
+fn plan_text(steps: &[Step]) -> String {
+    let mut lines: Vec<(String, usize)> = vec![];
+    for s in steps {
+        let line = format!("{} → {}", s.from.parent().map(folder_label).unwrap_or_default(), s.to.parent().map(folder_label).unwrap_or_default());
+        match lines.iter_mut().find(|l| l.0 == line) {
+            Some(l) => l.1 += 1,
+            None => lines.push((line, 1)),
+        }
+    }
+    lines.iter().map(|(l, n)| format!("{l}  ({n})")).collect::<Vec<_>>().join("\n")
+}
+
+/// Drives the last scan read, in order (for the two-drive choice).
+fn scanned_drives(st: &InvState) -> Vec<PathBuf> {
+    let mut d: Vec<PathBuf> = st.items.iter().filter_map(|i| i.path.ancestors().nth(4).map(Path::to_path_buf)).collect();
+    d.sort();
+    d.dedup();
+    d
+}
+
+fn show_plan(app: &AppWindow, st: &InvState) {
+    let g = app.global::<Inventory>();
+    g.set_plan_count(st.plan.len() as i32);
+    g.set_plan_size(size_text(st.plan.iter().map(|s| s.size).sum()).into());
+    g.set_plan_text(plan_text(&st.plan).into());
+}
+
+/// Plans an action (0 unused aside, 1 renderfiles, 2 two drives, 3 the table's selection aside) and shows it.
+fn prepare(app: &AppWindow, st: &mut InvState, kind: i32, limit: usize) {
+    let g = app.global::<Inventory>();
+    g.set_mc_running(media_composer_running());
+    let all: Vec<&Item> = st.items.iter().collect();
+    let (action, plan) = match kind {
+        // unknown files are never moved by a rule – only when picked in the table
+        0 => (Action::Aside, media_moves::plan_aside(&all.iter().copied().filter(|i| i.used == Some(false) && i.kind != Kind::Unknown).collect::<Vec<_>>())),
+        1 => (Action::Renderfiles, media_moves::plan_renderfiles(&all, rebalance::per_folder(limit))),
+        2 => {
+            let drives = scanned_drives(st);
+            g.set_drive_names(ModelRc::new(VecModel::from(drives.iter().map(|d| SharedString::from(volume_name(d))).collect::<Vec<_>>())));
+            let (a, b) = (g.get_imports().max(0) as usize, g.get_renders().max(0) as usize);
+            let (a, b) = if a < drives.len() && b < drives.len() { (a, b) } else { (0, 1.min(drives.len().saturating_sub(1))) };
+            g.set_imports(a as i32);
+            g.set_renders(b as i32);
+            let plan = if a == b { vec![] } else { media_moves::plan_swap(&all, &drives[a], &drives[b]) };
+            g.set_to_renders(plan.iter().filter(|s| s.from.starts_with(&drives[a])).count() as i32);
+            g.set_to_imports(plan.iter().filter(|s| s.from.starts_with(&drives[b])).count() as i32);
+            (Action::Swap, plan)
+        }
+        _ => (Action::Aside, media_moves::plan_aside(&all.iter().copied().filter(|i| st.selected.contains(&i.path)).collect::<Vec<_>>())),
+    };
+    st.action = Some(action);
+    st.plan = plan;
+    g.set_per_folder(rebalance::per_folder(limit) as i32);
+    // asked anew for every action, kept while the drives are changed
+    if g.get_task() != kind {
+        g.set_delete_originals(false);
+    }
+    show_plan(app, st);
+    g.set_task(kind);
+    g.set_view(1);
+    app.set_page(Page::Media);
+}
+
+fn confirm(app: &AppWindow, inv: &Inv) {
+    if media_composer_running() {
+        app.global::<Inventory>().set_mc_running(true);
+        return;
+    }
+    let (action, steps) = {
+        let st = inv.borrow();
+        let Some(a) = st.action else { return };
+        (a, st.plan.clone())
+    };
+    let delete = app.global::<Inventory>().get_delete_originals() && action == Action::Swap;
+    log::write(&format!("media: {action:?} {} files, delete originals: {delete}", steps.len()));
+    let g = app.global::<Inventory>();
+    g.set_work_value(0.0);
+    g.set_work_text("".into());
+    g.set_task(4);
+    // the table belongs to the scan before the move
+    if let Some(w) = inv.borrow().win.borrow().as_ref() {
+        let _ = w.hide();
+    }
+    let (tx, rx) = std::sync::mpsc::channel();
+    let weak = app.as_weak();
+    std::thread::spawn(move || {
+        let progress_to = weak.clone();
+        let r = media_moves::execute(action, &steps, delete, &journal_path(), &mut |i, n, name| {
+            let (w, name) = (progress_to.clone(), name.to_string());
+            let _ = slint::invoke_from_event_loop(move || {
+                if let Some(w) = w.upgrade() {
+                    let g = w.global::<Inventory>();
+                    g.set_work_value(i as f32 / n.max(1) as f32);
+                    g.set_work_text(name.into());
+                }
+            });
+        });
+        let _ = tx.send(r);
+    });
+    let (timer, weak, inv) = (Rc::new(slint::Timer::default()), app.as_weak(), inv.clone());
+    let t = timer.clone();
+    timer.start(slint::TimerMode::Repeated, Duration::from_millis(200), move || {
+        let Ok(result) = rx.try_recv() else { return };
+        t.stop();
+        let Some(app) = weak.upgrade() else { return };
+        let lang = lang_of(&app);
+        let g = app.global::<Inventory>();
+        show_runs(&app);
+        // files moved: the inventory is out of date
+        g.set_step(0);
+        let mut st = inv.borrow_mut();
+        st.items.clear();
+        st.selected.clear();
+        match result {
+            Err(e) => {
+                log::write(&format!("media: {action:?} failed: {e}"));
+                g.set_task(-1);
+                app.set_notice(ModelRc::new(VecModel::from(vec![notice(3, "media", &e.to_string(), 0)])));
+                app.set_page(Page::Notice);
+            }
+            Ok((run, m)) => {
+                log::write(&format!("media: {} moved, {} skipped", m.moved, m.skipped.len()));
+                for (f, why) in &m.skipped {
+                    log::write(&format!("  skipped {f}: {why}"));
+                }
+                let mut lines = vec![pick(&lang, ["{n} files moved ({size}).", "{n} Dateien verschoben ({size}).", "{n} fichiers déplacés ({size}).", "{n} archivos movidos ({size})."]).replace("{n}", &m.moved.to_string()).replace("{size}", &size_text(run.bytes()))];
+                if !m.skipped.is_empty() {
+                    lines.push(pick(&lang, ["Left where they are:", "Liegen geblieben:", "Laissés en place :", "Se quedaron:"]).to_string());
+                    lines.extend(m.skipped.iter().take(20).map(|(f, why)| format!("· {f} – {why}")));
+                }
+                lines.extend(run.changed.iter().map(|f| format!("· {}", drive_and_folder(f))));
+                g.set_done_summary(lines.join("\n").into());
+                g.set_mc_running(media_composer_running());
+                let has_run = !run.moved.is_empty();
+                st.done = has_run.then_some(run);
+                g.set_task(if has_run { 5 } else { -1 });
+                if !has_run {
+                    app.set_notice(ModelRc::new(VecModel::from(vec![notice(7, &short_list(&m.skipped.iter().map(|s| s.0.clone()).collect::<Vec<_>>()), "", m.skipped.len())])));
+                    app.set_page(Page::Notice);
+                }
+            }
+        }
+    });
+}
+
+/// "Start" after a run (-1) or "Rewrite databases" of a History entry.
+fn rewrite(app: &AppWindow, inv: &Inv, renames: &Rc<RefCell<Renames>>, i: i32) {
+    if media_composer_running() {
+        app.global::<Inventory>().set_mc_running(true);
+        return;
+    }
+    let path = journal_path();
+    let mut rows = vec![];
+    match mediafiles_check::duplicates::load::<media_moves::Journal>(&path) {
+        Err(e) => rows.push(notice(3, "media-runs.json", &e.to_string(), 0)),
+        Ok(mut journal) => {
+            let done = inv.borrow_mut().done.take();
+            let index = usize::try_from(i).ok().or_else(|| done.and_then(|d| journal.entries.iter().position(|r| *r == d)));
+            if let Some(run) = index.and_then(|i| journal.entries.get_mut(i)) {
+                rows = rewrite_folders(&mut renames.borrow_mut(), &run.changed);
+                run.db_done = true;
+                if let Err(e) = mediafiles_check::duplicates::save(&journal, &path) {
+                    rows.push(notice(3, &path.display().to_string(), &e.to_string(), 0));
+                }
+            }
+        }
+    }
+    show_renamed(app, &mut renames.borrow_mut());
+    show_runs(app);
+    app.global::<Inventory>().set_task(-1);
+    app.set_notice(ModelRc::new(VecModel::from(rows)));
+    app.set_page(Page::Notice);
+}
+
+fn undo(app: &AppWindow, renames: &Rc<RefCell<Renames>>, i: i32) {
+    if media_composer_running() {
+        app.global::<Inventory>().set_mc_running(true);
+        return;
+    }
+    let lang = lang_of(app);
+    let path = journal_path();
+    let mut rows = vec![];
+    match mediafiles_check::duplicates::load::<media_moves::Journal>(&path) {
+        Err(e) => rows.push(notice(3, "media-runs.json", &e.to_string(), 0)),
+        Ok(mut journal) => {
+            let Some(run) = journal.entries.get(i as usize).cloned() else { return };
+            match media_moves::undo(&run) {
+                Err(e) => rows.push(notice(3, "media", &e.to_string(), 0)),
+                Ok(u) => {
+                    log::write(&format!("media: undo, {} back, {} skipped", u.moved, u.skipped.len()));
+                    rows.push(notice(5, pick(&lang, ["their folders", "ihre Ordner", "leurs dossiers", "sus carpetas"]), "", u.moved));
+                    if !u.skipped.is_empty() {
+                        rows.push(notice(7, &short_list(&u.skipped.iter().map(|s| s.0.clone()).collect::<Vec<_>>()), "", u.skipped.len()));
+                    }
+                    journal.entries.remove(i as usize);
+                    if let Err(e) = mediafiles_check::duplicates::save(&journal, &path) {
+                        rows.push(notice(3, &path.display().to_string(), &e.to_string(), 0));
+                    }
+                    // databases rewritten after the run no longer fit: rewritten again; otherwise the old ones fit again
+                    if run.db_done {
+                        let changed: Vec<PathBuf> = run.changed.iter().filter(|f| f.is_dir()).cloned().collect();
+                        rows.extend(rewrite_folders(&mut renames.borrow_mut(), &changed));
+                    }
+                }
+            }
+        }
+    }
+    show_renamed(app, &mut renames.borrow_mut());
+    show_runs(app);
+    app.global::<Inventory>().set_step(0);
+    app.set_notice(ModelRc::new(VecModel::from(rows)));
+    app.set_page(Page::Notice);
 }
 
 pub type Inv = Rc<RefCell<InvState>>;
@@ -312,6 +569,12 @@ fn open_table(app: &AppWindow, inv: &Inv, settings: &Rc<RefCell<Settings>>) {
             });
             let (st, ww) = (inv.clone(), app.as_weak());
             m.on_save_list(move || save_list(&ww.unwrap(), &st.borrow()));
+            let ww = app.as_weak();
+            m.on_set_aside(move || {
+                let app = ww.unwrap();
+                app.global::<Inventory>().invoke_prepare(3);
+                let _ = app.show();
+            });
             let mw = m.as_weak();
             m.on_close(move || {
                 let _ = mw.unwrap().hide();
@@ -364,9 +627,30 @@ fn save_list(app: &AppWindow, st: &InvState) {
     }
 }
 
-pub fn wire(app: &AppWindow, inv: &Inv, drives: &Drives, projects: &Rc<RefCell<ProjectsState>>, settings: &Rc<RefCell<Settings>>) {
+pub fn wire(app: &AppWindow, inv: &Inv, drives: &Drives, projects: &Rc<RefCell<ProjectsState>>, settings: &Rc<RefCell<Settings>>, renames: &Rc<RefCell<Renames>>) {
     let g = app.global::<Inventory>();
     show_drives(app, &drives.borrow());
+    show_runs(app);
+    g.on_prepare({
+        let (ww, inv, settings) = (app.as_weak(), inv.clone(), settings.clone());
+        move |k| prepare(&ww.unwrap(), &mut inv.borrow_mut(), k, settings.borrow().limit)
+    });
+    g.on_swap_changed({
+        let (ww, inv, settings) = (app.as_weak(), inv.clone(), settings.clone());
+        move || prepare(&ww.unwrap(), &mut inv.borrow_mut(), 2, settings.borrow().limit)
+    });
+    g.on_confirm({
+        let (ww, inv) = (app.as_weak(), inv.clone());
+        move || confirm(&ww.unwrap(), &inv)
+    });
+    g.on_db({
+        let (ww, inv, renames) = (app.as_weak(), inv.clone(), renames.clone());
+        move |i| rewrite(&ww.unwrap(), &inv, &renames, i)
+    });
+    g.on_undo({
+        let (ww, renames) = (app.as_weak(), renames.clone());
+        move |i| undo(&ww.unwrap(), &renames, i)
+    });
     g.on_toggle_drive({
         let (ww, drives) = (app.as_weak(), drives.clone());
         move |i| toggle_drive(&ww.unwrap(), &drives, i)
@@ -389,6 +673,8 @@ pub fn wire(app: &AppWindow, inv: &Inv, drives: &Drives, projects: &Rc<RefCell<P
             st.selected.retain(|p| present.contains(p));
             st.items = items;
             st.projects = projects;
+            let names: Vec<SharedString> = scanned_drives(&st).iter().map(|d| SharedString::from(volume_name(d))).collect();
+            app.global::<Inventory>().set_drive_names(ModelRc::new(VecModel::from(names)));
             show_overview(&app, &st);
             let g = app.global::<Inventory>();
             g.set_failed_bins(failed as i32);

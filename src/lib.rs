@@ -60,7 +60,8 @@ pub fn move_new(from: &Path, to: &Path) -> std::io::Result<()> {
         let e = std::io::Error::last_os_error();
         match e.raw_os_error() {
             Some(libc::EEXIST) => return Err(taken()),
-            Some(libc::ENOTSUP) | Some(libc::EINVAL) => {}
+            // not supported here (macFUSE answers ENOSYS, e.g. Mountpoint workspaces): the check above stays
+            Some(libc::ENOTSUP) | Some(libc::EINVAL) | Some(libc::ENOSYS) => {}
             _ => return Err(e),
         }
     }

@@ -8,6 +8,7 @@ MediaFiles Check kümmert sich um die Avid-Mediendateien (MXF) deiner Schnittpl�
 - **Prüfen** vergleicht jeden Ordner in `Avid MediaFiles/MXF` mit seiner Avid-Datenbank und zeigt, wo beide nicht zusammenpassen.
 - **Pflegen** enthält die Werkzeuge, die etwas verändern: Ordner für Media Composer umbenennen, Rebalancing, Duplikate und ihr Verlauf.
 - **Projekte** findet die Mediendateien, die die Bins deiner Avid-Projekte brauchen, die aber auf keinem Laufwerk liegen, und fordert sie an.
+- **Medien** listet jede Mediendatei mit Clip, Codec und Größe, trennt Render-Dateien ab und legt unbenutzte Dateien beiseite.
 - **Aufgaben** sammelt alles, was von Hand zu tun ist.
 
 MediaFiles Check **löscht nie** eine Mediendatei und **überschreibt nie** eine. Prüfen liest nur.
@@ -134,6 +135,25 @@ Gut zu wissen:
 - Dateien ohne Avid-Medienverweis (z. B. per AAF importiert) werden extra gezählt; der Austausch findet sie nur, wenn der andere Schnittplatz sie in Avid MediaFiles hat.
 - Kamera-Tonspuren, für die nie eine Mediendatei entstand, und fehlende Render-Dateien werden nur gezählt.
 - Ein Laufwerk, das 30 Sekunden nicht antwortet, wird übersprungen und im Ergebnis genannt.
+
+## Medien
+
+1. Medien › **Laufwerke und Projekte**: Laufwerke und die Projekte einschalten, deren Bins zählen, dann **Scannen**. Der erste Durchlauf liest den Kopf jeder Mediendatei, spätere nur neue oder geänderte Dateien.
+2. **Übersicht** zählt Medien und Renders, benutzt oder nicht. **Tabelle öffnen…** zeigt die Medientabelle: jede Datei mit Clip, Art, Codec, Bild, fps, Dauer, Ton, Größe, Projekt und Ordner – filtern, suchen, nach einer Spalte sortieren, Dateien auswählen, **Liste sichern…**.
+
+So wird eine Datei eingeordnet:
+
+- **Render**: Media Composer markiert jede Render-Datei in ihrem Kopf; ein Render, den ein Effekt noch benutzt, ist auch aus den Bins bekannt.
+- **Medium**: alles andere, was Media Composer oder ein anderes Programm geschrieben hat. Eine Datei, die nichts davon verrät, bleibt **Unbekannt** und wird nie nach einer Regel verschoben.
+- **Unbenutzt**: kein Clip, keine Sequenz und kein Effekt der eingeschalteten Projekte benutzt sie. Medien anderer Projekte auf denselben Laufwerken gelten auch als unbenutzt – schalte jedes Projekt ein, das diese Laufwerke nutzt.
+
+Aktionen (Media Composer muss beendet sein):
+
+- **Render-Dateien in eigene Ordner**: Render-Dateien kommen in Ordner wie `Mac Studio-renderfiles-1` neben ihrem Ordner, höchstens so viele, wie die Rebalancing-Grenze erlaubt.
+- **Tauschen**: Import- und Render-Laufwerk wählen. Render-Dateien auf dem Import-Laufwerk kommen aufs Render-Laufwerk, Medien auf dem Render-Laufwerk aufs Import-Laufwerk, jeweils in einen Ordner mit demselben Namen. Jede Datei wird kopiert und die Kopie per Prüfsumme geprüft; danach wird das Original gelöscht oder nach `MediaFiles Check Aside` gelegt – das wählst du jedes Mal.
+- **Beiseitelegen**: unbenutzte Dateien oder die in der Tabelle ausgewählten kommen nach `MediaFiles Check Aside` auf ihrem Laufwerk.
+
+Es wird nie etwas überschrieben; eine Datei, die sich seit dem Scan geändert hat, bleibt liegen. Danach werden die Datenbanken der geänderten Ordner neu geschrieben wie beim Rebalancing. Medien › **Verlauf** listet jeden Lauf: **Datenbanken neu schreiben**, **Rückgängig**.
 
 ## Aufgaben
 

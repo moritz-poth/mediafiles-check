@@ -741,6 +741,7 @@ enum TaskAct {
     Check(PathBuf),
     Rebalance(i32),
     Dups(i32),
+    Media(i32),
     Renamed,
     Nothing,
 }
@@ -762,6 +763,10 @@ fn show_tasks(app: &AppWindow, acts: &RefCell<Vec<TaskAct>>) {
     for (i, r) in app.get_dup_runs().iter().enumerate().filter(|(_, r)| !r.db_done) {
         live(&mut rows, app.get_txt_task_rewrite(), format!("{} · {}", app.get_txt_task_duplicates(), r.text).into(), app.get_txt_task_start());
         a.push(TaskAct::Dups(i as i32));
+    }
+    for (i, r) in app.global::<Inventory>().get_runs().iter().enumerate().filter(|(_, r)| !r.db_done) {
+        live(&mut rows, app.get_txt_task_rewrite(), format!("{} · {}", app.get_txt_task_media(), r.text).into(), app.get_txt_task_start());
+        a.push(TaskAct::Media(i as i32));
     }
     let renamed = app.get_renamed().row_count();
     if renamed > 0 {
@@ -821,6 +826,7 @@ fn wire_tasks(app: &AppWindow, last: &Last) -> Rc<RefCell<Vec<TaskAct>>> {
                 Some(TaskAct::Check(folder)) => start_check(&app, vec![folder.clone()], last.clone()),
                 Some(TaskAct::Rebalance(r)) => app.invoke_rebalance_db(*r),
                 Some(TaskAct::Dups(r)) => app.invoke_dup_db(*r),
+                Some(TaskAct::Media(r)) => app.global::<Inventory>().invoke_db(*r),
                 Some(TaskAct::Renamed) => app.set_page(Page::Maintain),
                 _ => {}
             }
@@ -2712,8 +2718,10 @@ fn main() -> Result<(), slint::PlatformError> {
                             if let Err(e) = duplicates::save(&journal, &path) {
                                 rows.push(notice(3, &path.display().to_string(), &e.to_string(), 0));
                             }
-                            // the folders got their files back: their databases are rewritten again
-                            rows.extend(rewrite_folders(&mut renames.borrow_mut(), &run.changed));
+                            // databases rewritten after the run no longer fit: rewritten again; otherwise the old ones fit again
+                            if run.db_done {
+                                rows.extend(rewrite_folders(&mut renames.borrow_mut(), &run.changed));
+                            }
                         }
                     }
                 }
@@ -2997,7 +3005,7 @@ fn main() -> Result<(), slint::PlatformError> {
     wire_projects(&app, &projects_state, &settings);
     let inv: inventory_ui::Inv = Rc::default();
     inv.borrow_mut().win = others.table.clone();
-    inventory_ui::wire(&app, &inv, &drives, &projects_state, &settings);
+    inventory_ui::wire(&app, &inv, &drives, &projects_state, &settings, &renames);
 
     app.on_start_media_composer({
         let weak = app.as_weak();
@@ -3043,8 +3051,9 @@ fn main() -> Result<(), slint::PlatformError> {
             #[cfg(target_os = "macos")]
             mac_menu::ensure();
             match app.get_page() {
-                Page::Home | Page::Maintain | Page::Rebalstart | Page::Dupsstart | Page::Runs | Page::Exchange | Page::Projects | Page::Tasks => {
+                Page::Home | Page::Maintain | Page::Rebalstart | Page::Dupsstart | Page::Runs | Page::Exchange | Page::Projects | Page::Tasks | Page::Media => {
                     sync_drives(&app, &drives);
+                    inventory_ui::show_runs(&app);
                     show_renamed(&app, &mut renames.borrow_mut());
                     show_rebalanced(&app, &app.get_language());
                     show_dup_runs(&app, &app.get_language());
@@ -3054,6 +3063,7 @@ fn main() -> Result<(), slint::PlatformError> {
             }
             if app.get_page() != Page::Working {
                 app.set_mc_running(media_composer_running());
+                app.global::<Inventory>().set_mc_running(app.get_mc_running());
             }
         }
     });

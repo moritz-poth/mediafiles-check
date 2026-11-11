@@ -1416,6 +1416,11 @@ component TasksPane inherits VerticalLayout {
 }
 
 // Seiten des Hauptfensters; jede gehört zu einem Reiter (tab-of) und einem Schritt der Seitenleiste (step-of)
+export struct RunRow {
+    text: string,
+    db-done: bool,
+}
+
 // ── Medien: Inventar aller MXF-Dateien, Renders und unbenutzte Dateien ──
 // kind: 0 Medium, 1 Render, 2 unbekannt; from: 0 Dateikopf, 1 Projekt, 2 nichts; used: -1 ohne Projekte, 0 nein, 1 ja
 export struct MediaRow {
@@ -1462,6 +1467,31 @@ export global Inventory {
     callback show-table();
     // Rust intern: das Lesen ist fertig (Ergebnis liegt in Rust bereit)
     callback scanned();
+
+    // Aktion: -1 keine, 0 Unbenutztes beiseitelegen, 1 Renders in eigene Ordner, 2 Renders aufs Render-Laufwerk,
+    // 3 Auswahl der Tabelle beiseitelegen, 4 läuft, 5 fertig
+    in-out property <int> task: -1;
+    in property <int> plan-count;
+    in property <string> plan-size;
+    // betroffene Ordner, eine Zeile je Ziel (Rust)
+    in property <string> plan-text;
+    in property <int> per-folder;
+    // zwei Laufwerke: Namen der gelesenen Laufwerke, gewählte Indizes, je Richtung die Anzahl
+    in property <[string]> drive-names;
+    in-out property <int> imports;
+    in-out property <int> renders: 1;
+    in property <int> to-renders;
+    in property <int> to-imports;
+    in-out property <bool> delete-originals;
+    in property <bool> mc-running;
+    in property <string> done-summary;
+    in property <[RunRow]> runs;
+    callback prepare(int);
+    callback swap-changed();
+    callback confirm();
+    // Datenbanken neu schreiben: -1 der eben fertige Lauf, sonst Eintrag im Verlauf
+    callback db(int);
+    callback undo(int);
 }
 
 component CountRow inherits HorizontalLayout {
@@ -1495,11 +1525,34 @@ component CountRow inherits HorizontalLayout {
     }
 }
 
+// Zeile mit kurzem Text links und Knopf rechts
+component ActionRow inherits HorizontalLayout {
+    in property <string> text;
+    in property <string> button;
+    in property <bool> enabled: true;
+    callback clicked();
+    spacing: 10px;
+    Text {
+        text: root.text;
+        horizontal-stretch: 1;
+        vertical-alignment: center;
+        wrap: word-wrap;
+        font-size: 12px;
+        color: root.enabled ? Theme.text : Theme.faint;
+    }
+    CheckButton {
+        text: root.button;
+        small: true;
+        enabled: root.enabled;
+        clicked => { root.clicked(); }
+    }
+}
+
 component InventoryPane inherits VerticalLayout {
     spacing: Metrics.spacing;
 
     // ── Auswahl ──
-    if Inventory.view == 0 && Inventory.step != 1: VerticalLayout {
+    if Inventory.view == 0 && Inventory.step != 1 && Inventory.task < 0: VerticalLayout {
         spacing: 14px;
         PageHead {
             title: @tr("Drives and projects");
@@ -1609,7 +1662,7 @@ component InventoryPane inherits VerticalLayout {
     }
 
     // ── Übersicht ──
-    if Inventory.view == 1 && Inventory.step == 2: VerticalLayout {
+    if Inventory.view == 1 && Inventory.step == 2 && Inventory.task < 0: VerticalLayout {
         spacing: 14px;
         PageHead {
             title: @tr("{n} media file" | "{n} media files" % Inventory.files) + " · " + Inventory.total;
@@ -1648,8 +1701,204 @@ component InventoryPane inherits VerticalLayout {
             text: @tr("Renders are recognised by the mark Media Composer writes into them, or by the effect that uses them. A file nothing tells apart stays unknown and is never moved as media or render.");
             color: Theme.faint;
         }
+        Divider { }
+        ActionRow {
+            text: @tr("Render files into folders of their own");
+            button: @tr("Separate…");
+            enabled: Inventory.counts[6] > 0;
+            clicked => { Inventory.prepare(1); }
+        }
+        ActionRow {
+            text: @tr("Render files to the render drive, media to the import drive");
+            button: @tr("Swap…");
+            enabled: Inventory.drive-names.length > 1;
+            clicked => { Inventory.prepare(2); }
+        }
+        ActionRow {
+            text: @tr("Files no switched-on project uses");
+            button: @tr("Set aside…");
+            enabled: Inventory.projects > 0 && Inventory.counts[2] + Inventory.counts[3] > 0;
+            clicked => { Inventory.prepare(0); }
+        }
+    }
+
+    // ── Aktion bestätigen ──
+    if Inventory.task >= 0 && Inventory.task <= 3: VerticalLayout {
+        spacing: 14px;
+        PageHead {
+            title: Inventory.task == 1 ? @tr("Render files into folders of their own") : Inventory.task == 2 ? @tr("Swap render files and media") : @tr("Set files aside");
+            CheckButton {
+                text: @tr("Cancel");
+                clicked => { Inventory.task = -1; }
+            }
+            CheckButton {
+                text: Inventory.task == 1 ? @tr("Separate") : Inventory.task == 2 ? @tr("Swap") : @tr("Set aside");
+                primary: true;
+                enabled: Inventory.plan-count > 0 && !Inventory.mc-running;
+                clicked => { Inventory.confirm(); }
+            }
+        }
+        if Inventory.task == 2: VerticalLayout {
+            spacing: 8px;
+            HorizontalLayout {
+                spacing: 10px;
+                Text { text: @tr("Import drive"); width: 150px; vertical-alignment: center; color: Theme.muted; }
+                Dropdown {
+                    items: Inventory.drive-names;
+                    current: Inventory.imports;
+                    selected(i) => { Inventory.imports = i; Inventory.swap-changed(); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+            }
+            HorizontalLayout {
+                spacing: 10px;
+                Text { text: @tr("Render drive"); width: 150px; vertical-alignment: center; color: Theme.muted; }
+                Dropdown {
+                    items: Inventory.drive-names;
+                    current: Inventory.renders;
+                    selected(i) => { Inventory.renders = i; Inventory.swap-changed(); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+            }
+            Para {
+                text: Inventory.imports == Inventory.renders ? @tr("Choose two different drives.") : @tr("{} render files to the render drive, {} media files to the import drive", Inventory.to-renders, Inventory.to-imports) + " · " + Inventory.plan-size;
+                color: Inventory.imports == Inventory.renders ? Theme.warning : Theme.text;
+            }
+            HorizontalLayout {
+                spacing: 10px;
+                Text {
+                    text: @tr("Delete each original after its copy is checked");
+                    horizontal-stretch: 1;
+                    vertical-alignment: center;
+                    overflow: elide;
+                    font-size: 12px;
+                    color: Theme.text;
+                }
+                VerticalLayout {
+                    alignment: center;
+                    Switch {
+                        on: Inventory.delete-originals;
+                        label: @tr("Delete each original after its copy is checked");
+                        toggled => { Inventory.delete-originals = !Inventory.delete-originals; }
+                    }
+                }
+            }
+            Para {
+                text: Inventory.delete-originals ? @tr("Every file is copied, the copy checked by checksum, then the original deleted.") : @tr("Every file is copied and the copy checked by checksum; the original goes into “MediaFiles Check Aside” on its drive – delete that folder yourself once all works.");
+                color: Inventory.delete-originals ? Theme.warning : Theme.muted;
+            }
+        }
+        if Inventory.task != 2: Text {
+            text: @tr("{n} file" | "{n} files" % Inventory.plan-count) + " · " + Inventory.plan-size;
+            font-size: 12px;
+            color: Theme.text;
+        }
+        if Inventory.plan-text != "": ScrollBox {
+            limit: 110px;
+            Para { text: Inventory.plan-text; color: Theme.muted; }
+        }
+        Para {
+            text: Inventory.task == 1 ? @tr("Render files go into folders like “Mac Studio-renderfiles-1” next to their folder, at most {} files each (Settings → Rebalancing). Within a drive nothing is copied.", Inventory.per-folder)
+                : Inventory.task == 2 ? @tr("Each file goes into a folder of the same name on the other drive. Unknown files stay where they are.")
+                : @tr("The files go into “MediaFiles Check Aside” on their drive – Media Composer no longer sees them. Only the switched-on projects count: media of other projects on these drives would go offline.");
+        }
+        Para {
+            text: @tr("Afterwards the databases of the changed folders have to be rewritten. Everything can be undone under History.");
+            color: Theme.faint;
+        }
+        if Inventory.mc-running: Text {
+            text: @tr("Quit Media Composer first.");
+            color: Theme.warning;
+        }
+    }
+
+    // ── läuft ──
+    if Inventory.task == 4: VerticalLayout {
+        spacing: 14px;
+        PageHead { title: @tr("Moving files…"); }
+        ProgressBar { value: Inventory.work-value; }
+        StatusLine { text: Inventory.work-text; color: Theme.muted; }
+    }
+
+    // ── fertig: Datenbanken neu schreiben ──
+    if Inventory.task == 5: VerticalLayout {
+        spacing: 14px;
+        PageHead {
+            title: @tr("Files moved");
+            CheckButton {
+                text: @tr("Cancel");
+                clicked => { Inventory.task = -1; Inventory.view = 0; }
+            }
+            CheckButton {
+                text: @tr("Start");
+                primary: true;
+                enabled: !Inventory.mc-running;
+                clicked => { Inventory.db(-1); }
+            }
+        }
+        ScrollBox {
+            limit: 160px;
+            Para { text: Inventory.done-summary; color: Theme.text; }
+        }
+        Para {
+            text: @tr("Now the databases of the changed folders have to be rewritten. Start sets their databases aside (Media Composer writes new ones) and renames the folders Media Composer does not update itself – then go on under Maintain › Rename.");
+        }
+        Para {
+            text: @tr("Cancel leaves the databases as they are – you can start it later under Media › History.");
+        }
+        if Inventory.mc-running: Text {
+            text: @tr("Quit Media Composer first.");
+            color: Theme.warning;
+        }
+    }
+
+    // ── Verlauf ──
+    if Inventory.view == 2 && Inventory.task < 0: VerticalLayout {
+        spacing: 14px;
+        PageHead { title: @tr("History"); }
+        if Inventory.runs.length == 0: Para { text: @tr("No runs yet."); }
+        ScrollBox {
+            limit: 320px;
+            spacing: Metrics.spacing;
+            for r[i] in Inventory.runs: VerticalLayout {
+                spacing: 8px;
+                Text {
+                    width: Metrics.content-width - 12px;
+                    text: r.text;
+                    wrap: word-wrap;
+                    font-size: 12px;
+                    color: Theme.text;
+                }
+                if !r.db-done: Text {
+                    text: @tr("Databases not rewritten yet");
+                    font-size: 12px;
+                    color: Theme.warning;
+                }
+                HorizontalLayout {
+                    spacing: 10px;
+                    alignment: start;
+                    if !r.db-done: CheckButton {
+                        text: @tr("Rewrite databases");
+                        small: true;
+                        enabled: !Inventory.mc-running;
+                        clicked => { Inventory.db(i); }
+                    }
+                    CheckButton {
+                        text: @tr("Undo");
+                        small: true;
+                        enabled: !Inventory.mc-running;
+                        clicked => { Inventory.undo(i); }
+                    }
+                }
+            }
+        }
+        if Inventory.mc-running: Text {
+            text: @tr("Quit Media Composer first.");
+            color: Theme.warning;
+        }
     }
 }
+
 
 export enum Page { home, working, result, rename, question, notice, rebalance, rebalanced, runs, askname, dups, dupsdone,
     maintain, rebalstart, dupsstart, exchange, projects, tasks, media }
@@ -1718,11 +1967,6 @@ export struct DupGroup {
 }
 
 // frühere Rebalancings: Text (Rust, übersetzt), ob „Starten“ (Datenbanken) schon gemacht ist
-export struct RunRow {
-    text: string,
-    db-done: bool,
-}
-
 // Rebalancing: ein Ordner über der Grenze, title = Laufwerk/Ordner, detail = was entsteht (Rust, übersetzt)
 export struct RebalRow {
     title: string,
@@ -1831,6 +2075,7 @@ export component AppWindow inherits CheckWindow {
         ] : root.tab == 5 ? [
             { name: @tr("Drives and projects"), status: @tr("{} of {} on", Inventory.drive-count, Inventory.drives.length), enabled: true },
             { name: @tr("Overview"), status: Inventory.step == 1 ? @tr("reading…") : Inventory.step != 2 ? "" : @tr("{n} file" | "{n} files" % Inventory.files), enabled: Inventory.step == 2 },
+            { name: @tr("History"), status: Inventory.runs.length == 0 ? "" : @tr("{n} run" | "{n} runs" % Inventory.runs.length), enabled: true },
         ] : [
             { name: @tr("Open"), status: Tasks.open.length == 0 ? "" : Tasks.open.length, enabled: true },
             { name: @tr("Import by hand"), status: @tr("instructions"), enabled: true },
@@ -1883,6 +2128,7 @@ export component AppWindow inherits CheckWindow {
     out property <string> txt-task-rewrite: @tr("Rewrite databases");
     out property <string> txt-task-rebalancing: @tr("Maintain › Rebalancing");
     out property <string> txt-task-duplicates: @tr("Maintain › Duplicates");
+    out property <string> txt-task-media: @tr("Media › History");
     out property <string> txt-task-start: @tr("Start");
     out property <string> txt-task-rename-back: @tr("Rename {} folders back after Media Composer has written their databases", "{}");
     out property <string> txt-task-maintain: @tr("Maintain › Rename");
@@ -2046,7 +2292,7 @@ export component AppWindow inherits CheckWindow {
                     selected: i == (root.tab == 2 ? Projects.view : root.tab == 0 ? Exchange.view : root.tab == 4 ? Tasks.view : root.tab == 5 ? Inventory.view : root.step);
                     clicked => {
                         if root.tab == 4 { Tasks.view = i; }
-                        if root.tab == 5 { Inventory.view = i; }
+                        if root.tab == 5 { Inventory.view = i; Inventory.task = Inventory.task == 4 ? 4 : -1; }
                         if root.tab == 2 { Projects.view = i; }
                         if root.tab == 0 { Exchange.view = i; }
                         root.page = root.start-of(root.tab, i);
@@ -3718,6 +3964,7 @@ export component MediaTableWindow inherits CheckWindow {
     callback select-all();
     callback select-none();
     callback save-list();
+    callback set-aside();
     callback close();
 
     // Spaltenbreiten (Clip und Datei teilen sich den Rest)
@@ -3892,6 +4139,10 @@ export component MediaTableWindow inherits CheckWindow {
             if root.selected > 0: CheckButton {
                 text: @tr("Clear selection");
                 clicked => { root.select-none(); }
+            }
+            if root.selected > 0: CheckButton {
+                text: @tr("Set aside…");
+                clicked => { root.set-aside(); }
             }
             CheckButton {
                 text: @tr("Save list…");
