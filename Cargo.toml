@@ -1,6 +1,6 @@
 [package]
 name = "mediafiles-check"
-version = "1.0.0-beta.7"
+version = "1.0.0-beta.8"
 edition = "2024"
 license = "GPL-3.0-or-later"
 description = "Checks whether every Avid MXF folder matches its Avid database"

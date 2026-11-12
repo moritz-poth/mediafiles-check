@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 NAME="MediaFiles Check"
 RELEASE=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)   # e.g. 1.0.0-beta.1
 VERSION=${RELEASE%%-*}                                                  # numbers only for macOS
-BUILD=7                                                                 # bump with every release
+BUILD=8                                                                 # bump with every release
 APP="dist/$NAME.app"
 
 cargo build --release --bin mediafiles-check --target aarch64-apple-darwin

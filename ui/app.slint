@@ -1702,20 +1702,30 @@ component ActionRow inherits CardRow {
     in property <string> button;
     in property <bool> enabled: true;
     callback clicked();
-    Text {
-        text: root.text;
-        horizontal-stretch: 1;
-        vertical-alignment: center;
-        overflow: elide;
-        color: root.enabled ? Theme.text : Theme.faint;
+    // lange Übersetzungen brechen um statt abgeschnitten zu werden: feste Breiten (Text = Inhaltsspalte − Ränder − Knopfspalte;
+    // die Spalte ist gemessen 13 px schmaler als content-width, daher − 14 px)
+    VerticalLayout {
+        padding-top: 9px;
+        padding-bottom: 9px;
+        alignment: center;
+        Text {
+            width: Metrics.content-width - 14px - 2 * 14px - 12px - 170px;
+            text: root.text;
+            wrap: word-wrap;
+            color: root.enabled ? Theme.text : Theme.faint;
+        }
     }
     VerticalLayout {
+        width: 170px;
         alignment: center;
-        CheckButton {
-            text: root.button;
-            small: true;
-            enabled: root.enabled;
-            clicked => { root.clicked(); }
+        HorizontalLayout {
+            alignment: end;
+            CheckButton {
+                text: root.button;
+                small: true;
+                enabled: root.enabled;
+                clicked => { root.clicked(); }
+            }
         }
     }
 }
@@ -2282,9 +2292,11 @@ component SideItem {
         padding-bottom: 9px;
         spacing: 2px;
         Text {
+            // Seitenleiste 204 px − 2 × 12 px Rand − 22 px Innenrand: lange Namen brechen um
+            width: 158px;
             text: root.step.name;
             font-size: 13px;
-            overflow: elide;
+            wrap: word-wrap;
             color: root.selected ? Theme.text : root.step.enabled ? Theme.muted : Theme.disabled;
         }
         if root.step.status != "": Text {
