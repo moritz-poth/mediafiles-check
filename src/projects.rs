@@ -206,6 +206,52 @@ fn kind_of(kind: MobKind, usage: i32) -> Option<ClipKind> {
     }
 }
 
+/// What one bin contributes to `Refs`: with `uses`, the media and renders of its clips, subclips and sequences (mobs
+/// from other bins go to `waiting`); always its clips' media into `media_of`, for clips used from other bins.
+fn use_bin(bin: &Bin, r: &mut Refs, media_of: &mut HashMap<MobId, Vec<MobId>>, waiting: &mut Vec<(MobId, bool)>, uses: bool) {
+    // only Avid-managed media (AMA-linked and other linked files are not in Avid MediaFiles)
+    let managed = |ids: Vec<MobId>| -> Vec<MobId> { ids.into_iter().filter(|id| bin.mob(id).is_none_or(|m| !m.ama && m.locator.as_deref().is_none_or(|l| l == "MSML"))).collect() };
+    for &item in &bin.items {
+        let mob = &bin.mobs[item];
+        let (mut gone, mut gone_renders) = (HashSet::new(), HashSet::new());
+        let media = managed(bin.media_of(item, &mut gone));
+        if mob.kind != MobKind::Composition {
+            media_of.insert(mob.id, media.clone());
+        }
+        // a render's own master clip is no use of it – only an effect that still points to it is
+        if !uses || kind_of(mob.kind, mob.usage).is_none() {
+            continue;
+        }
+        r.renders.extend(managed(bin.renders_of(item, &mut gone_renders)));
+        r.media.extend(media);
+        waiting.extend(gone.into_iter().map(|id| (id, false)));
+        waiting.extend(gone_renders.into_iter().map(|id| (id, true)));
+    }
+}
+
+/// Media and renders one bin uses; clips it takes from other bins of its project are looked up there.
+pub fn bin_refs(path: &Path) -> Result<Refs, String> {
+    let bin = Bin::read(path)?;
+    let mut r = Refs { bins: 1, ..Default::default() };
+    let (mut media_of, mut waiting) = (HashMap::new(), vec![]);
+    use_bin(&bin, &mut r, &mut media_of, &mut waiting, true);
+    if !waiting.is_empty()
+        && let Some(project) = path.ancestors().skip(1).find(|d| has_avp(d))
+    {
+        for other in bins(project).iter().filter(|b| b.as_path() != path) {
+            match Bin::read(other) {
+                Ok(b) => use_bin(&b, &mut Refs::default(), &mut media_of, &mut vec![], false),
+                Err(e) => r.failed.push((other.clone(), e)),
+            }
+        }
+    }
+    for (mob, render) in waiting {
+        let set = if render { &mut r.renders } else { &mut r.media };
+        set.extend(media_of.get(&mob).into_iter().flatten());
+    }
+    Ok(r)
+}
+
 /// The media files the bins of some projects use: `media` through their clips, subclips and sequences, `renders`
 /// through the effects of those (a render whose effect is gone from every sequence is in neither).
 #[derive(Debug, Default)]
@@ -246,24 +292,7 @@ pub fn references(projects: &[PathBuf], progress: &mut dyn FnMut(usize, usize, &
                 continue;
             }
         };
-        // only Avid-managed media (AMA-linked and other linked files are not in Avid MediaFiles)
-        let managed = |ids: Vec<MobId>| -> Vec<MobId> { ids.into_iter().filter(|id| bin.mob(id).is_none_or(|m| !m.ama && m.locator.as_deref().is_none_or(|l| l == "MSML"))).collect() };
-        for &item in &bin.items {
-            let mob = &bin.mobs[item];
-            let (mut gone, mut gone_renders) = (HashSet::new(), HashSet::new());
-            let media = managed(bin.media_of(item, &mut gone));
-            if mob.kind != MobKind::Composition {
-                media_of.insert(mob.id, media.clone());
-            }
-            // a render's own master clip is no use of it – only an effect that still points to it is
-            if kind_of(mob.kind, mob.usage).is_none() {
-                continue;
-            }
-            r.renders.extend(managed(bin.renders_of(item, &mut gone_renders)));
-            r.media.extend(media);
-            waiting.extend(gone.into_iter().map(|id| (id, false)));
-            waiting.extend(gone_renders.into_iter().map(|id| (id, true)));
-        }
+        use_bin(&bin, &mut r, &mut media_of, &mut waiting, true);
     }
     finish(&mut media_of, &mut waiting, &mut r);
     r

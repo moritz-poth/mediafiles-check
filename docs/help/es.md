@@ -138,7 +138,7 @@ Conviene saber:
 
 ## Medios
 
-1. Medios › **Unidades y proyectos**: activa las unidades y los proyectos cuyos bins cuentan y pulsa **Analizar**. El primer análisis lee la cabecera de cada archivo de medios; los siguientes solo los archivos nuevos o cambiados.
+1. Medios › **Unidades y proyectos**: activa las unidades y los proyectos cuyos bins cuentan y pulsa **Analizar**. El primer análisis lee la cabecera de cada archivo de medios; los siguientes solo los archivos nuevos o cambiados. Se guardan los cinco últimos análisis: **Cargar…** vuelve a mostrar uno sin analizar, tras preguntar si no ha cambiado nada desde entonces.
 2. **Resumen** cuenta medios y renders, en uso o no, y cuántos archivos usados por los proyectos no están en ninguna de las unidades leídas. **Mostrar tabla…** abre la tabla de medios: cada archivo con clip, tipo, códec, imagen, fps, duración, sonido, tamaño, proyecto y carpeta; filtrar, buscar, ordenar por columna, seleccionar archivos, **Guardar lista…**.
 
 Cómo se clasifica un archivo:
@@ -152,6 +152,7 @@ Acciones (Media Composer debe estar cerrado):
 - **Archivos de render en sus propias carpetas**: los renders van a carpetas como `Mac Studio-renderfiles-1` junto a su carpeta, como máximo tantos como permite el límite de reequilibrado.
 - **Intercambiar**: elige la unidad de importación y la de render. Los renders de la unidad de importación van a la de render y los medios de la unidad de render a la de importación, cada uno a una carpeta con el mismo nombre. Cada archivo se copia y la copia se comprueba con una suma de control; después el original se borra o va a `MediaFiles Check Aside`: lo eliges cada vez.
 - **Apartar**: elige qué se aparta: archivos de render que ningún proyecto activado usa (activado por defecto), también archivos de render en uso (Media Composer los vuelve a renderizar), archivos de medios que ningún proyecto activado usa (desactivado, para conservar los medios). Las carpetas que desactives en la lista se quedan como están y se recuerdan, p. ej. bibliotecas de efectos de sonido. También se pueden apartar los archivos seleccionados en la tabla. Todo va a `MediaFiles Check Aside` en su unidad.
+- **Medios de un bin**: elige un bin (`.avb`); cada archivo de medios que usan sus clips, subclips y secuencias (también de otros bins del proyecto y, si quieres, con los archivos de render de sus secuencias) se copia o mueve a la unidad de destino, a una carpeta con el mismo nombre. Lo que ya está allí se queda.
 
 Nunca se sobrescribe nada; un archivo cambiado desde el análisis se queda donde está. Después se reescriben las bases de datos de las carpetas cambiadas, como en el reequilibrado. Medios › **Historial** muestra cada operación: **Reescribir bases de datos**, **Deshacer**.
 

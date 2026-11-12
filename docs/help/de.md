@@ -138,7 +138,7 @@ Gut zu wissen:
 
 ## Medien
 
-1. Medien › **Laufwerke und Projekte**: Laufwerke und die Projekte einschalten, deren Bins zählen, dann **Scannen**. Der erste Durchlauf liest den Kopf jeder Mediendatei, spätere nur neue oder geänderte Dateien.
+1. Medien › **Laufwerke und Projekte**: Laufwerke und die Projekte einschalten, deren Bins zählen, dann **Scannen**. Der erste Durchlauf liest den Kopf jeder Mediendatei, spätere nur neue oder geänderte Dateien. Die letzten fünf Scans werden gemerkt: **Laden…** zeigt einen davon ohne neuen Scan, nach der Rückfrage, ob sich seitdem nichts geändert hat.
 2. **Übersicht** zählt Medien und Renders, benutzt oder nicht, und wie viele Dateien die Projekte benutzen, die auf keinem gelesenen Laufwerk liegen. **Tabelle öffnen…** zeigt die Medientabelle: jede Datei mit Clip, Art, Codec, Bild, fps, Dauer, Ton, Größe, Projekt und Ordner – filtern, suchen, nach einer Spalte sortieren, Dateien auswählen, **Liste sichern…**.
 
 So wird eine Datei eingeordnet:
@@ -152,6 +152,7 @@ Aktionen (Media Composer muss beendet sein):
 - **Render-Dateien in eigene Ordner**: Render-Dateien kommen in Ordner wie `Mac Studio-renderfiles-1` neben ihrem Ordner, höchstens so viele, wie die Rebalancing-Grenze erlaubt.
 - **Tauschen**: Import- und Render-Laufwerk wählen. Render-Dateien auf dem Import-Laufwerk kommen aufs Render-Laufwerk, Medien auf dem Render-Laufwerk aufs Import-Laufwerk, jeweils in einen Ordner mit demselben Namen. Jede Datei wird kopiert und die Kopie per Prüfsumme geprüft; danach wird das Original gelöscht oder nach `MediaFiles Check Aside` gelegt – das wählst du jedes Mal.
 - **Beiseitelegen**: Du wählst, was mitkommt – Render-Dateien, die kein eingeschaltetes Projekt benutzt (vorgewählt), auch benutzte Render-Dateien (Media Composer rendert sie neu), Mediendateien, die kein eingeschaltetes Projekt benutzt (aus, damit Medien bleiben). Ordner, die du in der Liste ausschaltest, bleiben unangetastet und werden gemerkt, z. B. Sound-Effekt-Bibliotheken. Auch die in der Tabelle ausgewählten Dateien lassen sich beiseitelegen. Alles kommt nach `MediaFiles Check Aside` auf seinem Laufwerk.
+- **Medien eines Bins**: Bin (`.avb`) wählen; jede Mediendatei, die seine Clips, Subclips und Sequenzen benutzen – auch aus anderen Bins des Projekts, auf Wunsch mit den Render-Dateien seiner Sequenzen – wird aufs Ziel-Laufwerk kopiert oder verschoben, in einen Ordner mit demselben Namen. Was dort schon liegt, bleibt.
 
 Es wird nie etwas überschrieben; eine Datei, die sich seit dem Scan geändert hat, bleibt liegen. Danach werden die Datenbanken der geänderten Ordner neu geschrieben wie beim Rebalancing. Medien › **Verlauf** listet jeden Lauf: **Datenbanken neu schreiben**, **Rückgängig**.
 

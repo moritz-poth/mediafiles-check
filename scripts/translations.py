@@ -9,6 +9,16 @@ PLURAL = {"de": "nplurals=2; plural=(n != 1);", "fr": "nplurals=2; plural=(n > 1
 
 # English: (German, French, Spanish). Plural entries: (singular, plural) -> ((de1, de2), (fr1, fr2), (es1, es2))
 T = {
+    'Files copied': ('Dateien kopiert', 'Fichiers copiés', 'Archivos copiados'),
+    'Choose bin…': ('Bin wählen…', 'Choisir un chutier…', 'Elegir bin…'),
+    'Media of a bin': ('Medien eines Bins', 'Médias d’un chutier', 'Medios de un bin'),
+    ('{n} more on none of the scanned drives', '{n} more on none of the scanned drives'): (('{n} weitere auf keinem gelesenen Laufwerk', '{n} weitere auf keinem gelesenen Laufwerk'), ('{n} autre sur aucun des disques lus', '{n} autres sur aucun des disques lus'), ('{n} más en ninguna de las unidades leídas', '{n} más en ninguna de las unidades leídas')),
+    'Also the render files of its sequences': ('Auch die Render-Dateien seiner Sequenzen', 'Aussi les fichiers de rendu de ses séquences', 'También los archivos de render de sus secuencias'),
+    'Copy': ('Kopieren', 'Copier', 'Copiar'),
+    'Target drive': ('Ziel-Laufwerk', 'Disque cible', 'Unidad de destino'),
+    'Copy or move the media of a bin to another drive': ('Medien eines Bins auf ein anderes Laufwerk kopieren oder verschieben', 'Copier ou déplacer les médias d’un chutier vers un autre disque', 'Copiar o mover los medios de un bin a otra unidad'),
+    'Reading the bin…': ('Bin wird gelesen…', 'Lecture du chutier…', 'Leyendo el bin…'),
+    'Every clip, subclip and sequence of the bin counts, with clips it takes from other bins of the project. Each file goes into a folder of the same name on the target drive, the copy checked by checksum; files already there stay. Afterwards the databases of the changed folders have to be rewritten.': ('Jeder Clip, Subclip und jede Sequenz des Bins zählt, auch mit Clips aus anderen Bins des Projekts. Jede Datei kommt in einen Ordner mit demselben Namen auf dem Ziel-Laufwerk, die Kopie per Prüfsumme geprüft; was dort schon liegt, bleibt. Danach müssen die Datenbanken der geänderten Ordner neu geschrieben werden.', 'Chaque clip, sous-clip et séquence du chutier compte, avec les clips pris dans d’autres chutiers du projet. Chaque fichier va dans un dossier du même nom sur le disque cible, la copie vérifiée par somme de contrôle ; ce qui y est déjà reste. Ensuite, les bases de données des dossiers modifiés doivent être réécrites.', 'Cuenta cada clip, subclip y secuencia del bin, también con clips de otros bins del proyecto. Cada archivo va a una carpeta con el mismo nombre en la unidad de destino, la copia comprobada con una suma de control; lo que ya está allí se queda. Después hay que reescribir las bases de datos de las carpetas cambiadas.'),
     'RECENT SCANS': ('LETZTE SCANS', 'DERNIÈRES ANALYSES', 'ÚLTIMOS ANÁLISIS'),
     'Load…': ('Laden…', 'Charger…', 'Cargar…'),
     'Load': ('Laden', 'Charger', 'Cargar'),

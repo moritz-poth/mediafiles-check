@@ -8,6 +8,38 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+msgid "Files copied"
+msgstr "Archivos copiados"
+
+msgid "Choose bin…"
+msgstr "Elegir bin…"
+
+msgid "Media of a bin"
+msgstr "Medios de un bin"
+
+msgid "{n} more on none of the scanned drives"
+msgid_plural "{n} more on none of the scanned drives"
+msgstr[0] "{n} más en ninguna de las unidades leídas"
+msgstr[1] "{n} más en ninguna de las unidades leídas"
+
+msgid "Also the render files of its sequences"
+msgstr "También los archivos de render de sus secuencias"
+
+msgid "Copy"
+msgstr "Copiar"
+
+msgid "Target drive"
+msgstr "Unidad de destino"
+
+msgid "Copy or move the media of a bin to another drive"
+msgstr "Copiar o mover los medios de un bin a otra unidad"
+
+msgid "Reading the bin…"
+msgstr "Leyendo el bin…"
+
+msgid "Every clip, subclip and sequence of the bin counts, with clips it takes from other bins of the project. Each file goes into a folder of the same name on the target drive, the copy checked by checksum; files already there stay. Afterwards the databases of the changed folders have to be rewritten."
+msgstr "Cuenta cada clip, subclip y secuencia del bin, también con clips de otros bins del proyecto. Cada archivo va a una carpeta con el mismo nombre en la unidad de destino, la copia comprobada con una suma de control; lo que ya está allí se queda. Después hay que reescribir las bases de datos de las carpetas cambiadas."
+
 msgid "RECENT SCANS"
 msgstr "ÚLTIMOS ANÁLISIS"
 

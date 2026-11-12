@@ -1515,6 +1515,8 @@ export global Inventory {
     in-out property <bool> delete-originals;
     in property <bool> mc-running;
     in property <string> done-summary;
+    // der fertige Lauf hat kopiert (die Originale bleiben)
+    in property <bool> done-copied;
     in property <[RunRow]> runs;
     callback prepare(int);
     callback swap-changed();
@@ -1531,6 +1533,17 @@ export global Inventory {
     in property <[FolderRow]> scans;
     in-out property <int> load-ask: -1;
     callback load-scan(int);
+    // Medien eines Bins: Name (leer = liest noch), nicht gefundene Dateien, Ziel-Laufwerke und Ziel,
+    // Modus (0 kopieren, 1 verschieben), Render-Dateien mitnehmen
+    in property <string> bin-name;
+    in property <bool> bin-reading;
+    in property <int> bin-missing;
+    in property <[string]> target-names;
+    in-out property <int> target;
+    in-out property <int> bin-mode;
+    in-out property <bool> bin-renders;
+    callback choose-bin();
+    callback bin-changed();
     // von den Projekten benutzt, auf keinem gelesenen Laufwerk
     in property <int> missing-media;
     in property <int> missing-renders;
@@ -1817,10 +1830,97 @@ component InventoryPane inherits VerticalLayout {
             clicked => { Inventory.prepare(2); }
         }
         ActionRow {
+            text: @tr("Copy or move the media of a bin to another drive");
+            button: @tr("Choose bin…");
+            clicked => { Inventory.choose-bin(); }
+        }
+        ActionRow {
             text: @tr("Render files and files no switched-on project uses");
             button: @tr("Set aside…");
             enabled: Inventory.counts[6] > 0 || Inventory.counts[2] + Inventory.counts[3] > 0;
             clicked => { Inventory.prepare(0); }
+        }
+    }
+
+    // ── Medien eines Bins ──
+    if Inventory.task == 6: VerticalLayout {
+        spacing: 14px;
+        PageHead {
+            title: @tr("Media of a bin");
+            CheckButton {
+                text: @tr("Cancel");
+                clicked => { Inventory.task = -1; }
+            }
+            CheckButton {
+                text: Inventory.bin-mode == 0 ? @tr("Copy") : @tr("Move");
+                primary: true;
+                enabled: Inventory.plan-count > 0 && !Inventory.mc-running && !Inventory.bin-reading;
+                clicked => { Inventory.confirm(); }
+            }
+        }
+        Text {
+            text: Inventory.bin-reading ? @tr("Reading the bin…") : Inventory.bin-name;
+            overflow: elide;
+            font-weight: 600;
+            color: Theme.text;
+        }
+        HorizontalLayout {
+            spacing: 10px;
+            Text { text: @tr("Target drive"); width: 150px; vertical-alignment: center; color: Theme.muted; }
+            Dropdown {
+                items: Inventory.target-names;
+                current: Inventory.target;
+                selected(i) => { Inventory.target = i; Inventory.bin-changed(); }
+            }
+            Dropdown {
+                items: [@tr("Copy"), @tr("Move")];
+                current: Inventory.bin-mode;
+                selected(i) => { Inventory.bin-mode = i; Inventory.bin-changed(); }
+            }
+            Rectangle { horizontal-stretch: 1; }
+        }
+        ToggleRow {
+            height: 26px;
+            toggled => { Inventory.bin-renders = !Inventory.bin-renders; Inventory.bin-changed(); }
+            Text { text: @tr("Also the render files of its sequences"); horizontal-stretch: 1; vertical-alignment: center; font-size: 12px; color: Theme.text; }
+            VerticalLayout {
+                alignment: center;
+                Switch {
+                    on: Inventory.bin-renders;
+                    label: @tr("Also the render files of its sequences");
+                    toggled => { Inventory.bin-renders = !Inventory.bin-renders; Inventory.bin-changed(); }
+                }
+            }
+        }
+        if Inventory.bin-mode == 1: ToggleRow {
+            height: 26px;
+            toggled => { Inventory.delete-originals = !Inventory.delete-originals; }
+            Text { text: @tr("Move or delete each original after its copy is checked?"); horizontal-stretch: 1; vertical-alignment: center; overflow: elide; font-size: 12px; color: Theme.text; }
+            Text { text: Inventory.delete-originals ? @tr("Delete") : @tr("Move"); vertical-alignment: center; font-size: 12px; font-weight: 600; color: Inventory.delete-originals ? Theme.warning : Theme.text; }
+            VerticalLayout {
+                alignment: center;
+                Switch {
+                    on: Inventory.delete-originals;
+                    label: @tr("Move or delete each original after its copy is checked?");
+                    toggled => { Inventory.delete-originals = !Inventory.delete-originals; }
+                }
+            }
+        }
+        if !Inventory.bin-reading: Para {
+            text: @tr("{n} file" | "{n} files" % Inventory.plan-count) + " · " + Inventory.plan-size + (Inventory.bin-missing > 0 ? " · " + @tr("{n} more on none of the scanned drives" | "{n} more on none of the scanned drives" % Inventory.bin-missing) : "");
+            color: Theme.text;
+        }
+        if Inventory.plan-text != "": ScrollBox {
+            limit: 110px;
+            Para { text: Inventory.plan-text; color: Theme.muted; }
+        }
+        Para {
+            text: @tr("Every clip, subclip and sequence of the bin counts, with clips it takes from other bins of the project. Each file goes into a folder of the same name on the target drive, the copy checked by checksum; files already there stay. Afterwards the databases of the changed folders have to be rewritten.");
+            color: Theme.faint;
+        }
+        if Inventory.mc-running: Text {
+            text: @tr("Quit Media Composer first.");
+            color: Theme.warning;
         }
     }
 
@@ -1997,7 +2097,7 @@ component InventoryPane inherits VerticalLayout {
     if Inventory.task == 5: VerticalLayout {
         spacing: 14px;
         PageHead {
-            title: @tr("Files moved");
+            title: Inventory.done-copied ? @tr("Files copied") : @tr("Files moved");
             CheckButton {
                 text: @tr("Cancel");
                 clicked => { Inventory.task = -1; Inventory.view = 0; }

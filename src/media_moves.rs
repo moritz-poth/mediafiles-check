@@ -23,6 +23,9 @@ pub enum Action {
     Aside,
     Renderfiles,
     Swap,
+    /// the media of a bin to another drive: copied (originals stay) or moved
+    Copy,
+    Move,
 }
 
 /// One planned move: the file as the scan saw it (size, modification date) and where it goes.
@@ -50,6 +53,9 @@ pub struct Run {
     /// folders left with only their database, moved aside as a whole: (folder, where it went)
     #[serde(default)]
     pub leftovers: Vec<(PathBuf, PathBuf)>,
+    /// what the run was for, e.g. the bin (History)
+    #[serde(default)]
+    pub label: String,
 }
 
 impl Run {
@@ -133,6 +139,11 @@ fn mxf_count(dir: &Path) -> usize {
     fs::read_dir(dir).map(|rd| rd.flatten().filter(|e| e.file_name().to_string_lossy().to_lowercase().ends_with(".mxf")).count()).unwrap_or(0)
 }
 
+/// These files to `target`, each into the folder of the same name; files already on `target` stay.
+pub fn plan_to_drive(items: &[&Item], target: &Path) -> Vec<Step> {
+    items.iter().filter(|i| drive_of(&i.path).is_some_and(|d| d != target)).map(|i| step(i, mxf_dir(target).join(&i.folder).join(i.name()))).collect()
+}
+
 /// Render files on `imports` go to `renders`, media on `renders` go to `imports`, each into the folder of the same
 /// name. Unknown files never move.
 pub fn plan_swap(items: &[&Item], imports: &Path, renders: &Path) -> Vec<Step> {
@@ -174,9 +185,9 @@ fn same_drive(a: &Path, b: &Path) -> bool {
 
 /// Carries out the steps. `delete_originals`: across drives, delete the original after its checked copy (else it
 /// goes into "MediaFiles Check Aside" on its drive). The run is saved in the journal before the first file moves.
-pub fn execute(action: Action, steps: &[Step], delete_originals: bool, journal_path: &Path, progress: &mut dyn FnMut(usize, usize, &str)) -> io::Result<(Run, Moved)> {
+pub fn execute(action: Action, steps: &[Step], delete_originals: bool, label: &str, journal_path: &Path, progress: &mut dyn FnMut(usize, usize, &str)) -> io::Result<(Run, Moved)> {
     let at = stamp();
-    let mut run = Run { date: chrono::Local::now().format("%Y-%m-%d %H:%M").to_string(), action, moved: vec![], originals: vec![], changed: vec![], db_done: false, leftovers: vec![] };
+    let mut run = Run { date: chrono::Local::now().format("%Y-%m-%d %H:%M").to_string(), action, moved: vec![], originals: vec![], changed: vec![], db_done: false, leftovers: vec![], label: label.to_string() };
     let mut out = Moved::default();
     let mut todo = vec![];
     for s in steps {
@@ -192,7 +203,9 @@ pub fn execute(action: Action, steps: &[Step], delete_originals: bool, journal_p
         return Ok((run, out));
     }
     for s in &todo {
-        for f in [s.from.parent(), s.to.parent()].into_iter().flatten() {
+        // a copy leaves its source folder as it is
+        let from = if action == Action::Copy { None } else { s.from.parent() };
+        for f in [from, s.to.parent()].into_iter().flatten() {
             // folders inside the aside folder have no database
             if !f.starts_with(drive_of(&s.from).map(|d| d.join(ASIDE_DIR)).unwrap_or_default()) && !run.changed.iter().any(|c| c == f) {
                 run.changed.push(f.to_path_buf());
@@ -215,7 +228,14 @@ pub fn execute(action: Action, steps: &[Step], delete_originals: bool, journal_p
         if let Some(dir) = s.to.parent() {
             fs::create_dir_all(dir)?;
         }
-        if same_drive(&s.from, s.to.parent().unwrap_or(&s.to)) {
+        if action == Action::Copy {
+            if let Err(e) = crate::ferry::collect::copy_verified(&s.from, &s.to, None) {
+                out.skipped.push((file_name(&s.from), e.to_string()));
+                continue;
+            }
+            run.moved.push((s.from.clone(), s.to.clone(), s.size));
+            run.originals.push(None);
+        } else if same_drive(&s.from, s.to.parent().unwrap_or(&s.to)) {
             match crate::move_new(&s.from, &s.to) {
                 Ok(()) => {}
                 Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
@@ -281,6 +301,16 @@ pub fn undo(run: &Run) -> io::Result<Moved> {
     for (k, (from, to, size)) in run.moved.iter().enumerate() {
         let original = run.originals.get(k).cloned().flatten();
         let skip = |out: &mut Moved, why: &str| out.skipped.push((file_name(from), why.into()));
+        // a copy goes again (only while its original is still there and it is unchanged)
+        if run.action == Action::Copy {
+            if fs::metadata(to).is_ok_and(|m| m.len() == *size) && fs::metadata(from).is_ok_and(|m| m.len() == *size) {
+                fs::remove_file(to)?;
+                out.moved += 1;
+            } else {
+                skip(&mut out, "copy or original gone or changed");
+            }
+            continue;
+        }
         if from.exists() {
             skip(&mut out, "a file of that name is back already");
             continue;
@@ -392,7 +422,7 @@ mod tests {
         let targets: Vec<PathBuf> = steps.iter().map(|s| s.to.parent().unwrap().to_path_buf()).collect();
         assert_eq!(targets, [mxf.join("Mac Studio-renderfiles-1"), mxf.join("Mac Studio-renderfiles-1"), mxf.join("Mac Studio-renderfiles-2")]);
         let jp = root.join("media-runs.json");
-        let (run, moved) = execute(Action::Renderfiles, &steps, false, &jp, &mut |_, _, _| {}).unwrap();
+        let (run, moved) = execute(Action::Renderfiles, &steps, false, "", &jp, &mut |_, _, _| {}).unwrap();
         assert_eq!(moved.moved, 3);
         assert!(m.exists() && !r1.exists() && mxf.join("Mac Studio-renderfiles-2/r3.mxf").exists());
         assert!(run.changed.contains(&f) && run.changed.contains(&mxf.join("Mac Studio-renderfiles-1")));
@@ -415,19 +445,39 @@ mod tests {
         let steps = plan_aside(&refs);
         assert!(steps[0].to.starts_with(root.join("A").join(ASIDE_DIR)));
         let jp = root.join("j.json");
-        let (run, m) = execute(Action::Aside, &steps, false, &jp, &mut |_, _, _| {}).unwrap();
+        let (run, m) = execute(Action::Aside, &steps, false, "", &jp, &mut |_, _, _| {}).unwrap();
         assert_eq!((m.moved, m.skipped.len()), (1, 1));
         assert!(!a.exists() && b.exists() && f.exists());
         // b gone too: the folder holds only its database and goes aside as a whole
         fs::remove_file(&b).unwrap();
         let items = [item(&file(&f, "c.mxf", "c"), Kind::Media)];
         let refs: Vec<&Item> = items.iter().collect();
-        let (run2, _) = execute(Action::Aside, &plan_aside(&refs), false, &jp, &mut |_, _, _| {}).unwrap();
+        let (run2, _) = execute(Action::Aside, &plan_aside(&refs), false, "", &jp, &mut |_, _, _| {}).unwrap();
         assert!(!f.exists() && run2.leftovers.len() == 1);
         undo(&run2).unwrap();
         undo(&run).unwrap();
         assert!(a.exists() && f.join("c.mxf").exists() && f.join(crate::PMR).exists());
         assert!(!root.join("A").join(ASIDE_DIR).exists(), "nothing left behind");
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn copy_to_a_drive_and_undo() {
+        let root = setup("copy");
+        let (a, b) = (root.join("A"), root.join("B"));
+        let f = file(&mxf_dir(&a).join("1"), "clip.mxf", "c");
+        let there = file(&mxf_dir(&b).join("1"), "on_b.mxf", "b");
+        let items = [item(&f, Kind::Media), item(&there, Kind::Media)];
+        let refs: Vec<&Item> = items.iter().collect();
+        let steps = plan_to_drive(&refs, &b);
+        assert_eq!(steps.len(), 1, "files already on the target stay");
+        let jp = root.join("j.json");
+        let (run, m) = execute(Action::Copy, &steps, false, "", &jp, &mut |_, _, _| {}).unwrap();
+        assert_eq!(m.moved, 1);
+        assert!(f.exists() && mxf_dir(&b).join("1/clip.mxf").exists());
+        assert_eq!(run.changed, vec![mxf_dir(&b).join("1")], "the source folder is unchanged");
+        assert_eq!(undo(&run).unwrap().moved, 1);
+        assert!(f.exists() && !mxf_dir(&b).join("1/clip.mxf").exists() && there.exists());
         fs::remove_dir_all(&root).unwrap();
     }
 
@@ -444,7 +494,7 @@ mod tests {
         let steps = plan_swap(&refs, &imports, &renders);
         assert_eq!(steps.iter().map(|s| s.to.clone()).collect::<Vec<_>>(), [mxf_dir(&renders).join("1/render.mxf"), mxf_dir(&imports).join("1/media.mxf")]);
         let jp = root.join("j.json");
-        let (run, moved) = execute(Action::Swap, &steps, false, &jp, &mut |_, _, _| {}).unwrap();
+        let (run, moved) = execute(Action::Swap, &steps, false, "", &jp, &mut |_, _, _| {}).unwrap();
         assert_eq!(moved.moved, 2);
         assert!(u.exists() && mxf_dir(&renders).join("1/render.mxf").exists() && !r.exists());
         assert_eq!(undo(&run).unwrap().moved, 2);

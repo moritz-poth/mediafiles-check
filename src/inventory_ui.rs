@@ -1,6 +1,7 @@
 //! The "Media" tab and the media table window: scan the switched-on drives (inventory), sort the files into media,
 //! renders and unknown, used or not by the switched-on projects.
 use super::*;
+use mediafiles_check::avb::MobId;
 use mediafiles_check::inventory::{self, From, Item, Kind};
 use mediafiles_check::media_moves::{self, Action, Step};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -27,6 +28,8 @@ pub struct InvState {
     /// filled by the scan thread, taken by Inventory.scanned on the event loop: items, projects read, unreadable
     /// bins, media and renders the projects use that are on none of the scanned drives
     result: Arc<Mutex<Option<(Vec<Item>, usize, usize, usize, usize)>>>,
+    /// the bin chosen for copying or moving its media, and what it uses
+    bin: Option<(PathBuf, mediafiles_check::projects::Refs)>,
     /// set aside: unused renders, all renders, unused media; the folders shown (in order)
     aside_options: [bool; 3],
     aside_folders: Vec<PathBuf>,
@@ -88,9 +91,11 @@ pub fn show_runs(app: &AppWindow) {
             let what = match r.action {
                 Action::Aside => ["{n} files set aside ({size}) · {date}", "{n} Dateien beiseitegelegt ({size}) · {date}", "{n} fichiers mis de côté ({size}) · {date}", "{n} archivos apartados ({size}) · {date}"],
                 Action::Renderfiles => ["{n} render files into folders of their own ({size}) · {date}", "{n} Render-Dateien in eigene Ordner ({size}) · {date}", "{n} fichiers de rendu dans leurs propres dossiers ({size}) · {date}", "{n} archivos de render en sus propias carpetas ({size}) · {date}"],
+                Action::Copy => ["{n} files of {label} copied ({size}) · {date}", "{n} Dateien von {label} kopiert ({size}) · {date}", "{n} fichiers de {label} copiés ({size}) · {date}", "{n} archivos de {label} copiados ({size}) · {date}"],
+                Action::Move => ["{n} files of {label} moved ({size}) · {date}", "{n} Dateien von {label} verschoben ({size}) · {date}", "{n} fichiers de {label} déplacés ({size}) · {date}", "{n} archivos de {label} movidos ({size}) · {date}"],
                 Action::Swap => ["{n} files moved between the import and the render drive ({size}) · {date}", "{n} Dateien zwischen Import- und Render-Laufwerk verschoben ({size}) · {date}", "{n} fichiers déplacés entre le disque d’import et le disque de rendu ({size}) · {date}", "{n} archivos movidos entre la unidad de importación y la de render ({size}) · {date}"],
             };
-            let text = pick(&lang, what).replace("{n}", &r.moved.len().to_string()).replace("{size}", &size_text(r.bytes())).replace("{date}", &r.date);
+            let text = pick(&lang, what).replace("{n}", &r.moved.len().to_string()).replace("{size}", &size_text(r.bytes())).replace("{date}", &r.date).replace("{label}", &r.label);
             RunRow { text: text.into(), db_done: r.db_done }
         })
         .collect();
@@ -135,7 +140,22 @@ fn show_plan(app: &AppWindow, st: &InvState) {
     g.set_plan_text(if st.action == Some(Action::Aside) && g.get_task() == 0 { String::new() } else { plan_text(&st.plan) }.into());
 }
 
-/// Plans an action (0 unused aside, 1 renderfiles, 2 two drives, 3 the table's selection aside) and shows it.
+/// The bin page while its bin is read: nothing planned yet.
+fn prepare_bin_page(app: &AppWindow, st: &mut InvState) {
+    let g = app.global::<Inventory>();
+    st.action = None;
+    st.plan.clear();
+    if g.get_task() != 6 {
+        g.set_delete_originals(false);
+    }
+    g.set_task(6);
+    show_plan(app, st);
+    g.set_view(1);
+    app.set_page(Page::Media);
+}
+
+/// Plans an action (0 unused aside, 1 renderfiles, 2 two drives, 3 the table's selection aside, 6 a bin's media to a
+/// drive) and shows it.
 fn prepare(app: &AppWindow, st: &mut InvState, kind: i32, limit: usize) {
     let g = app.global::<Inventory>();
     g.set_mc_running(media_composer_running());
@@ -193,6 +213,20 @@ fn prepare(app: &AppWindow, st: &mut InvState, kind: i32, limit: usize) {
             g.set_to_imports(plan.iter().filter(|s| s.from.starts_with(&drives[b])).count() as i32);
             (Action::Swap, plan)
         }
+        6 => {
+            let targets = find_volumes();
+            g.set_target_names(ModelRc::new(VecModel::from(targets.iter().map(|d| SharedString::from(volume_name(d))).collect::<Vec<_>>())));
+            let t = (g.get_target().max(0) as usize).min(targets.len().saturating_sub(1));
+            g.set_target(t as i32);
+            let action = if g.get_bin_mode() == 1 { Action::Move } else { Action::Copy };
+            let Some((_, refs)) = &st.bin else { return };
+            let wanted = |id: &MobId| refs.media.contains(id) || (g.get_bin_renders() && refs.renders.contains(id));
+            let found: Vec<&Item> = all.iter().copied().filter(|i| i.file_id.is_some_and(|id| wanted(&id))).collect();
+            let present: HashSet<MobId> = found.iter().filter_map(|i| i.file_id).collect();
+            let ids = refs.media.iter().chain(refs.renders.iter().filter(|_| g.get_bin_renders()));
+            g.set_bin_missing(ids.filter(|id| !present.contains(*id)).count() as i32);
+            (action, targets.get(t).map(|d| media_moves::plan_to_drive(&found, d)).unwrap_or_default())
+        }
         _ => (Action::Aside, media_moves::plan_aside(&all.iter().copied().filter(|i| st.selected.contains(&i.path)).collect::<Vec<_>>())),
     };
     st.action = Some(action);
@@ -218,7 +252,8 @@ fn confirm(app: &AppWindow, inv: &Inv) {
         let Some(a) = st.action else { return };
         (a, st.plan.clone())
     };
-    let delete = app.global::<Inventory>().get_delete_originals() && action == Action::Swap;
+    let delete = app.global::<Inventory>().get_delete_originals() && matches!(action, Action::Swap | Action::Move);
+    let label = inv.borrow().bin.as_ref().filter(|_| matches!(action, Action::Copy | Action::Move)).map(|b| volume_name(&b.0)).unwrap_or_default();
     log::write(&format!("media: {action:?} {} files, delete originals: {delete}", steps.len()));
     let g = app.global::<Inventory>();
     g.set_work_value(0.0);
@@ -232,7 +267,7 @@ fn confirm(app: &AppWindow, inv: &Inv) {
     let weak = app.as_weak();
     std::thread::spawn(move || {
         let progress_to = weak.clone();
-        let r = media_moves::execute(action, &steps, delete, &journal_path(), &mut |i, n, name| {
+        let r = media_moves::execute(action, &steps, delete, &label, &journal_path(), &mut |i, n, name| {
             let (w, name) = (progress_to.clone(), name.to_string());
             let _ = slint::invoke_from_event_loop(move || {
                 if let Some(w) = w.upgrade() {
@@ -270,7 +305,10 @@ fn confirm(app: &AppWindow, inv: &Inv) {
                 for (f, why) in &m.skipped {
                     log::write(&format!("  skipped {f}: {why}"));
                 }
-                let mut lines = vec![pick(&lang, ["{n} files moved ({size}).", "{n} Dateien verschoben ({size}).", "{n} fichiers déplacés ({size}).", "{n} archivos movidos ({size})."]).replace("{n}", &m.moved.to_string()).replace("{size}", &size_text(run.bytes()))];
+                let copied = run.action == Action::Copy;
+                g.set_done_copied(copied);
+                let text = if copied { ["{n} files copied ({size}).", "{n} Dateien kopiert ({size}).", "{n} fichiers copiés ({size}).", "{n} archivos copiados ({size})."] } else { ["{n} files moved ({size}).", "{n} Dateien verschoben ({size}).", "{n} fichiers déplacés ({size}).", "{n} archivos movidos ({size})."] };
+                let mut lines = vec![pick(&lang, text).replace("{n}", &m.moved.to_string()).replace("{size}", &size_text(run.bytes()))];
                 if !m.skipped.is_empty() {
                     lines.push(pick(&lang, ["Left where they are:", "Liegen geblieben:", "Laissés en place :", "Se quedaron:"]).to_string());
                     lines.extend(m.skipped.iter().take(20).map(|(f, why)| format!("· {f} – {why}")));
@@ -791,6 +829,53 @@ pub fn wire(app: &AppWindow, inv: &Inv, drives: &Drives, projects: &Rc<RefCell<P
             }
             prepare(&ww.unwrap(), &mut st, 0, settings.borrow().limit);
         }
+    });
+    g.on_choose_bin({
+        let (ww, inv, settings, projects) = (app.as_weak(), inv.clone(), settings.clone(), projects.clone());
+        move || {
+            let app = ww.unwrap();
+            let start = projects.borrow().projects.first().and_then(|p| p.0.parent().map(Path::to_path_buf));
+            let mut dialog = rfd::FileDialog::new().add_filter("Avid bin", &["avb"]);
+            if let Some(dir) = start {
+                dialog = dialog.set_directory(dir);
+            }
+            let Some(path) = dialog.pick_file() else { return };
+            let g = app.global::<Inventory>();
+            g.set_bin_name(volume_name(&path).trim_end_matches(".avb").into());
+            g.set_bin_reading(true);
+            inv.borrow_mut().bin = None;
+            prepare_bin_page(&app, &mut inv.borrow_mut());
+            // a bin that takes clips from other bins reads its whole project: in the background
+            let (tx, rx) = std::sync::mpsc::channel();
+            let p = path.clone();
+            std::thread::spawn(move || {
+                let _ = tx.send(projects::bin_refs(&p));
+            });
+            let (timer, weak, inv, settings) = (Rc::new(slint::Timer::default()), app.as_weak(), inv.clone(), settings.clone());
+            let t = timer.clone();
+            timer.start(slint::TimerMode::Repeated, Duration::from_millis(200), move || {
+                let Ok(r) = rx.try_recv() else { return };
+                t.stop();
+                let Some(app) = weak.upgrade() else { return };
+                let g = app.global::<Inventory>();
+                g.set_bin_reading(false);
+                match r {
+                    Ok(refs) => {
+                        log::write(&format!("bin {}: {} media, {} renders", path.display(), refs.media.len(), refs.renders.len()));
+                        inv.borrow_mut().bin = Some((path.clone(), refs));
+                        prepare(&app, &mut inv.borrow_mut(), 6, settings.borrow().limit);
+                    }
+                    Err(e) => {
+                        g.set_task(-1);
+                        g.set_error(format!("{}: {e}", path.display()).into());
+                    }
+                }
+            });
+        }
+    });
+    g.on_bin_changed({
+        let (ww, inv, settings) = (app.as_weak(), inv.clone(), settings.clone());
+        move || prepare(&ww.unwrap(), &mut inv.borrow_mut(), 6, settings.borrow().limit)
     });
     g.on_swap_changed({
         let (ww, inv, settings) = (app.as_weak(), inv.clone(), settings.clone());
