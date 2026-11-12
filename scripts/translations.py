@@ -9,6 +9,10 @@ PLURAL = {"de": "nplurals=2; plural=(n != 1);", "fr": "nplurals=2; plural=(n > 1
 
 # English: (German, French, Spanish). Plural entries: (singular, plural) -> ((de1, de2), (fr1, fr2), (es1, es2))
 T = {
+    'Search…': ('Suchen…', 'Rechercher…', 'Buscar…'),
+    'Delete': ('Löschen', 'Supprimer', 'Borrar'),
+    'Move': ('Verschieben', 'Déplacer', 'Mover'),
+    'Move or delete each original after its copy is checked?': ('Original nach geprüfter Kopie verschieben oder löschen?', 'Déplacer ou supprimer l’original après vérification de la copie ?', '¿Mover o borrar el original tras comprobar la copia?'),
     'Media files no switched-on project uses': ('Mediendateien, die kein eingeschaltetes Projekt benutzt', 'Fichiers média qu’aucun projet activé n’utilise', 'Archivos de medios que ningún proyecto activado usa'),
     'Render files no switched-on project uses': ('Render-Dateien, die kein eingeschaltetes Projekt benutzt', 'Fichiers de rendu qu’aucun projet activé n’utilise', 'Archivos de render que ningún proyecto activado usa'),
     'Render files and files no switched-on project uses': ('Render-Dateien und Dateien, die kein eingeschaltetes Projekt benutzt', 'Fichiers de rendu et fichiers qu’aucun projet activé n’utilise', 'Archivos de render y archivos que ningún proyecto activado usa'),
@@ -37,7 +41,6 @@ T = {
     'Each file goes into a folder of the same name on the other drive. Unknown files stay where they are.': ('Jede Datei kommt in einen Ordner mit demselben Namen auf dem anderen Laufwerk. Unbekannte Dateien bleiben, wo sie sind.', 'Chaque fichier va dans un dossier du même nom sur l’autre disque. Les fichiers inconnus restent où ils sont.', 'Cada archivo va a una carpeta con el mismo nombre en la otra unidad. Los archivos desconocidos se quedan donde están.'),
     'Files moved': ('Dateien verschoben', 'Fichiers déplacés', 'Archivos movidos'),
     'Render files into folders of their own': ('Render-Dateien in eigene Ordner', 'Fichiers de rendu dans leurs propres dossiers', 'Archivos de render en sus propias carpetas'),
-    'Delete each original after its copy is checked': ('Original nach geprüfter Kopie löschen', 'Supprimer l’original après vérification de la copie', 'Borrar el original tras comprobar la copia'),
     'Swap render files and media': ('Render-Dateien und Medien tauschen', 'Échanger fichiers de rendu et médias', 'Intercambiar archivos de render y medios'),
     'DRIVES': ('LAUFWERKE', 'DISQUES', 'UNIDADES'),
     'PROJECTS': ('PROJEKTE', 'PROJETS', 'PROYECTOS'),
@@ -46,7 +49,6 @@ T = {
     'Render': ('Render', 'Rendu', 'Render'),
     'Unknown': ('Unbekannt', 'Inconnu', 'Desconocido'),
     'reading…': ('liest…', 'lecture…', 'leyendo…'),
-    'Not used': ('Unbenutzt', 'Inutilisés', 'Sin usar'),
     'Size': ('Größe', 'Taille', 'Tamaño'),
     'Choose the folder with your Avid projects under Projects. Without projects, the files are only sorted into media and renders – nothing can be called unused.': ('Wähle den Ordner mit deinen Avid-Projekten unter Projekte. Ohne Projekte werden die Dateien nur in Medien und Renders sortiert – nichts kann als unbenutzt gelten.', 'Choisissez le dossier de vos projets Avid sous Projets. Sans projets, les fichiers sont seulement triés en médias et rendus – rien ne peut être dit inutilisé.', 'Elige la carpeta con tus proyectos de Avid en Proyectos. Sin proyectos, los archivos solo se separan en medios y renders: nada puede considerarse sin usar.'),
     'Renders in use': ('Renders benutzt', 'Rendus utilisés', 'Renders en uso'),
@@ -82,7 +84,6 @@ T = {
     'Select all shown': ('Alle gezeigten auswählen', 'Sélectionner tout l’affiché', 'Seleccionar todo lo mostrado'),
     'Show table…': ('Tabelle öffnen…', 'Afficher le tableau…', 'Mostrar tabla…'),
     'Drives and projects': ('Laufwerke und Projekte', 'Disques et projets', 'Unidades y proyectos'),
-    'Search clip, file, codec, project…': ('Clip, Datei, Codec, Projekt suchen…', 'Chercher clip, fichier, codec, projet…', 'Buscar clip, archivo, códec, proyecto…'),
     ('{n} bin could not be read – what only it uses counts as unused.', '{n} bins could not be read – what only they use counts as unused.'): (('{n} Bin war nicht lesbar – was nur es benutzt, gilt als unbenutzt.', '{n} Bins waren nicht lesbar – was nur sie benutzen, gilt als unbenutzt.'), ('{n} chutier illisible – ce que lui seul utilise compte comme inutilisé.', '{n} chutiers illisibles – ce qu’eux seuls utilisent compte comme inutilisé.'), ('{n} bin no se pudo leer: lo que solo él usa cuenta como sin usar.', '{n} bins no se pudieron leer: lo que solo ellos usan cuenta como sin usar.')),
     ('{n} selected', '{n} selected'): (('{n} ausgewählt', '{n} ausgewählt'), ('{n} sélectionné', '{n} sélectionnés'), ('{n} seleccionado', '{n} seleccionados')),
     ('{n} file shown', '{n} files shown'): (('{n} Datei gezeigt', '{n} Dateien gezeigt'), ('{n} fichier affiché', '{n} fichiers affichés'), ('{n} archivo mostrado', '{n} archivos mostrados')),

@@ -8,6 +8,18 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 
+msgid "Search…"
+msgstr "Rechercher…"
+
+msgid "Delete"
+msgstr "Supprimer"
+
+msgid "Move"
+msgstr "Déplacer"
+
+msgid "Move or delete each original after its copy is checked?"
+msgstr "Déplacer ou supprimer l’original après vérification de la copie ?"
+
 msgid "Media files no switched-on project uses"
 msgstr "Fichiers média qu’aucun projet activé n’utilise"
 
@@ -92,9 +104,6 @@ msgstr "Fichiers déplacés"
 msgid "Render files into folders of their own"
 msgstr "Fichiers de rendu dans leurs propres dossiers"
 
-msgid "Delete each original after its copy is checked"
-msgstr "Supprimer l’original après vérification de la copie"
-
 msgid "Swap render files and media"
 msgstr "Échanger fichiers de rendu et médias"
 
@@ -118,9 +127,6 @@ msgstr "Inconnu"
 
 msgid "reading…"
 msgstr "lecture…"
-
-msgid "Not used"
-msgstr "Inutilisés"
 
 msgid "Size"
 msgstr "Taille"
@@ -226,9 +232,6 @@ msgstr "Afficher le tableau…"
 
 msgid "Drives and projects"
 msgstr "Disques et projets"
-
-msgid "Search clip, file, codec, project…"
-msgstr "Chercher clip, fichier, codec, projet…"
 
 msgid "{n} bin could not be read – what only it uses counts as unused."
 msgid_plural "{n} bins could not be read – what only they use counts as unused."

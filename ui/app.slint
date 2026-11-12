@@ -218,6 +218,26 @@ component Switch inherits Rectangle {
     }
 }
 
+// Zeile mit Schalter: Klick irgendwo auf die Zeile schaltet um, beim Überfahren hervorgehoben (wie die Seitenleiste)
+component ToggleRow inherits Rectangle {
+    in property <bool> enabled: true;
+    in property <length> spacing: 10px;
+    callback toggled;
+    border-radius: 6px;
+    background: touch.has-hover && root.enabled ? Theme.selection : transparent;
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: pointer;
+        clicked => { root.toggled(); }
+    }
+    HorizontalLayout {
+        padding-left: 6px;
+        padding-right: 6px;
+        spacing: root.spacing;
+        @children
+    }
+}
+
 // Auswahl wie Mountpoints Dropdown: Knopf im Ferry-Stil (26 px) mit Titel und Pfeil, darunter das native Menü;
 // der aktuelle Eintrag ist ausgegraut.
 component Dropdown {
@@ -674,7 +694,8 @@ component ProjectsPane inherits VerticalLayout {
         if Projects.projects.length > 0: ScrollBox {
             limit: 170px;
             spacing: 2px;
-            for p[i] in Projects.projects: HorizontalLayout {
+            for p[i] in Projects.projects: ToggleRow {
+                toggled => { Projects.toggle(i); }
                 height: 26px;
                 spacing: 10px;
                 Text {
@@ -1043,7 +1064,9 @@ component ExchangePane inherits VerticalLayout {
             if Exchange.volumes.length > 0: ScrollBox {
                 limit: 6 * 22px + 5 * 10px;
                 spacing: 10px;
-                for v[i] in Exchange.volumes: HorizontalLayout {
+                for v[i] in Exchange.volumes: ToggleRow {
+                    enabled: v.online;
+                    toggled => { Exchange.toggle-volume(i); }
                     spacing: 10px;
                     height: 22px;
                     Dot { color: v.online ? Theme.online : Theme.line; }
@@ -1592,7 +1615,8 @@ component InventoryPane inherits VerticalLayout {
         if Inventory.drives.length > 0: ScrollBox {
             limit: 4 * 26px + 3 * 2px;
             spacing: 2px;
-            for d[i] in Inventory.drives: HorizontalLayout {
+            for d[i] in Inventory.drives: ToggleRow {
+                toggled => { Inventory.toggle-drive(i); }
                 height: 26px;
                 spacing: 10px;
                 Text {
@@ -1625,7 +1649,8 @@ component InventoryPane inherits VerticalLayout {
         if Projects.projects.length > 0: ScrollBox {
             limit: 4 * 26px + 3 * 2px;
             spacing: 2px;
-            for p[i] in Projects.projects: HorizontalLayout {
+            for p[i] in Projects.projects: ToggleRow {
+                toggled => { Projects.toggle(i); }
                 height: 26px;
                 spacing: 10px;
                 Text {
@@ -1783,21 +1808,29 @@ component InventoryPane inherits VerticalLayout {
                 text: Inventory.imports == Inventory.renders ? @tr("Choose two different drives.") : @tr("{} render files to the render drive, {} media files to the import drive", Inventory.to-renders, Inventory.to-imports) + " · " + Inventory.plan-size;
                 color: Inventory.imports == Inventory.renders ? Theme.warning : Theme.text;
             }
-            HorizontalLayout {
+            ToggleRow {
+                toggled => { Inventory.delete-originals = !Inventory.delete-originals; }
                 spacing: 10px;
                 Text {
-                    text: @tr("Delete each original after its copy is checked");
+                    text: @tr("Move or delete each original after its copy is checked?");
                     horizontal-stretch: 1;
                     vertical-alignment: center;
                     overflow: elide;
                     font-size: 12px;
                     color: Theme.text;
                 }
+                Text {
+                    text: Inventory.delete-originals ? @tr("Delete") : @tr("Move");
+                    vertical-alignment: center;
+                    font-size: 12px;
+                    font-weight: 600;
+                    color: Inventory.delete-originals ? Theme.warning : Theme.text;
+                }
                 VerticalLayout {
                     alignment: center;
                     Switch {
                         on: Inventory.delete-originals;
-                        label: @tr("Delete each original after its copy is checked");
+                        label: @tr("Move or delete each original after its copy is checked?");
                         toggled => { Inventory.delete-originals = !Inventory.delete-originals; }
                     }
                 }
@@ -1809,7 +1842,9 @@ component InventoryPane inherits VerticalLayout {
         }
         if Inventory.task == 0: VerticalLayout {
             spacing: 4px;
-            for o[i] in [@tr("Render files no switched-on project uses"), @tr("Also render files in use (Media Composer renders them again)"), @tr("Media files no switched-on project uses")]: HorizontalLayout {
+            for o[i] in [@tr("Render files no switched-on project uses"), @tr("Also render files in use (Media Composer renders them again)"), @tr("Media files no switched-on project uses")]: ToggleRow {
+                enabled: i == 1 || Inventory.projects > 0;
+                toggled => { Inventory.aside-option(i); }
                 height: 26px;
                 spacing: 10px;
                 Text {
@@ -1845,7 +1880,8 @@ component InventoryPane inherits VerticalLayout {
         if Inventory.task == 0 && Inventory.aside-folders.length > 0: ScrollBox {
             limit: 5 * 26px + 4 * 2px;
             spacing: 2px;
-            for f[i] in Inventory.aside-folders: HorizontalLayout {
+            for f[i] in Inventory.aside-folders: ToggleRow {
+                toggled => { Inventory.toggle-folder(i); }
                 height: 26px;
                 spacing: 10px;
                 Text {
@@ -2423,7 +2459,8 @@ export component AppWindow inherits CheckWindow {
             if root.drives.length > 0: ScrollBox {
                 limit: 6 * 22px + 5 * 10px;
                 spacing: 10px;
-                for d[i] in root.drives: HorizontalLayout {
+                for d[i] in root.drives: ToggleRow {
+                    toggled => { root.toggle-drive(i); }
                     height: 22px;
                     spacing: 10px;
                     Dot { color: Theme.online; }
@@ -2771,7 +2808,9 @@ export component AppWindow inherits CheckWindow {
                 if root.rebalance-rows.length > 0: ScrollBox {
                     limit: 300px;
                     spacing: 12px;
-                            for r[i] in root.rebalance-rows: HorizontalLayout {
+                            for r[i] in root.rebalance-rows: ToggleRow {
+                            enabled: !r.blocked;
+                            toggled => { root.toggle-rebalance(i); }
                                 spacing: 10px;
                                 VerticalLayout {
                                     horizontal-stretch: 1;
@@ -2920,7 +2959,9 @@ export component AppWindow inherits CheckWindow {
                     spacing: 16px;
                     for g[gi] in root.dup-groups: VerticalLayout {
                         spacing: 6px;
-                        HorizontalLayout {
+                        ToggleRow {
+                            enabled: !g.blocked;
+                            toggled => { root.toggle-dup(gi); }
                             spacing: 10px;
                             VerticalLayout {
                                 horizontal-stretch: 1;
@@ -3978,23 +4019,30 @@ export component MediaWindow inherits CheckWindow {
     }
 }
 
-// Medientabelle: eigenes, frei skalierbares Fenster; Filtern, Suchen und Sortieren macht Rust (Spalte, aufsteigend)
+// Medientabelle: eigenes, frei skalierbares Fenster; Filtern, Suchen und Sortieren macht Rust (Spalte, aufsteigend).
+// Spaltenkopf: Klick sortiert (Pfeil gleich hinter dem Namen), der rechte Rand lässt sich ziehen (Breite).
 component ColumnHead inherits Rectangle {
     in property <string> text;
     in property <int> column;
     in property <int> sorted;
     in property <bool> up;
-    in property <TextHorizontalAlignment> align: left;
+    in property <bool> right;
+    in-out property <length> w;
     callback clicked(int);
+    width: root.w;
     accessible-role: button;
     accessible-label: root.text;
     accessible-action-default => { root.clicked(root.column); }
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(root.column); }
+    }
     HorizontalLayout {
-        spacing: 3px;
-        if root.align == TextHorizontalAlignment.right: Rectangle { horizontal-stretch: 1; }
+        padding-right: 8px;
+        spacing: 4px;
+        if root.right: Rectangle { horizontal-stretch: 1; }
         Text {
             text: root.text;
-            horizontal-alignment: root.align;
             vertical-alignment: center;
             overflow: elide;
             font-size: 11px;
@@ -4007,11 +4055,22 @@ component ColumnHead inherits Rectangle {
             font-size: 8px;
             color: Theme.text;
         }
-        if root.align != TextHorizontalAlignment.right: Rectangle { horizontal-stretch: 1; }
+        if !root.right: Rectangle { horizontal-stretch: 1; }
     }
-    TouchArea {
-        mouse-cursor: pointer;
-        clicked => { root.clicked(root.column); }
+    // Ziehgriff am rechten Rand: die Breite folgt der Maus
+    Rectangle {
+        x: parent.width - 5px;
+        width: 9px;
+        Rectangle {
+            x: 4px;
+            width: 1px;
+            height: 60%;
+            background: Theme.line;
+        }
+        TouchArea {
+            mouse-cursor: col-resize;
+            moved => { root.w = max(36px, root.w + self.mouse-x - self.pressed-x); }
+        }
     }
 }
 
@@ -4021,6 +4080,27 @@ component Cell inherits Text {
     font-size: 12px;
 }
 
+// Tabellenzelle so breit wie ihre Spalte, 8 px Luft rechts wie im Spaltenkopf
+component Col inherits Rectangle {
+    in property <length> w;
+    in property <string> text;
+    in property <color> ink: Theme.muted;
+    in property <bool> right;
+    in property <bool> bold;
+    width: root.w;
+    Text {
+        x: 0;
+        width: parent.width - 8px;
+        text: root.text;
+        horizontal-alignment: root.right ? TextHorizontalAlignment.right : TextHorizontalAlignment.left;
+        vertical-alignment: center;
+        overflow: elide;
+        font-size: 12px;
+        font-weight: root.bold ? 600 : 400;
+        color: root.ink;
+    }
+}
+
 export component MediaTableWindow inherits CheckWindow {
     title: @tr("Media table");
     preferred-width: 1400px;
@@ -4028,15 +4108,23 @@ export component MediaTableWindow inherits CheckWindow {
     min-width: 760px;
     min-height: 420px;
     in property <[MediaRow]> rows;
-    // Zahlen der Filter: 0 alle, 1 Medien, 2 Renders, 3 unbenutzt, 4 unbekannt
-    in property <[int]> filter-counts: [0, 0, 0, 0, 0];
+    // Filter: 0 alle, 1 Medien, 2 Medien unbenutzt, 3 Renders, 4 Renders unbenutzt, 5 unbekannt (Zahlen dazu)
+    in property <[int]> filter-counts: [0, 0, 0, 0, 0, 0];
     in-out property <int> filter;
     in property <bool> with-projects;
+    // weitere Filter: Einträge (der erste = alle) und Auswahl
+    in property <[string]> drive-items: [""];
+    in property <[string]> codec-items: [""];
+    in property <[string]> project-items: [""];
+    in-out property <int> drive-filter;
+    in-out property <int> codec-filter;
+    in-out property <int> project-filter;
     in property <int> sort-column;
     in property <bool> sort-up: true;
     in property <int> selected;
     in property <string> selected-size;
     callback filter-changed(int);
+    callback extra-changed();
     callback search(string);
     callback sort(int);
     callback toggle(int);
@@ -4046,34 +4134,32 @@ export component MediaTableWindow inherits CheckWindow {
     callback set-aside();
     callback close();
 
-    // Spaltenbreiten (Clip und Datei teilen sich den Rest)
-    property <length> w-mark: 22px;
-    property <length> w-kind: 70px;
-    property <length> w-from: 110px;
-    property <length> w-used: 54px;
+    // Spaltenbreiten (in der Tabelle zu ziehen)
+    property <length> w-mark: 24px;
+    property <length> w-clip: 230px;
+    property <length> w-kind: 76px;
+    property <length> w-from: 116px;
+    property <length> w-used: 70px;
     property <length> w-codec: 110px;
-    property <length> w-pic: 92px;
-    property <length> w-fps: 52px;
-    property <length> w-dur: 96px;
-    property <length> w-sound: 110px;
-    property <length> w-size: 72px;
-    property <length> w-project: 110px;
-    property <length> w-place: 170px;
-    property <length> fixed: w-mark + w-kind + w-from + w-used + w-codec + w-pic + w-fps + w-dur + w-sound + w-size + w-project + w-place + 13 * 8px;
-    // schmaleres Fenster: die Tabelle scrollt waagerecht, Clip und Datei behalten 160 px
-    property <length> table-width: max(root.width - 2 * 20px - 2px, root.fixed + 2 * 160px);
-    property <length> w-clip: (root.table-width - root.fixed) * 0.5;
-    property <length> w-file: (root.table-width - root.fixed) * 0.5;
+    property <length> w-pic: 96px;
+    property <length> w-fps: 56px;
+    property <length> w-dur: 104px;
+    property <length> w-sound: 120px;
+    property <length> w-size: 80px;
+    property <length> w-project: 120px;
+    property <length> w-place: 200px;
+    property <length> w-file: 280px;
+    property <length> table-width: max(root.width - 2 * 20px - 2px, w-mark + w-clip + w-kind + w-from + w-used + w-codec + w-pic + w-fps + w-dur + w-sound + w-size + w-project + w-place + w-file + 16px);
 
     VerticalLayout {
         padding: 20px;
         spacing: 12px;
         HorizontalLayout {
             spacing: 6px;
-            for f[i] in [@tr("All"), @tr("Media"), @tr("Renders"), @tr("Not used"), @tr("Unknown")]: Rectangle {
-                visible: i != 3 || root.with-projects;
+            for f[i] in [@tr("All"), @tr("Media"), @tr("Media not used"), @tr("Renders"), @tr("Renders not used"), @tr("Unknown")]: Rectangle {
+                visible: (i != 2 && i != 4) || root.with-projects;
                 width: self.visible ? label.preferred-width + 20px : 0px;
-                height: 26px;
+                height: 28px;
                 border-radius: 6px;
                 background: root.filter == i ? Theme.selection : touch.has-hover ? Theme.selection.with-alpha(0.5) : transparent;
                 accessible-role: tab;
@@ -4091,8 +4177,27 @@ export component MediaTableWindow inherits CheckWindow {
                 }
             }
             Rectangle { horizontal-stretch: 1; }
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            Dropdown {
+                items: root.drive-items;
+                current: root.drive-filter;
+                selected(i) => { root.drive-filter = i; root.extra-changed(); }
+            }
+            Dropdown {
+                items: root.codec-items;
+                current: root.codec-filter;
+                selected(i) => { root.codec-filter = i; root.extra-changed(); }
+            }
+            if root.with-projects || root.project-items.length > 1: Dropdown {
+                items: root.project-items;
+                current: root.project-filter;
+                selected(i) => { root.project-filter = i; root.extra-changed(); }
+            }
+            Rectangle { horizontal-stretch: 1; }
             Rectangle {
-                width: 240px;
+                width: 220px;
                 height: 26px;
                 border-radius: 6px;
                 border-width: 1px;
@@ -4108,7 +4213,7 @@ export component MediaTableWindow inherits CheckWindow {
                 }
                 if search.text == "": Text {
                     x: 8px;
-                    text: @tr("Search clip, file, codec, project…");
+                    text: @tr("Search…");
                     vertical-alignment: center;
                     font-size: 12px;
                     color: Theme.faint;
@@ -4137,21 +4242,21 @@ export component MediaTableWindow inherits CheckWindow {
                         HorizontalLayout {
                             padding-left: 8px;
                             padding-right: 8px;
-                            spacing: 8px;
                             Rectangle { width: root.w-mark; }
-                            ColumnHead { width: root.w-clip; text: @tr("Clip"); column: 0; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
-                            ColumnHead { width: root.w-kind; text: @tr("Kind"); column: 1; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
-                            ColumnHead { width: root.w-from; text: @tr("Known by"); column: 2; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
-                            ColumnHead { width: root.w-used; text: @tr("Used"); column: 3; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
-                            ColumnHead { width: root.w-codec; text: @tr("Codec"); column: 4; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
-                            ColumnHead { width: root.w-pic; text: @tr("Picture"); column: 5; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
-                            ColumnHead { width: root.w-fps; text: "fps"; column: 6; sorted: root.sort-column; up: root.sort-up; align: right; clicked(c) => { root.sort(c); } }
-                            ColumnHead { width: root.w-dur; text: @tr("Duration"); column: 7; sorted: root.sort-column; up: root.sort-up; align: right; clicked(c) => { root.sort(c); } }
-                            ColumnHead { width: root.w-sound; text: @tr("Sound"); column: 8; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
-                            ColumnHead { width: root.w-size; text: @tr("Size"); column: 9; sorted: root.sort-column; up: root.sort-up; align: right; clicked(c) => { root.sort(c); } }
-                            ColumnHead { width: root.w-project; text: @tr("Project"); column: 10; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
-                            ColumnHead { width: root.w-place; text: @tr("Drive / folder"); column: 11; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
-                            ColumnHead { width: root.w-file; text: @tr("File"); column: 12; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
+                            ColumnHead { w <=> root.w-clip; text: @tr("Clip"); column: 0; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
+                            ColumnHead { w <=> root.w-kind; text: @tr("Kind"); column: 1; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
+                            ColumnHead { w <=> root.w-from; text: @tr("Known by"); column: 2; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
+                            ColumnHead { w <=> root.w-used; text: @tr("Used"); column: 3; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
+                            ColumnHead { w <=> root.w-codec; text: @tr("Codec"); column: 4; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
+                            ColumnHead { w <=> root.w-pic; text: @tr("Picture"); column: 5; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
+                            ColumnHead { w <=> root.w-fps; text: "fps"; column: 6; sorted: root.sort-column; up: root.sort-up; right: true; clicked(c) => { root.sort(c); } }
+                            ColumnHead { w <=> root.w-dur; text: @tr("Duration"); column: 7; sorted: root.sort-column; up: root.sort-up; right: true; clicked(c) => { root.sort(c); } }
+                            ColumnHead { w <=> root.w-sound; text: @tr("Sound"); column: 8; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
+                            ColumnHead { w <=> root.w-size; text: @tr("Size"); column: 9; sorted: root.sort-column; up: root.sort-up; right: true; clicked(c) => { root.sort(c); } }
+                            ColumnHead { w <=> root.w-project; text: @tr("Project"); column: 10; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
+                            ColumnHead { w <=> root.w-place; text: @tr("Drive / folder"); column: 11; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
+                            ColumnHead { w <=> root.w-file; text: @tr("File"); column: 12; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
+                            Rectangle { horizontal-stretch: 1; }
                         }
                     }
                     Rectangle { height: 1px; background: Theme.line; }
@@ -4164,37 +4269,27 @@ export component MediaTableWindow inherits CheckWindow {
                             accessible-label: r.clip != "" ? r.clip : r.file;
                             accessible-checked: r.selected;
                             accessible-action-default => { root.toggle(i); }
+                            row-touch := TouchArea {
+                                clicked => { root.toggle(i); }
+                            }
                             HorizontalLayout {
                                 padding-left: 8px;
                                 padding-right: 8px;
-                                spacing: 8px;
                                 Cell { width: root.w-mark; text: r.selected ? "✓" : ""; horizontal-alignment: center; color: Theme.text; }
-                                Cell { width: root.w-clip; text: r.clip; color: r.clip == "" ? Theme.faint : Theme.text; }
-                                Cell {
-                                    width: root.w-kind;
-                                    text: r.kind == 0 ? @tr("Media") : r.kind == 1 ? @tr("Render") : @tr("Unknown");
-                                    font-weight: r.kind == 1 ? 600 : 400;
-                                    color: r.kind == 2 ? Theme.warning : Theme.text;
-                                }
-                                Cell { width: root.w-from; text: r.from == 0 ? @tr("header") : r.from == 1 ? @tr("project") : "–"; color: Theme.muted; }
-                                Cell {
-                                    width: root.w-used;
-                                    text: r.used == 1 ? @tr("yes") : r.used == 0 ? @tr("no") : "–";
-                                    font-weight: r.used == 0 ? 600 : 400;
-                                    color: r.used == 0 ? Theme.warning : Theme.muted;
-                                }
-                                Cell { width: root.w-codec; text: r.codec; color: Theme.muted; }
-                                Cell { width: root.w-pic; text: r.picture; color: Theme.muted; }
-                                Cell { width: root.w-fps; text: r.fps; horizontal-alignment: right; color: Theme.muted; }
-                                Cell { width: root.w-dur; text: r.duration; horizontal-alignment: right; color: Theme.muted; }
-                                Cell { width: root.w-sound; text: r.sound; color: Theme.muted; }
-                                Cell { width: root.w-size; text: r.size; horizontal-alignment: right; color: Theme.muted; }
-                                Cell { width: root.w-project; text: r.project; color: Theme.muted; }
-                                Cell { width: root.w-place; text: r.place; color: Theme.muted; }
-                                Cell { width: root.w-file; text: r.file; color: Theme.muted; }
-                            }
-                            row-touch := TouchArea {
-                                clicked => { root.toggle(i); }
+                                Col { w: root.w-clip; text: r.clip; ink: r.clip == "" ? Theme.faint : Theme.text; }
+                                Col { w: root.w-kind; text: r.kind == 0 ? @tr("Media") : r.kind == 1 ? @tr("Render") : @tr("Unknown"); bold: r.kind == 1; ink: r.kind == 2 ? Theme.warning : Theme.text; }
+                                Col { w: root.w-from; text: r.from == 0 ? @tr("header") : r.from == 1 ? @tr("project") : "–"; }
+                                Col { w: root.w-used; text: r.used == 1 ? @tr("yes") : r.used == 0 ? @tr("no") : "–"; bold: r.used == 0; ink: r.used == 0 ? Theme.warning : Theme.muted; }
+                                Col { w: root.w-codec; text: r.codec; }
+                                Col { w: root.w-pic; text: r.picture; }
+                                Col { w: root.w-fps; text: r.fps; right: true; }
+                                Col { w: root.w-dur; text: r.duration; right: true; }
+                                Col { w: root.w-sound; text: r.sound; }
+                                Col { w: root.w-size; text: r.size; right: true; }
+                                Col { w: root.w-project; text: r.project; }
+                                Col { w: root.w-place; text: r.place; }
+                                Col { w: root.w-file; text: r.file; }
+                                Rectangle { horizontal-stretch: 1; }
                             }
                         }
                     }
@@ -4215,12 +4310,14 @@ export component MediaTableWindow inherits CheckWindow {
                 text: @tr("Select all shown");
                 clicked => { root.select-all(); }
             }
-            if root.selected > 0: CheckButton {
+            CheckButton {
                 text: @tr("Clear selection");
+                enabled: root.selected > 0;
                 clicked => { root.select-none(); }
             }
-            if root.selected > 0: CheckButton {
+            CheckButton {
                 text: @tr("Set aside…");
+                enabled: root.selected > 0;
                 clicked => { root.set-aside(); }
             }
             CheckButton {

@@ -11,6 +11,10 @@ pub struct InvState {
     /// projects whose bins were read for the last scan (0: used/unused unknown)
     projects: usize,
     filter: i32,
+    /// language of the app (the table window has no menu of its own to tell)
+    lang: String,
+    /// extra filters of the table (None = all): drive, codec, project
+    extra: [Option<String>; 3],
     search: String,
     /// column, descending (default: clip name, A to Z)
     sort: (i32, bool),
@@ -414,15 +418,21 @@ fn row(i: &Item, selected: bool) -> MediaRow {
     }
 }
 
-fn matches(i: &Item, filter: i32, search: &str) -> bool {
+/// Drive, codec and project of an item, as the table's extra filters name them.
+fn extras(i: &Item) -> [String; 3] {
+    [i.drive.clone(), i.info.as_ref().and_then(|x| x.codec.clone()).unwrap_or_default(), i.project.clone().unwrap_or_default()]
+}
+
+fn matches(i: &Item, filter: i32, extra: &[Option<String>; 3], search: &str) -> bool {
     let kind_ok = match filter {
         1 => i.kind == Kind::Media,
-        2 => i.kind == Kind::Render,
-        3 => i.used == Some(false),
-        4 => i.kind == Kind::Unknown,
+        2 => i.kind == Kind::Media && i.used == Some(false),
+        3 => i.kind == Kind::Render,
+        4 => i.kind == Kind::Render && i.used == Some(false),
+        5 => i.kind == Kind::Unknown,
         _ => true,
     };
-    if !kind_ok {
+    if !kind_ok || extra.iter().zip(extras(i)).any(|(f, v)| f.as_ref().is_some_and(|f| *f != v)) {
         return false;
     }
     if search.is_empty() {
@@ -459,7 +469,7 @@ fn compare(a: &Item, b: &Item, column: i32) -> std::cmp::Ordering {
 /// Filter, search and sort anew and fill the table window.
 fn refresh_table(st: &mut InvState) {
     let search = st.search.trim().to_lowercase();
-    let mut shown: Vec<usize> = (0..st.items.len()).filter(|&i| matches(&st.items[i], st.filter, &search)).collect();
+    let mut shown: Vec<usize> = (0..st.items.len()).filter(|&i| matches(&st.items[i], st.filter, &st.extra, &search)).collect();
     let (col, down) = st.sort;
     shown.sort_by(|&x, &y| {
         let o = compare(&st.items[x], &st.items[y], col);
@@ -469,8 +479,24 @@ fn refresh_table(st: &mut InvState) {
     let Some(w) = st.win.borrow().as_ref().map(|w| w.as_weak()) else { return };
     let Some(w) = w.upgrade() else { return };
     let rows: Vec<MediaRow> = st.shown.iter().map(|&i| row(&st.items[i], st.selected.contains(&st.items[i].path))).collect();
-    let count = |f: i32| st.items.iter().filter(|i| matches(i, f, "")).count() as i32;
-    w.set_filter_counts(ModelRc::new(VecModel::from((0..5).map(count).collect::<Vec<_>>())));
+    let count = |f: i32| st.items.iter().filter(|i| matches(i, f, &st.extra, "")).count() as i32;
+    w.set_filter_counts(ModelRc::new(VecModel::from((0..6).map(count).collect::<Vec<_>>())));
+    // extra filters: every value present, sorted; the first entry means all
+    let lang = st.lang.as_str();
+    let all = [["All drives", "Alle Laufwerke", "Tous les disques", "Todas las unidades"], ["All codecs", "Alle Codecs", "Tous les codecs", "Todos los códecs"], ["All projects", "Alle Projekte", "Tous les projets", "Todos los proyectos"]];
+    for (k, first) in all.iter().enumerate() {
+        let mut values: Vec<String> = st.items.iter().map(|i| extras(i)[k].clone()).filter(|v| !v.is_empty()).collect();
+        values.sort_by_key(|v| v.to_lowercase());
+        values.dedup();
+        let current = st.extra[k].as_ref().and_then(|f| values.iter().position(|v| v == f)).map_or(0, |p| p as i32 + 1);
+        let items: Vec<SharedString> = std::iter::once(pick(lang, *first).to_string()).chain(values).map(SharedString::from).collect();
+        let model = ModelRc::new(VecModel::from(items));
+        match k {
+            0 => { w.set_drive_items(model); w.set_drive_filter(current); }
+            1 => { w.set_codec_items(model); w.set_codec_filter(current); }
+            _ => { w.set_project_items(model); w.set_project_filter(current); }
+        }
+    }
     w.set_with_projects(st.projects > 0);
     w.set_filter(st.filter);
     w.set_sort_column(col);
@@ -575,6 +601,7 @@ fn start_scan(app: &AppWindow, st: &mut InvState, drives: &[(PathBuf, bool)], pr
 }
 
 fn open_table(app: &AppWindow, inv: &Inv, settings: &Rc<RefCell<Settings>>) {
+    inv.borrow_mut().lang = lang_of(app);
     let win = inv.borrow().win.clone();
     if win.borrow().is_none() {
         *win.borrow_mut() = MediaTableWindow::new().ok();
@@ -585,6 +612,14 @@ fn open_table(app: &AppWindow, inv: &Inv, settings: &Rc<RefCell<Settings>>) {
             m.on_filter_changed(move |f| {
                 let mut s = st.borrow_mut();
                 s.filter = f;
+                refresh_table(&mut s);
+            });
+            let (st, mw) = (inv.clone(), m.as_weak());
+            m.on_extra_changed(move || {
+                let w = mw.unwrap();
+                let mut s = st.borrow_mut();
+                let pick_value = |items: ModelRc<SharedString>, i: i32| (i > 0).then(|| items.row_data(i as usize).map(|v| v.to_string())).flatten();
+                s.extra = [pick_value(w.get_drive_items(), w.get_drive_filter()), pick_value(w.get_codec_items(), w.get_codec_filter()), pick_value(w.get_project_items(), w.get_project_filter())];
                 refresh_table(&mut s);
             });
             let st = inv.clone();
