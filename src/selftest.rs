@@ -186,7 +186,7 @@ fn log_file(_: &Path) -> Result<String, Failed> {
 
 /// The newest release on GitHub downloads, its signature is valid and the app in it is intact.
 fn update(_: &Path) -> Result<String, Failed> {
-    let release = match crate::update::check(&crate::UPDATE_APP, "0.0.1") {
+    let release = match crate::update::check(&crate::UPDATE_APP, "0.0.1", true) {
         Ok(Some(r)) => r,
         _ => return Err(Failed::Skip("GitHub not reachable, or no signed release yet".into())),
     };

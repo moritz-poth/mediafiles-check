@@ -4,10 +4,14 @@
 
 use mediafiles_check::rename::{self, Added, Journal, Renamed, Status};
 use mediafiles_check::projects::{self, ClipKind, MissingGroup, ScanResult};
+use mediafiles_check::duplicates;
+use mediafiles_check::ferry::flow::{self as exflow, Choice, Compare, Incoming, Mappings};
+use mediafiles_check::ferry::{self as fy, Manifest, collect as fcollect, scan as fscan};
+use mediafiles_check::rebalance::{self, Plan, Rebalanced};
 use mediafiles_check::report::{self, Outcome, Report};
 use mediafiles_check::{FolderReport, UPDATE_APP, check, find_volumes, log, pick, report_text, selftest, update};
-use std::collections::{BTreeMap, HashSet, VecDeque};
-use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -32,6 +36,12 @@ const NAMES_SHOWN: usize = 10;
 struct Settings {
     language: String,
     dark: bool,
+    /// settings tab opened by Settings… (0 General, 1 Updates, 2 Support; About is never remembered)
+    tab: i32,
+    /// "Get test versions": also offer GitHub prereleases (always while a test version runs)
+    betas: bool,
+    /// Rebalancing: at most this many MXF files per folder
+    limit: usize,
     /// not saved; shared with the threads that check and install
     update: Arc<Mutex<Update>>,
 }
@@ -69,6 +79,11 @@ fn settings_path() -> Option<PathBuf> {
     app_dir().map(|d| d.join("settings.txt"))
 }
 
+/// Which files rebalancing moved where – needed to undo it.
+fn rebalance_journal_path() -> PathBuf {
+    app_dir().unwrap_or_else(|| PathBuf::from(".")).join("rebalanced.json")
+}
+
 /// Original names and media files of renamed folders – needed to rename them back.
 fn journal_path() -> PathBuf {
     app_dir().unwrap_or_else(|| PathBuf::from(".")).join("renamed.json")
@@ -85,14 +100,18 @@ fn load_settings() -> Settings {
     let text = settings_path().and_then(|p| fs::read_to_string(p).ok()).unwrap_or_default();
     let mut lines = text.lines();
     let language = lines.next().filter(|l| LANGUAGES.iter().any(|x| x.0 == *l)).unwrap_or("en").to_string();
-    Settings { language, dark: lines.next() != Some("light"), update: Arc::default() }
+    let dark = lines.next() != Some("light");
+    let tab = lines.next().and_then(|l| l.parse().ok()).filter(|t| matches!(t, 0..=2 | 4)).unwrap_or(0);
+    let betas = lines.next() == Some("betas");
+    let limit = lines.next().and_then(|l| l.parse().ok()).filter(|l| rebalance::LIMITS.contains(l)).unwrap_or(rebalance::DEFAULT_LIMIT);
+    Settings { language, dark, tab, betas, limit, update: Arc::default() }
 }
 
 fn save_settings(s: &Settings) {
     // comfort only; if saving fails the defaults apply next time
     if let Some(p) = settings_path() {
         let _ = fs::create_dir_all(p.parent().unwrap());
-        let _ = fs::write(p, format!("{}\n{}\n", s.language, if s.dark { "dark" } else { "light" }));
+        let _ = fs::write(p, format!("{}\n{}\n{}\n{}\n{}\n", s.language, if s.dark { "dark" } else { "light" }, s.tab, if s.betas { "betas" } else { "final" }, s.limit));
     }
 }
 
@@ -104,6 +123,8 @@ fn apply_menus(shared: &Shared, s: &Settings) {
     shared.set_language_names(ModelRc::new(VecModel::from(names)));
     shared.set_language_index(LANGUAGES.iter().position(|l| l.0 == s.language).unwrap_or(0) as i32);
     shared.set_dark(s.dark);
+    shared.set_betas(s.betas);
+    shared.set_limit(s.limit as i32);
     let u = s.update.lock().unwrap();
     shared.set_version(env!("CARGO_PKG_VERSION").into());
     shared.set_update_version(u.available.as_ref().map(|r| r.tag.trim_start_matches('v').to_string()).unwrap_or_default().into());
@@ -124,9 +145,9 @@ fn check_for_update(app: &AppWindow, s: &Settings, manual: bool) {
         }
     }
     app.global::<Shared>().invoke_refresh_update();
-    let (weak, update) = (app.as_weak(), s.update.clone());
+    let (weak, update, betas) = (app.as_weak(), s.update.clone(), s.betas);
     std::thread::spawn(move || {
-        let result = update::check(&UPDATE_APP, env!("CARGO_PKG_VERSION"));
+        let result = update::check(&UPDATE_APP, env!("CARGO_PKG_VERSION"), betas);
         match &result {
             Ok(Some(r)) => log::write(&format!("update available: {}", r.tag)),
             Ok(None) => {}
@@ -190,20 +211,629 @@ fn show_drives(app: &AppWindow, drives: &[(PathBuf, bool)]) {
     let rows: Vec<DriveRow> = drives.iter().map(|(p, sel)| DriveRow { name: volume_name(p).into(), selected: *sel }).collect();
     app.set_selected_count(drives.iter().filter(|d| d.1).count() as i32);
     app.set_drives(ModelRc::new(VecModel::from(rows)));
+    inventory_ui::show_drives(app, drives);
 }
 
 /// Picks up drives that were connected or ejected; ticks stay, new drives come ticked.
+fn drives_off_path() -> Option<PathBuf> {
+    app_dir().map(|d| d.join("drives-off.txt"))
+}
+
+/// Drives switched off for checking and scanning (`key` of the name), remembered across launches. The first time,
+/// MediaFiles Ferry's list (its settings.json "skip") is taken over.
+fn drives_off() -> Vec<String> {
+    if let Some(text) = drives_off_path().and_then(|p| fs::read_to_string(p).ok()) {
+        return text.lines().filter(|l| !l.is_empty()).map(String::from).collect();
+    }
+    #[derive(serde::Deserialize, Default)]
+    struct FerrySettings {
+        #[serde(default)]
+        skip: Vec<String>,
+    }
+    fscan::app_dir()
+        .and_then(|d| fs::read(d.join("settings.json")).ok())
+        .and_then(|b| serde_json::from_slice::<FerrySettings>(&b).ok())
+        .unwrap_or_default()
+        .skip
+}
+
+fn save_drives_off(drives: &[(PathBuf, bool)]) {
+    let mut off = drives_off();
+    for (p, on) in drives {
+        let k = fy::key(&volume_name(p));
+        off.retain(|x| *x != k);
+        if !on {
+            off.push(k);
+        }
+    }
+    if let Some(p) = drives_off_path() {
+        let _ = fs::create_dir_all(p.parent().unwrap());
+        let _ = fy::write_atomic(&p, off.join("\n").as_bytes());
+    }
+}
+
 fn sync_drives(app: &AppWindow, drives: &Drives) {
     let found = find_volumes();
     let mut d = drives.borrow_mut();
     if found.iter().eq(d.iter().map(|x| &x.0)) {
         return;
     }
+    let off = drives_off();
     *d = found.into_iter().map(|p| {
-        let selected = d.iter().find(|x| x.0 == p).is_none_or(|x| x.1);
+        let selected = d.iter().find(|x| x.0 == p).map_or_else(|| !off.contains(&fy::key(&volume_name(&p))), |x| x.1);
         (p, selected)
     }).collect();
     show_drives(app, &d);
+    show_volumes(app, &d);
+}
+
+fn toggle_drive(app: &AppWindow, drives: &Drives, i: i32) {
+    let mut d = drives.borrow_mut();
+    if let Some(x) = d.get_mut(i as usize) {
+        x.1 = !x.1;
+    }
+    save_drives_off(&d);
+    show_drives(app, &d);
+    show_volumes(app, &d);
+}
+
+// ── Exchange (formerly MediaFiles Ferry) ──
+// Characters that fit the content column (monospaced font: characters = width)
+const NAME_CHARS: usize = 30;
+const LINE_CHARS: usize = 64;
+const TITLE_CHARS: usize = 40;
+
+/// Ferry's own folder (checksum cache, last manifest, drive mappings) – kept, so Ferry's users keep their cache.
+fn ferry_dir() -> PathBuf {
+    fscan::app_dir().unwrap_or_else(|| PathBuf::from("."))
+}
+
+fn manifest_path() -> PathBuf {
+    ferry_dir().join("last-manifest.json")
+}
+
+fn minutes_since_scan() -> i32 {
+    fs::metadata(manifest_path()).and_then(|m| m.modified()).ok().and_then(|t| t.elapsed().ok()).map_or(-1, |d| (d.as_secs() / 60) as i32)
+}
+
+fn group_digits(n: usize, lang: &str) -> String {
+    let sep = match lang {
+        "en" => ',',
+        "fr" => '\u{202f}',
+        _ => '.',
+    };
+    let digits = n.to_string();
+    let mut out = String::new();
+    for (i, c) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i) % 3 == 0 {
+            out.push(sep);
+        }
+        out.push(c);
+    }
+    out
+}
+
+/// Scan list: the connected drives (same switches as Check › Drives) plus the drives of the last scan that are missing.
+fn show_volumes(app: &AppWindow, drives: &[(PathBuf, bool)]) {
+    let lang = app.get_language().to_string();
+    let manifest = Manifest::load(&manifest_path()).ok();
+    let scanned = |name: &str| {
+        manifest.as_ref().and_then(|m| m.volumes.iter().find(|v| fy::key(&v.name) == fy::key(name))).map(|v| v.folders.iter().map(|f| f.files.len()).sum::<usize>())
+    };
+    let files = |n: Option<usize>| n.map(|n| group_digits(n, &lang)).unwrap_or_default().into();
+    let online: Vec<(String, bool)> = drives.iter().map(|(p, on)| (volume_name(p), *on)).collect();
+    let offline = manifest.iter().flat_map(|m| &m.volumes).map(|v| &v.name).filter(|n| !online.iter().any(|o| fy::key(&o.0) == fy::key(n)));
+    let rows: Vec<VolumeRow> = online
+        .iter()
+        .map(|(n, on)| VolumeRow { name: shorten(n, NAME_CHARS).into(), files: files(scanned(n)), online: true, selected: *on })
+        .chain(offline.map(|n| VolumeRow { name: shorten(n, NAME_CHARS).into(), files: files(scanned(n)), online: false, selected: false }))
+        .collect();
+    let x = app.global::<Exchange>();
+    x.set_selected_count(drives.iter().filter(|d| d.1).count() as i32);
+    x.set_volumes(ModelRc::new(VecModel::from(rows)));
+    x.set_has_manifest(manifest.is_some());
+    x.set_minutes_since_scan(minutes_since_scan());
+}
+
+fn map_rows(app: &AppWindow, drives: &[Choice], with_skip: bool) -> ModelRc<MapRow> {
+    let rows: Vec<MapRow> = drives
+        .iter()
+        .map(|d| {
+            let mut options = vec![app.get_txt_choose_drive()];
+            options.extend(d.options.iter().map(|o| SharedString::from(shorten(o, NAME_CHARS))));
+            if with_skip {
+                options.push(app.get_txt_skip());
+            }
+            MapRow { name: shorten(&d.name, NAME_CHARS).into(), options: ModelRc::new(VecModel::from(options)), selected: d.selected as i32 }
+        })
+        .collect();
+    ModelRc::new(VecModel::from(rows))
+}
+
+fn strings(v: &[String], max: usize) -> ModelRc<SharedString> {
+    ModelRc::new(VecModel::from(v.iter().map(|s| SharedString::from(shorten(s, max))).collect::<Vec<_>>()))
+}
+
+fn show_compare(app: &AppWindow, c: &Compare) {
+    let lang = app.get_language().to_string();
+    let plan = c.plan();
+    let (files, bytes) = exflow::media(&plan);
+    let x = app.global::<Exchange>();
+    x.set_remote_name(shorten(&c.remote.system, TITLE_CHARS).into());
+    let fmt = if lang == "en" { "%Y-%m-%d %H:%M" } else { "%d.%m.%Y %H:%M" };
+    x.set_remote_date(fy::local_time(c.remote.created, fmt).into());
+    x.set_maps(map_rows(app, &c.drives, true));
+    let rows: Vec<ChoiceRow> = c.collisions.iter().map(|(id, ch)| ChoiceRow { name: shorten(id, NAME_CHARS + 10).into(), choice: *ch }).collect();
+    x.set_collisions(ModelRc::new(VecModel::from(rows)));
+    x.set_copy_files(files as i32);
+    x.set_copy_size(exflow::format_size(bytes, &lang).into());
+    let tasks: Vec<String> = plan.tasks.iter().map(|t| t.describe(&lang)).collect();
+    x.set_tasks(strings(&tasks, 400));
+    x.set_can_collect(c.ready());
+    x.set_has_compare(true);
+    x.set_view(1);
+}
+
+fn show_incoming(app: &AppWindow, i: &Incoming) {
+    let (files, bytes) = i.media();
+    let x = app.global::<Exchange>();
+    x.set_delivery_from(shorten(&i.delivery.from, TITLE_CHARS).into());
+    x.set_delivery_files(files as i32);
+    x.set_delivery_size(exflow::format_size(bytes, &app.get_language()).into());
+    x.set_delivery_maps(map_rows(app, &i.drives, false));
+    x.set_can_import(i.ready());
+    x.set_has_delivery(true);
+    x.set_view(3);
+}
+
+/// Progress from a worker thread to the page.
+fn progress_to(weak: &slint::Weak<AppWindow>) -> impl FnMut(&str) + Send + 'static {
+    let weak = weak.clone();
+    move |line: &str| {
+        let (text, value) = (line.to_string(), exflow::progress_value(line));
+        let w = weak.clone();
+        let _ = slint::invoke_from_event_loop(move || {
+            if let Some(a) = w.upgrade() {
+                let x = a.global::<Exchange>();
+                x.set_work_text(shorten(&text, LINE_CHARS).into());
+                x.set_work_value(value);
+            }
+        });
+    }
+}
+
+fn show_exchange_result(app: &AppWindow, kind: i32, path: Option<&Path>, problems: &[String], tasks: &[String]) {
+    let x = app.global::<Exchange>();
+    x.set_busy(false);
+    x.set_result_kind(kind);
+    x.set_result_path(path.map(|p| p.display().to_string()).unwrap_or_default().into());
+    x.set_result_problems(strings(problems, 400));
+    x.set_result_tasks(strings(tasks, 400));
+    x.set_view(if kind <= 1 { 2 } else { 3 });
+    app.set_page(Page::Exchange);
+}
+
+fn start_work(app: &AppWindow, kind: i32) {
+    let x = app.global::<Exchange>();
+    x.set_work_kind(kind);
+    x.set_work_value(0.0);
+    x.set_work_text("".into());
+    x.set_result_kind(-1);
+    x.set_busy(true);
+    x.set_view(if kind == 0 { 2 } else { 3 });
+}
+
+/// Wires the "Exchange" tab (scan, compare, collect, import – MediaFiles Ferry's flow).
+fn wire_exchange(app: &AppWindow, drives: &Drives) {
+    let x = app.global::<Exchange>();
+    x.set_system_name(shorten(&fscan::computer_name(), TITLE_CHARS).into());
+    show_volumes(app, &drives.borrow());
+    let compare: Rc<RefCell<Option<Compare>>> = Rc::default();
+    let incoming: Rc<RefCell<Option<Incoming>>> = Rc::default();
+    let err = |app: &AppWindow, e: String| app.global::<Exchange>().set_error(shorten(&e, LINE_CHARS * 2).into());
+
+    x.on_toggle_volume({
+        let (weak, drives) = (app.as_weak(), drives.clone());
+        // connected drives come first, in the order of Check's list
+        move |i| toggle_drive(&weak.unwrap(), &drives, i)
+    });
+
+    x.on_scan({
+        let (weak, drives) = (app.as_weak(), drives.clone());
+        move || {
+            let app = weak.unwrap();
+            let x = app.global::<Exchange>();
+            x.set_scanning(true);
+            x.set_warnings(0);
+            x.set_error("".into());
+            let vols: Vec<PathBuf> = drives.borrow().iter().filter(|d| d.1).map(|d| d.0.clone()).collect();
+            log::write(&format!("exchange scan: {}", vols.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(", ")));
+            let weak = weak.clone();
+            let progress = weak.clone();
+            std::thread::spawn(move || {
+                let result = fscan::scan(&vols, false, Some(&ferry_dir().join("cache")), &mut |p| {
+                    let (p, w) = (p.to_string(), progress.clone());
+                    let _ = slint::invoke_from_event_loop(move || w.upgrade().into_iter().for_each(|a| a.global::<Exchange>().set_progress(shorten(&p, LINE_CHARS - 20).into())));
+                })
+                .and_then(|r| {
+                    let _ = fs::create_dir_all(ferry_dir());
+                    r.manifest.save(&manifest_path()).map(|_| r.warnings)
+                });
+                if let Ok(w) = &result {
+                    w.iter().for_each(|w| log::write(&format!("  scan warning: {w}")));
+                }
+                let _ = slint::invoke_from_event_loop(move || {
+                    let Some(app) = weak.upgrade() else { return };
+                    let x = app.global::<Exchange>();
+                    x.set_scanning(false);
+                    match result {
+                        Ok(warnings) => x.set_warnings(warnings.len() as i32),
+                        Err(e) => {
+                            log::write(&format!("  scan failed: {e}"));
+                            x.set_error(shorten(&e.to_string(), LINE_CHARS * 2).into())
+                        }
+                    }
+                    // the drives may be gone meanwhile: the list is rebuilt from the current state
+                    x.invoke_rescanned();
+                });
+            });
+        }
+    });
+
+    x.on_rescanned({
+        let (weak, drives) = (app.as_weak(), drives.clone());
+        move || show_volumes(&weak.unwrap(), &drives.borrow())
+    });
+
+    x.on_save_manifest({
+        let weak = app.as_weak();
+        move || {
+            let Ok(m) = Manifest::load(&manifest_path()) else { return };
+            let dialog = rfd::FileDialog::new().set_file_name(fy::manifest_file_name(&m)).add_filter("MediaFiles Manifest", &[fy::MANIFEST_EXT]);
+            if let Some(target) = dialog.save_file()
+                && let Err(e) = fs::copy(manifest_path(), &target)
+            {
+                err(&weak.unwrap(), format!("{}: {e}", target.display()));
+            }
+        }
+    });
+
+    x.on_open_manifest({
+        let (weak, compare) = (app.as_weak(), compare.clone());
+        move || {
+            let app = weak.unwrap();
+            let x = app.global::<Exchange>();
+            let Some(file) = rfd::FileDialog::new().add_filter("MediaFiles Manifest", &[fy::MANIFEST_EXT]).pick_file() else { return };
+            x.set_view(1);
+            // a request saved under Projects › Request: files wanted by their Avid IDs
+            if fy::request::is_request(&file) {
+                match Manifest::load(&manifest_path()).and_then(|l| fy::request::Request::load(&file).map(|r| (l, r))) {
+                    Ok((local, req)) => {
+                        let c = Compare::from_request(local, &req);
+                        x.set_error("".into());
+                        x.set_is_request(true);
+                        show_compare(&app, &c);
+                        *compare.borrow_mut() = Some(c);
+                    }
+                    Err(e) => err(&app, e.to_string()),
+                }
+                return;
+            }
+            match Manifest::load(&manifest_path()).and_then(|l| Manifest::load(&file).map(|r| (l, r))) {
+                Ok((local, remote)) if fy::key(&local.system) == fy::key(&remote.system) => {
+                    err(&app, format!("{}: {}", remote.system, app.get_txt_same_system()));
+                }
+                Ok((local, remote)) => {
+                    let c = Compare::new(local, remote, &Mappings::load(&ferry_dir()));
+                    x.set_error("".into());
+                    x.set_is_request(false);
+                    show_compare(&app, &c);
+                    *compare.borrow_mut() = Some(c);
+                }
+                Err(e) => err(&app, e.to_string()),
+            }
+        }
+    });
+
+    x.on_map_changed({
+        let (weak, compare) = (app.as_weak(), compare.clone());
+        move |row, value| {
+            let mut c = compare.borrow_mut();
+            let Some(c) = c.as_mut() else { return };
+            c.drives[row as usize].selected = value as usize;
+            c.refresh_collisions();
+            show_compare(&weak.unwrap(), c);
+        }
+    });
+
+    x.on_choice_changed({
+        let (weak, compare) = (app.as_weak(), compare.clone());
+        move |row, value| {
+            let mut c = compare.borrow_mut();
+            let Some(c) = c.as_mut() else { return };
+            c.collisions[row as usize].1 = value;
+            show_compare(&weak.unwrap(), c);
+        }
+    });
+
+    x.on_collect({
+        let (weak, compare) = (app.as_weak(), compare.clone());
+        move || {
+            let app = weak.unwrap();
+            let c = compare.borrow();
+            let Some(c) = c.as_ref() else { return };
+            let Some(parent) = rfd::FileDialog::new().set_title(app.get_txt_choose_target()).pick_folder() else { return };
+            let mut m = Mappings::load(&ferry_dir());
+            c.remember(&mut m);
+            m.save(&ferry_dir());
+            let (local, to, plan, dest, lang) = (c.local.clone(), c.remote.system.clone(), c.plan(), c.delivery_dir(&parent), app.get_language().to_string());
+            let tasks: Vec<String> = plan.tasks.iter().map(|t| t.describe(&lang)).collect();
+            log::write(&format!("collect for {to} into {}", dest.display()));
+            start_work(&app, 0);
+            let (weak, mut progress) = (weak.clone(), progress_to(&weak));
+            std::thread::spawn(move || {
+                let result = fcollect::collect(&local, &to, &plan, &dest, &lang, &mut progress);
+                log::write(&format!("  collect: {:?}", result.as_ref().map(|e| e.len())));
+                let _ = slint::invoke_from_event_loop(move || {
+                    let Some(app) = weak.upgrade() else { return };
+                    add_tasks(&tasks, &app.get_txt_task_for().replace("{}", &to), &fscan::computer_name());
+                    app.global::<Tasks>().invoke_reload();
+                    match result {
+                        Ok(errors) => show_exchange_result(&app, if errors.is_empty() { 0 } else { 1 }, Some(&dest), &errors, &tasks),
+                        Err(e) => show_exchange_result(&app, 1, Some(&dest), &[e.to_string()], &tasks),
+                    }
+                });
+            });
+        }
+    });
+
+    x.on_choose_delivery({
+        let (weak, incoming) = (app.as_weak(), incoming.clone());
+        move || {
+            let app = weak.unwrap();
+            let Some(folder) = rfd::FileDialog::new().set_title(app.get_txt_choose_delivery()).pick_folder() else { return };
+            match Incoming::open(folder, &Mappings::load(&ferry_dir())) {
+                Ok(i) => {
+                    app.global::<Exchange>().set_error("".into());
+                    show_incoming(&app, &i);
+                    *incoming.borrow_mut() = Some(i);
+                }
+                Err(e) => err(&app, e.to_string()),
+            }
+        }
+    });
+
+    x.on_delivery_map_changed({
+        let (weak, incoming) = (app.as_weak(), incoming.clone());
+        move |row, value| {
+            let mut i = incoming.borrow_mut();
+            let Some(i) = i.as_mut() else { return };
+            i.drives[row as usize].selected = value as usize;
+            show_incoming(&weak.unwrap(), i);
+        }
+    });
+
+    x.on_start_import({
+        let (weak, incoming) = (app.as_weak(), incoming.clone());
+        move || {
+            let app = weak.unwrap();
+            if media_composer_running() {
+                err(&app, app.get_txt_quit_mc().to_string());
+                return;
+            }
+            let i = incoming.borrow();
+            let Some(i) = i.as_ref() else { return };
+            let mut m = Mappings::load(&ferry_dir());
+            i.remember(&mut m);
+            m.save(&ferry_dir());
+            let (dest, map, from, me) = (i.dir.clone(), i.map(), i.delivery.from.clone(), i.delivery.to.clone());
+            log::write(&format!("import {}", dest.display()));
+            start_work(&app, 1);
+            let (weak, mut progress) = (weak.clone(), progress_to(&weak));
+            std::thread::spawn(move || {
+                // everything is verified first; only a complete delivery is imported
+                let problems = match fcollect::verify(&dest, &mut progress) {
+                    Ok(p) => p,
+                    Err(e) => vec![e.to_string()],
+                };
+                if !problems.is_empty() {
+                    log::write(&format!("  verify failed: {} problems", problems.len()));
+                    let _ = slint::invoke_from_event_loop(move || weak.upgrade().into_iter().for_each(|a| show_exchange_result(&a, 4, Some(&dest), &problems, &[])));
+                    return;
+                }
+                let w = weak.clone();
+                let _ = slint::invoke_from_event_loop(move || w.upgrade().into_iter().for_each(|a| { a.global::<Exchange>().set_work_kind(2); a.global::<Exchange>().set_work_value(0.0); }));
+                let result = fcollect::import(&dest, &map, &mut progress);
+                log::write(&format!("  import: {:?}", result.as_ref().map(|r| (r.problems.len(), r.tasks.len()))));
+                let _ = slint::invoke_from_event_loop(move || {
+                    let Some(app) = weak.upgrade() else { return };
+                    if let Ok(r) = &result {
+                        add_tasks(&r.tasks, &app.get_txt_task_from().replace("{}", &from), &me);
+                        app.global::<Tasks>().invoke_reload();
+                    }
+                    match result {
+                        Ok(r) => show_exchange_result(&app, if r.problems.is_empty() { 2 } else { 3 }, None, &r.problems, &r.tasks),
+                        Err(e) => show_exchange_result(&app, 3, None, &[e.to_string()], &[]),
+                    }
+                });
+            });
+        }
+    });
+
+    x.on_show_result({
+        let weak = app.as_weak();
+        move || {
+            let path = weak.unwrap().global::<Exchange>().get_result_path().to_string();
+            let _ = std::process::Command::new("open").arg(path).spawn();
+        }
+    });
+
+    x.on_close_result({
+        let (weak, compare, incoming, drives) = (app.as_weak(), compare.clone(), incoming.clone(), drives.clone());
+        move || {
+            let app = weak.unwrap();
+            let x = app.global::<Exchange>();
+            // a finished import ends the delivery; a finished collection the comparison
+            if x.get_result_kind() >= 2 {
+                *incoming.borrow_mut() = None;
+                x.set_has_delivery(false);
+                x.set_view(0);
+            } else {
+                *compare.borrow_mut() = None;
+                x.set_has_compare(false);
+                x.set_view(1);
+            }
+            x.set_result_kind(-1);
+            show_volumes(&app, &drives.borrow());
+        }
+    });
+}
+
+// ── Tasks ──
+/// A task saved from a delivery (collected here or imported here); tasks.json in the app folder.
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+struct TaskEntry {
+    text: String,
+    source: String,
+    /// for this system (its name in brackets at the start of the text)
+    mine: bool,
+    /// "Rebuild database" for a folder of this system: the folder, to check it
+    #[serde(default)]
+    folder: Option<PathBuf>,
+    done: bool,
+}
+
+fn tasks_path() -> Option<PathBuf> {
+    app_dir().map(|d| d.join("tasks.json"))
+}
+
+fn load_tasks() -> Vec<TaskEntry> {
+    tasks_path().and_then(|p| fs::read(p).ok()).and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
+}
+
+fn save_tasks(t: &[TaskEntry]) {
+    if let Some(p) = tasks_path() {
+        let _ = fs::create_dir_all(p.parent().unwrap());
+        if let Err(e) = fy::write_atomic(&p, &serde_json::to_vec_pretty(t).unwrap_or_default()) {
+            log::write(&format!("tasks.json not saved: {e}"));
+        }
+    }
+}
+
+/// Tasks of a delivery ("[system] text"), each once: the same open text is not added again. `me` = this system's
+/// name as the delivery knows it (an imported delivery names its recipient).
+fn add_tasks(texts: &[String], source: &str, me: &str) {
+    let me = format!("[{me}]");
+    let mut all = load_tasks();
+    for t in texts {
+        if all.iter().any(|x| !x.done && x.text == *t) {
+            continue;
+        }
+        let mine = t.starts_with(&me);
+        // "… : <drive>/<folder>" – a folder of this system that exists here
+        let folder = t.rsplit_once(": ").and_then(|(_, p)| p.split_once('/')).map(|(v, f)| fy::mxf_dir(&Path::new("/Volumes").join(v)).join(f)).filter(|p| mine && p.is_dir());
+        all.push(TaskEntry { text: t.clone(), source: source.to_string(), mine, folder, done: false });
+    }
+    save_tasks(&all);
+}
+
+enum TaskAct {
+    Check(PathBuf),
+    Rebalance(i32),
+    Dups(i32),
+    Media(i32),
+    Renamed,
+    Nothing,
+}
+
+/// Open list = saved tasks not done, then what Maintain is waiting for (databases to rewrite, folders to rename back).
+fn show_tasks(app: &AppWindow, acts: &RefCell<Vec<TaskAct>>) {
+    let all = load_tasks();
+    let mut rows = vec![];
+    let mut a = vec![];
+    for t in all.iter().filter(|t| !t.done) {
+        rows.push(TaskRow { text: t.text.clone().into(), source: t.source.clone().into(), action: if t.folder.is_some() { app.get_txt_task_check() } else { "".into() }, stored: true, mine: t.mine });
+        a.push(t.folder.clone().map_or(TaskAct::Nothing, TaskAct::Check));
+    }
+    let live = |rows: &mut Vec<TaskRow>, text: SharedString, source: SharedString, action: SharedString| rows.push(TaskRow { text, source, action, stored: false, mine: true });
+    for (i, r) in app.get_rebalanced().iter().enumerate().filter(|(_, r)| !r.db_done) {
+        live(&mut rows, app.get_txt_task_rewrite(), format!("{} · {}", app.get_txt_task_rebalancing(), r.text).into(), app.get_txt_task_start());
+        a.push(TaskAct::Rebalance(i as i32));
+    }
+    for (i, r) in app.get_dup_runs().iter().enumerate().filter(|(_, r)| !r.db_done) {
+        live(&mut rows, app.get_txt_task_rewrite(), format!("{} · {}", app.get_txt_task_duplicates(), r.text).into(), app.get_txt_task_start());
+        a.push(TaskAct::Dups(i as i32));
+    }
+    for (i, r) in app.global::<Inventory>().get_runs().iter().enumerate().filter(|(_, r)| !r.db_done) {
+        live(&mut rows, app.get_txt_task_rewrite(), format!("{} · {}", app.get_txt_task_media(), r.text).into(), app.get_txt_task_start());
+        a.push(TaskAct::Media(i as i32));
+    }
+    let renamed = app.get_renamed().row_count();
+    if renamed > 0 {
+        live(&mut rows, app.get_txt_task_rename_back().replace("{}", &renamed.to_string()).into(), app.get_txt_task_maintain(), app.get_txt_task_open());
+        a.push(TaskAct::Renamed);
+    }
+    let done: Vec<TaskRow> = all.iter().filter(|t| t.done).map(|t| TaskRow { text: t.text.clone().into(), source: t.source.clone().into(), action: "".into(), stored: true, mine: t.mine }).collect();
+    let g = app.global::<Tasks>();
+    g.set_open(ModelRc::new(VecModel::from(rows)));
+    g.set_done(ModelRc::new(VecModel::from(done)));
+    *acts.borrow_mut() = a;
+}
+
+/// Wires the "Tasks" tab. Index i of `finish` counts the saved open tasks, which come first in the list.
+fn wire_tasks(app: &AppWindow, last: &Last) -> Rc<RefCell<Vec<TaskAct>>> {
+    let acts: Rc<RefCell<Vec<TaskAct>>> = Rc::default();
+    let g = app.global::<Tasks>();
+    let set_done = |i: i32, done: bool| {
+        let mut all = load_tasks();
+        if let Some(t) = all.iter_mut().filter(|t| t.done != done).nth(i as usize) {
+            t.done = done;
+        }
+        save_tasks(&all);
+    };
+    g.on_finish({
+        let (weak, acts) = (app.as_weak(), acts.clone());
+        move |i| {
+            set_done(i, true);
+            show_tasks(&weak.unwrap(), &acts);
+        }
+    });
+    g.on_reopen({
+        let (weak, acts) = (app.as_weak(), acts.clone());
+        move |i| {
+            set_done(i, false);
+            show_tasks(&weak.unwrap(), &acts);
+        }
+    });
+    g.on_clear_done({
+        let (weak, acts) = (app.as_weak(), acts.clone());
+        move || {
+            let mut all = load_tasks();
+            all.retain(|t| !t.done);
+            save_tasks(&all);
+            show_tasks(&weak.unwrap(), &acts);
+        }
+    });
+    g.on_reload({
+        let (weak, acts) = (app.as_weak(), acts.clone());
+        move || show_tasks(&weak.unwrap(), &acts)
+    });
+    g.on_action({
+        let (weak, acts, last) = (app.as_weak(), acts.clone(), last.clone());
+        move |i| {
+            let app = weak.unwrap();
+            match acts.borrow().get(i as usize) {
+                Some(TaskAct::Check(folder)) => start_check(&app, vec![folder.clone()], last.clone()),
+                Some(TaskAct::Rebalance(r)) => app.invoke_rebalance_db(*r),
+                Some(TaskAct::Dups(r)) => app.invoke_dup_db(*r),
+                Some(TaskAct::Media(r)) => app.global::<Inventory>().invoke_db(*r),
+                Some(TaskAct::Renamed) => app.set_page(Page::Maintain),
+                _ => {}
+            }
+        }
+    });
+    show_tasks(app, &acts);
+    acts
 }
 
 /// A picture of the manual (`![…](images/<lang>/x.png)`, path relative to docs/help): in the app bundle under
@@ -265,6 +895,10 @@ fn forward_menu(shared: &Shared, weak: &slint::Weak<AppWindow>) {
     let w = weak.clone();
     shared.on_select_dark(move |d| w.upgrade().into_iter().for_each(|a| a.global::<Shared>().invoke_select_dark(d)));
     let w = weak.clone();
+    shared.on_select_limit(move |l| w.upgrade().into_iter().for_each(|a| a.global::<Shared>().invoke_select_limit(l)));
+    let w = weak.clone();
+    shared.on_select_betas(move |b| w.upgrade().into_iter().for_each(|a| a.global::<Shared>().invoke_select_betas(b)));
+    let w = weak.clone();
     shared.on_show_help(move || w.upgrade().into_iter().for_each(|a| a.global::<Shared>().invoke_show_help()));
     let w = weak.clone();
     shared.on_show_about(move || w.upgrade().into_iter().for_each(|a| a.global::<Shared>().invoke_show_about()));
@@ -296,9 +930,11 @@ fn toast(w: &slint::Weak<SettingsWindow>, outcome: &Outcome, lang: &str) {
     let Some(win) = w.upgrade() else { return };
     win.set_toast_ok(ok);
     win.set_toast_text(text.clone().into());
+    win.set_toast_visible(true);
     let w = w.clone();
     slint::Timer::single_shot(Duration::from_secs(if ok { 3 } else { 8 }), move || {
-        w.upgrade().into_iter().filter(|w| w.get_toast_text() == text.as_str()).for_each(|w| w.set_toast_text("".into()));
+        // slides out; the text stays until the next toast so the box keeps its size while fading
+        w.upgrade().into_iter().filter(|w| w.get_toast_text() == text.as_str()).for_each(|w| w.set_toast_visible(false));
     });
 }
 
@@ -434,21 +1070,19 @@ type Win<T> = Rc<RefCell<Option<T>>>;
 /// The windows besides the main one, created when first opened.
 #[derive(Clone, Default)]
 struct Others {
-    about: Win<AboutWindow>,
     help: Win<HelpWindow>,
     settings: Win<SettingsWindow>,
-    projects: Win<ProjectsWindow>,
-    ama: Win<AmaWindow>,
+    media: Win<MediaWindow>,
+    table: Win<MediaTableWindow>,
 }
 
 /// Language or appearance changed: every open window follows.
 fn apply_all(app: &AppWindow, others: &Others, s: &Settings) {
     apply_menus(&app.global::<Shared>(), s);
-    others.about.borrow().iter().for_each(|a| apply_menus(&a.global::<Shared>(), s));
     others.settings.borrow().iter().for_each(|w| apply_menus(&w.global::<Shared>(), s));
-    others.projects.borrow().iter().for_each(|w| apply_menus(&w.global::<Shared>(), s));
-    others.ama.borrow().iter().for_each(|w| apply_menus(&w.global::<Shared>(), s));
     others.help.borrow().iter().for_each(|h| update_help(h, s));
+    others.media.borrow().iter().for_each(|w| apply_menus(&w.global::<Shared>(), s));
+    others.table.borrow().iter().for_each(|w| apply_menus(&w.global::<Shared>(), s));
     #[cfg(target_os = "macos")]
     {
         // Slint rebuilds the menu after this event; add the item back once that is done
@@ -538,6 +1172,9 @@ macro_rules! repaint_on_resize {
     }};
 }
 
+// after repaint_on_resize!: macros are visible from their definition on
+mod inventory_ui;
+
 fn repaint_soon<T: ComponentHandle + 'static>(c: &T) {
     for ms in [50, 200, 600, 1500] {
         let weak = c.as_weak();
@@ -555,16 +1192,17 @@ fn shorten(s: &str, max: usize) -> String {
     c[..head].iter().chain(['…'].iter()).chain(c[c.len() - (max - 1 - head)..].iter()).collect()
 }
 
-/// Avid projects window: chosen folder, projects with their switch, last scan.
+/// Avid projects (tab "Projects"): chosen folder, projects with their switch, last scan.
 #[derive(Default)]
 struct ProjectsState {
     projects: Vec<(PathBuf, bool)>,
     result: Arc<Mutex<Option<ScanResult>>>,
-    /// opened media file groups in the result list
+    /// opened media file groups in the result list and in the AMA list
     open: HashSet<usize>,
-    /// the AMA window (same as `Others::ama`) and its opened groups
-    ama: Win<AmaWindow>,
     ama_open: HashSet<usize>,
+    /// the media window (Projects › Show media…) and what it shows: 0 missing media, 1 AMA clips
+    media: Win<MediaWindow>,
+    media_kind: i32,
 }
 
 fn projects_folder_file() -> Option<PathBuf> {
@@ -572,38 +1210,39 @@ fn projects_folder_file() -> Option<PathBuf> {
 }
 
 /// Projects below the folder, all switched off (the user picks what to scan).
-fn load_projects(w: &ProjectsWindow, st: &mut ProjectsState, folder: &Path) {
+fn load_projects(w: &AppWindow, st: &mut ProjectsState, folder: &Path) {
     st.projects = projects::find_projects(folder).into_iter().map(|p| (p, false)).collect();
-    w.set_folder(shorten(&folder.display().to_string(), 60).into());
+    w.global::<Projects>().set_folder(shorten(&folder.display().to_string(), 60).into());
     show_projects(w, st);
 }
 
-fn show_projects(w: &ProjectsWindow, st: &ProjectsState) {
+fn show_projects(w: &AppWindow, st: &ProjectsState) {
     let rows: Vec<DriveRow> = st.projects.iter().map(|(p, on)| DriveRow { name: volume_name(p).into(), selected: *on }).collect();
-    w.set_selected_count(st.projects.iter().filter(|p| p.1).count() as i32);
-    w.set_projects(ModelRc::new(VecModel::from(rows)));
+    let p = w.global::<Projects>();
+    p.set_selected_count(st.projects.iter().filter(|p| p.1).count() as i32);
+    p.set_projects(ModelRc::new(VecModel::from(rows)));
 }
 
-/// Rows of the result: per bin its missing media files; an open file shows where it is used in the bin.
-/// Capped at whole bins (the saved list has all); group indexes count over all bins, so they stay stable.
-/// The list of missing media files.
-fn show_rows(w: &ProjectsWindow, r: &ScanResult, open: &HashSet<usize>) {
-    w.set_rows(ModelRc::new(VecModel::from(project_rows(w, &r.by_bin, open, 0))));
-}
-
-/// The AMA window (if open) shows the clips of the last result; texts come from the projects window.
-fn show_ama(w: &ProjectsWindow, st: &ProjectsState) {
-    if let (Some(a), Some(r)) = (st.ama.borrow().as_ref(), st.result.lock().unwrap().as_ref()) {
-        a.set_rows(ModelRc::new(VecModel::from(project_rows(w, &r.ama_by_bin, &st.ama_open, 0))));
+/// The lists of missing media files and of AMA clips (an open file shows where it is used in the bin).
+fn show_rows(w: &AppWindow, r: &ScanResult, st: &ProjectsState) {
+    let p = w.global::<Projects>();
+    p.set_rows(ModelRc::new(VecModel::from(project_rows(w, &r.by_bin, &st.open))));
+    p.set_ama_rows(ModelRc::new(VecModel::from(project_rows(w, &r.ama_by_bin, &st.ama_open))));
+    if let Some(m) = st.media.borrow().as_ref() {
+        let ama = st.media_kind == 1;
+        m.set_kind(st.media_kind);
+        m.set_count(if ama { p.get_ama() } else { p.get_missing() });
+        m.set_rows(if ama { p.get_ama_rows() } else { p.get_rows() });
     }
 }
 
-fn project_rows(w: &ProjectsWindow, by_bin: &BTreeMap<(String, String), Vec<MissingGroup>>, open: &HashSet<usize>, first: usize) -> Vec<MissingRow> {
+/// Capped at whole bins (the saved list has all); group indexes count over all bins, so they stay stable.
+fn project_rows(w: &AppWindow, by_bin: &BTreeMap<(String, String), Vec<MissingGroup>>, open: &HashSet<usize>) -> Vec<MissingRow> {
     const MAX_ROWS: usize = 1000;
     let files = |n: usize| if n == 1 { w.get_txt_one_file() } else { w.get_txt_files_n().replace("{}", &n.to_string()).into() };
     let row = |level, text: String, note: SharedString, open, index| MissingRow { level, text: text.into(), note, open, index };
     let mut rows = vec![];
-    let mut index = first;
+    let mut index = 0;
     for ((project, bin), groups) in by_bin {
         if rows.len() >= MAX_ROWS {
             rows.push(row(2, w.get_txt_more_rows().into(), "".into(), false, -1));
@@ -635,19 +1274,20 @@ fn project_rows(w: &ProjectsWindow, by_bin: &BTreeMap<(String, String), Vec<Miss
     rows
 }
 
-fn start_project_scan(w: &ProjectsWindow, st: &mut ProjectsState) {
+fn start_project_scan(w: &AppWindow, st: &mut ProjectsState) {
     st.open.clear();
     st.ama_open.clear();
     // its list belongs to the previous result
-    if let Some(a) = st.ama.borrow().as_ref() {
-        let _ = a.hide();
+    if let Some(m) = st.media.borrow().as_ref() {
+        let _ = m.hide();
     }
     let chosen: Vec<PathBuf> = st.projects.iter().filter(|p| p.1).map(|p| p.0.clone()).collect();
     log::write(&format!("project scan: {}", chosen.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(", ")));
-    w.set_error("".into());
-    w.set_work_value(0.0);
-    w.set_work_text(w.get_txt_reading_drives());
-    w.set_step(1);
+    let p = w.global::<Projects>();
+    p.set_error("".into());
+    p.set_work_value(0.0);
+    p.set_work_text(w.get_txt_reading_drives());
+    p.set_step(1);
     let (weak, result) = (w.as_weak(), st.result.clone());
     std::thread::spawn(move || {
         let drives = find_volumes();
@@ -663,8 +1303,9 @@ fn start_project_scan(w: &ProjectsWindow, st: &mut ProjectsState) {
             let (bin, w) = (bin.to_string(), progress.clone());
             let _ = slint::invoke_from_event_loop(move || {
                 if let Some(w) = w.upgrade() {
-                    w.set_work_text(bin.into());
-                    w.set_work_value(i as f32 / n.max(1) as f32);
+                    let p = w.global::<Projects>();
+                    p.set_work_text(bin.into());
+                    p.set_work_value(i as f32 / n.max(1) as f32);
                 }
             });
         });
@@ -674,152 +1315,142 @@ fn start_project_scan(w: &ProjectsWindow, st: &mut ProjectsState) {
         }
         let _ = slint::invoke_from_event_loop(move || {
             let Some(w) = weak.upgrade() else { return };
-            w.set_missing(r.missing.len() as i32);
-            w.set_unmanaged(r.missing.iter().filter(|m| m.unmanaged).count() as i32);
-            w.set_bins(r.bins as i32);
-            w.set_clips(r.clips as i32);
-            w.set_failed(r.failed.len() as i32);
-            w.set_unknown(unknown as i32);
-            w.set_skipped(skipped.join(", ").into());
-            w.set_renders(r.renders as i32);
-            w.set_relink(r.relink as i32);
-            w.set_ama(r.ama as i32);
-            w.set_ama_covered(r.ama_covered as i32);
-            w.set_no_media(r.no_media as i32);
-            show_rows(&w, &r, &HashSet::new());
+            let p = w.global::<Projects>();
+            p.set_missing(r.missing.len() as i32);
+            p.set_unmanaged(r.missing.iter().filter(|m| m.unmanaged).count() as i32);
+            p.set_bins(r.bins as i32);
+            p.set_clips(r.clips as i32);
+            p.set_failed(r.failed.len() as i32);
+            p.set_unknown(unknown as i32);
+            p.set_skipped(skipped.join(", ").into());
+            p.set_renders(r.renders as i32);
+            p.set_relink(r.relink as i32);
+            p.set_ama(r.ama as i32);
+            p.set_ama_covered(r.ama_covered as i32);
+            p.set_no_media(r.no_media as i32);
+            show_rows(&w, &r, &ProjectsState::default());
             *result.lock().unwrap() = Some(r);
-            w.set_step(2);
+            p.set_step(2);
+            p.set_view(1);
         });
     });
 }
 
-fn open_projects(weak: &slint::Weak<AppWindow>, win: &Win<ProjectsWindow>, st: &Rc<RefCell<ProjectsState>>, settings: &Rc<RefCell<Settings>>) {
-    let mut win = win.borrow_mut();
-    if win.is_none() {
-        *win = ProjectsWindow::new().ok();
-        if let Some(w) = win.as_ref() {
-            repaint_on_resize!(w);
-            forward_menu(&w.global::<Shared>(), weak);
-            let saved = projects_folder_file().and_then(|f| fs::read_to_string(f).ok()).map(|s| PathBuf::from(s.trim()));
-            if let Some(folder) = saved.filter(|f| f.is_dir()) {
-                load_projects(w, &mut st.borrow_mut(), &folder);
+/// Wires the "Projects" tab; the saved projects folder is loaded at once.
+fn wire_projects(app: &AppWindow, st: &Rc<RefCell<ProjectsState>>, settings: &Rc<RefCell<Settings>>) {
+    let p = app.global::<Projects>();
+    let saved = projects_folder_file().and_then(|f| fs::read_to_string(f).ok()).map(|s| PathBuf::from(s.trim()));
+    if let Some(folder) = saved.filter(|f| f.is_dir()) {
+        load_projects(app, &mut st.borrow_mut(), &folder);
+    }
+    p.on_choose_folder({
+        let (ww, st) = (app.as_weak(), st.clone());
+        move || {
+            let w = ww.unwrap();
+            let Some(folder) = rfd::FileDialog::new().set_title(w.get_txt_choose()).pick_folder() else { return };
+            if let Some(f) = projects_folder_file() {
+                let _ = fs::create_dir_all(f.parent().unwrap());
+                let _ = fs::write(f, folder.display().to_string());
             }
-            w.on_choose_folder({
-                let (ww, st) = (w.as_weak(), st.clone());
-                move || {
-                    let w = ww.unwrap();
-                    let Some(folder) = rfd::FileDialog::new().set_title(w.get_txt_choose()).pick_folder() else { return };
-                    if let Some(f) = projects_folder_file() {
-                        let _ = fs::create_dir_all(f.parent().unwrap());
-                        let _ = fs::write(f, folder.display().to_string());
-                    }
-                    load_projects(&w, &mut st.borrow_mut(), &folder);
-                }
-            });
-            w.on_toggle({
-                let (ww, st) = (w.as_weak(), st.clone());
-                move |i| {
-                    let mut st = st.borrow_mut();
-                    if let Some(p) = st.projects.get_mut(i as usize) {
-                        p.1 = !p.1;
-                    }
-                    show_projects(&ww.unwrap(), &st);
-                }
-            });
-            w.on_scan({
-                let (ww, st) = (w.as_weak(), st.clone());
-                move || start_project_scan(&ww.unwrap(), &mut st.borrow_mut())
-            });
-            w.on_toggle_group({
-                let (ww, st) = (w.as_weak(), st.clone());
-                move |i| {
-                    let w = ww.unwrap();
-                    let mut st = st.borrow_mut();
-                    let i = i as usize;
-                    if !st.open.remove(&i) {
-                        st.open.insert(i);
-                    }
-                    if let Some(r) = st.result.lock().unwrap().as_ref() {
-                        show_rows(&w, r, &st.open);
-                    }
-                        }
-            });
-            w.on_back({
-                let ww = w.as_weak();
-                move || {
-                    let w = ww.unwrap();
-                    w.set_step(0);
-                        }
-            });
-            w.on_save_list({
-                let (ww, st) = (w.as_weak(), st.clone());
-                move || {
-                    let w = ww.unwrap();
-                    let lang = w.global::<Shared>().get_language_index();
-                    let lang = LANGUAGES.get(lang as usize).map_or("en", |l| l.0);
-                    let name = format!("MediaFiles Check Projects {}.txt", chrono::Local::now().format("%Y-%m-%d"));
-                    let Some(target) = rfd::FileDialog::new().set_file_name(name).add_filter("Text", &["txt"]).save_file() else { return };
-                    let text = st.borrow().result.lock().unwrap().as_ref().map(|r| projects::list_text(r, lang)).unwrap_or_default();
-                    if let Err(e) = fs::write(&target, text) {
-                        log::write(&format!("save list {}: {e}", target.display()));
-                        w.set_error(format!("{}: {e}", target.display()).into());
-                    }
-                }
-            });
-            w.on_show_ama({
-                let (ww, st, weak, settings) = (w.as_weak(), st.clone(), weak.clone(), settings.clone());
-                move || {
-                    let w = ww.unwrap();
-                    let ama = st.borrow().ama.clone();
-                    if ama.borrow().is_none() {
-                        *ama.borrow_mut() = AmaWindow::new().ok();
-                        if let Some(a) = ama.borrow().as_ref() {
-                            repaint_on_resize!(a);
-                            forward_menu(&a.global::<Shared>(), &weak);
-                            a.on_toggle_group({
-                                let (ww, st) = (ww.clone(), st.clone());
-                                move |i| {
-                                    let mut s = st.borrow_mut();
-                                    let i = i as usize;
-                                    if !s.ama_open.remove(&i) {
-                                        s.ama_open.insert(i);
-                                    }
-                                    show_ama(&ww.unwrap(), &s);
-                                }
-                            });
-                            let aw = a.as_weak();
-                            a.on_close(move || { let _ = aw.unwrap().hide(); });
-                        }
-                    }
-                    show_ama(&w, &st.borrow());
-                    if let Some(a) = ama.borrow().as_ref() {
-                        apply_menus(&a.global::<Shared>(), &settings.borrow());
-                        let _ = a.show();
-                    }
-                }
-            });
-            w.on_save_request({
-                let (ww, st) = (w.as_weak(), st.clone());
-                move || {
-                    let w = ww.unwrap();
-                    let system = rename::computer_name();
-                    let name = format!("{}_{}_Request.ferry", chrono::Local::now().format("%y%m%d-%H%M"), system.replace(['/', '\\', ':'], "_"));
-                    let Some(target) = rfd::FileDialog::new().set_file_name(name).add_filter("MediaFiles Ferry", &["ferry"]).save_file() else { return };
-                    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
-                    let data = st.borrow().result.lock().unwrap().as_ref().map(|r| projects::request_json(&system, now, &r.missing)).unwrap_or_default();
-                    let result = fs::write(&target, data);
-                    log::write(&format!("request saved {}: {result:?}", target.display()));
-                    if let Err(e) = result {
-                        w.set_error(format!("{}: {e}", target.display()).into());
-                    }
-                }
-            });
+            load_projects(&w, &mut st.borrow_mut(), &folder);
         }
-    }
-    if let Some(w) = win.as_ref() {
-        apply_menus(&w.global::<Shared>(), &settings.borrow());
-        let _ = w.show();
-    }
+    });
+    p.on_toggle({
+        let (ww, st) = (app.as_weak(), st.clone());
+        move |i| {
+            let mut st = st.borrow_mut();
+            if let Some(p) = st.projects.get_mut(i as usize) {
+                p.1 = !p.1;
+            }
+            show_projects(&ww.unwrap(), &st);
+        }
+    });
+    p.on_scan({
+        let (ww, st) = (app.as_weak(), st.clone());
+        move || start_project_scan(&ww.unwrap(), &mut st.borrow_mut())
+    });
+    let toggle = |ama: bool| {
+        let (ww, st) = (app.as_weak(), st.clone());
+        move |i: i32| {
+            let w = ww.unwrap();
+            let mut st = st.borrow_mut();
+            let set = if ama { &mut st.ama_open } else { &mut st.open };
+            if !set.remove(&(i as usize)) {
+                set.insert(i as usize);
+            }
+            if let Some(r) = st.result.lock().unwrap().as_ref() {
+                show_rows(&w, r, &st);
+            }
+        }
+    };
+    p.on_toggle_group(toggle(false));
+    p.on_toggle_ama(toggle(true));
+    p.on_show_media({
+        let (ww, st, settings) = (app.as_weak(), st.clone(), settings.clone());
+        move |kind| {
+            let app = ww.unwrap();
+            let win = st.borrow().media.clone();
+            if win.borrow().is_none() {
+                *win.borrow_mut() = MediaWindow::new().ok();
+                if let Some(m) = win.borrow().as_ref() {
+                    repaint_on_resize!(m);
+                    forward_menu(&m.global::<Shared>(), &ww);
+                    let (ww2, st2) = (ww.clone(), st.clone());
+                    m.on_toggle_group(move |i| {
+                        let a = ww2.unwrap();
+                        let p = a.global::<Projects>();
+                        if st2.borrow().media_kind == 1 { p.invoke_toggle_ama(i) } else { p.invoke_toggle_group(i) }
+                    });
+                    let ww3 = ww.clone();
+                    m.on_save_list(move || ww3.unwrap().global::<Projects>().invoke_save_list());
+                    let mw = m.as_weak();
+                    m.on_close(move || { let _ = mw.unwrap().hide(); });
+                }
+            }
+            st.borrow_mut().media_kind = kind;
+            {
+                let s = st.borrow();
+                if let Some(r) = s.result.lock().unwrap().as_ref() {
+                    show_rows(&app, r, &s);
+                }
+            }
+            if let Some(m) = win.borrow().as_ref() {
+                apply_menus(&m.global::<Shared>(), &settings.borrow());
+                let _ = m.show();
+            }
+        }
+    });
+    p.on_save_list({
+        let (ww, st) = (app.as_weak(), st.clone());
+        move || {
+            let w = ww.unwrap();
+            let lang = w.global::<Shared>().get_language_index();
+            let lang = LANGUAGES.get(lang as usize).map_or("en", |l| l.0);
+            let name = format!("MediaFiles Check Projects {}.txt", chrono::Local::now().format("%Y-%m-%d"));
+            let Some(target) = rfd::FileDialog::new().set_file_name(name).add_filter("Text", &["txt"]).save_file() else { return };
+            let text = st.borrow().result.lock().unwrap().as_ref().map(|r| projects::list_text(r, lang)).unwrap_or_default();
+            if let Err(e) = fs::write(&target, text) {
+                log::write(&format!("save list {}: {e}", target.display()));
+                w.global::<Projects>().set_error(format!("{}: {e}", target.display()).into());
+            }
+        }
+    });
+    p.on_save_request({
+        let (ww, st) = (app.as_weak(), st.clone());
+        move || {
+            let w = ww.unwrap();
+            let system = rename::computer_name();
+            let name = format!("{}_{}_Request.ferry", chrono::Local::now().format("%y%m%d-%H%M"), system.replace(['/', '\\', ':'], "_"));
+            let Some(target) = rfd::FileDialog::new().set_file_name(name).add_filter("MediaFiles Ferry", &["ferry"]).save_file() else { return };
+            let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
+            let data = st.borrow().result.lock().unwrap().as_ref().map(|r| projects::request_json(&system, now, &r.missing)).unwrap_or_default();
+            let result = fs::write(&target, data);
+            log::write(&format!("request saved {}: {result:?}", target.display()));
+            if let Err(e) = result {
+                w.global::<Projects>().set_error(format!("{}: {e}", target.display()).into());
+            }
+        }
+    });
 }
 
 fn notice(kind: i32, a: &str, b: &str, n: usize) -> NoticeRow {
@@ -847,6 +1478,404 @@ struct BackFlow {
     notes: Vec<NoticeRow>,
 }
 
+/// Rebalancing state: the groups found (and whether ticked), the Media Composer folders still to ask about,
+/// the new names given, the groups just done (for "Start").
+#[derive(Default)]
+struct Rebal {
+    plans: Vec<(Plan, bool)>,
+    ask: VecDeque<usize>,
+    names: HashMap<usize, String>,
+    done: Vec<(PathBuf, String)>,
+}
+
+/// Media Composer updates folders with these names itself ("1" local, "<computer>.<n>" on network drives).
+fn is_mc_folder(mxf: &Path, name: &str, computer: &str) -> bool {
+    rename::is_avid_name(name, rename::is_network(mxf), computer)
+}
+
+/// Folders renamed for Media Composer right now: (MXF folder, original name).
+fn renamed_away(st: &Renames) -> Vec<(PathBuf, String)> {
+    st.journal.as_ref().map(|j| j.entries.iter().map(|e| (e.mxf.clone(), e.original.clone())).collect()).unwrap_or_default()
+}
+
+/// "Start" for these history entries: set the databases of every changed folder aside and rename those Media
+/// Composer does not update itself. Marked done in the journal afterwards; a folder that is renamed already (gone
+/// under its name) is left alone, so it can run again after the app stopped half-way.
+fn rewrite_runs(st: &mut Renames, which: impl Fn(&Rebalanced) -> bool) -> Vec<NoticeRow> {
+    let path = rebalance_journal_path();
+    let mut journal = match rebalance::Journal::load(&path) {
+        Ok(j) => j,
+        Err(e) => return vec![notice(3, "rebalanced.json", &e.to_string(), 0)],
+    };
+    let (mut rows, mut to_rename) = (vec![], vec![]);
+    for r in journal.entries.iter_mut().filter(|r| !r.db_done && which(r)) {
+        for name in r.to_rewrite() {
+            let folder = r.mxf.join(&name);
+            if folder.is_dir() {
+                rewrite_original(&folder, &st.computer, &mut rows, &mut to_rename);
+            }
+        }
+        r.db_done = true;
+    }
+    rows.extend(rename_for_mc(st, &to_rename));
+    if let Err(e) = journal.save(&path) {
+        rows.push(notice(3, &path.display().to_string(), &e.to_string(), 0));
+    }
+    rows
+}
+
+fn drive_and_folder(folder: &Path) -> String {
+    let drive = folder.parent().and_then(Path::parent).and_then(Path::parent).map(volume_name).unwrap_or_default();
+    format!("{drive}: {}", volume_name(folder))
+}
+
+/// "a, b, c" or "a … z" for long lists
+fn short_list(names: &[String]) -> String {
+    match names {
+        [first, .., last] if names.len() > 3 => format!("{first} … {last}"),
+        _ => names.join(", "),
+    }
+}
+
+fn show_plans(app: &AppWindow, plans: &[(Plan, bool)], lang: &str) {
+    let rows: Vec<RebalRow> = plans
+        .iter()
+        .map(|(p, sel)| {
+            let names: Vec<String> = p.folders.iter().map(|f| f.0.clone()).collect();
+            let detail = if names.is_empty() {
+                pick(lang, [
+                    "{count} media files in {g} folders → all back into {main}",
+                    "{count} Mediendateien in {g} Ordnern → alle zurück nach {main}",
+                    "{count} fichiers média dans {g} dossiers → tous de retour dans {main}",
+                    "{count} archivos de medios en {g} carpetas → todos de vuelta a {main}",
+                ])
+            } else {
+                pick(lang, [
+                    "{count} media files in {g} folders → {k} rebalanced folders ({names}), {stay} stay in {main} · {m} files move",
+                    "{count} Mediendateien in {g} Ordnern → {k} rebalanced-Ordner ({names}), {stay} bleiben in {main} · {m} Dateien werden verschoben",
+                    "{count} fichiers média dans {g} dossiers → {k} dossiers rééquilibrés ({names}), {stay} restent dans {main} · {m} fichiers déplacés",
+                    "{count} archivos de medios en {g} carpetas → {k} carpetas reequilibradas ({names}), quedan {stay} en {main} · se mueven {m} archivos",
+                ])
+            }
+            .replace("{count}", &p.count.to_string())
+            .replace("{g}", &(1 + p.members.len()).to_string())
+            .replace("{k}", &names.len().to_string())
+            .replace("{names}", &short_list(&names))
+            .replace("{stay}", &p.stays.to_string())
+            .replace("{main}", &p.main)
+            .replace("{m}", &p.moves.len().to_string());
+            let note = if p.blocked {
+                pick(lang, [
+                    "A folder of it is renamed for Media Composer – rename it back first.",
+                    "Ein Ordner davon ist für Media Composer umbenannt – erst zurückbenennen.",
+                    "Un de ses dossiers est renommé pour Media Composer – renommez-le d’abord à l’inverse.",
+                    "Una de sus carpetas está renombrada para Media Composer: primero devuélvele el nombre.",
+                ])
+            } else if p.mc_folder {
+                pick(lang, [
+                    "Media Composer's own folder – we recommend renaming it first (you will be asked).",
+                    "Ordner von Media Composer selbst – wir empfehlen, ihn vorher umzubenennen (du wirst gefragt).",
+                    "Dossier de Media Composer lui-même – nous recommandons de le renommer d’abord (la question vous sera posée).",
+                    "Carpeta propia de Media Composer: recomendamos renombrarla antes (se te preguntará).",
+                ])
+            } else {
+                ""
+            };
+            RebalRow { title: drive_and_folder(&p.mxf.join(&p.main)).into(), detail: detail.into(), note: note.into(), selected: *sel && !p.blocked, blocked: p.blocked }
+        })
+        .collect();
+    app.set_rebalance_selected(plans.iter().filter(|p| p.1 && !p.0.blocked).count() as i32);
+    app.set_rebalance_rows(ModelRc::new(VecModel::from(rows)));
+}
+
+/// Earlier rebalancing runs (History; each group can be undone).
+fn show_rebalanced(app: &AppWindow, lang: &str) {
+    let path = rebalance_journal_path();
+    let mut journal = rebalance::Journal::load(&path).unwrap_or_default();
+    // a drive mounted under another path: follow it (the main folder and its rebalanced folders identify it)
+    let mut moved = false;
+    for r in journal.entries.iter_mut() {
+        if r.relocate() {
+            log::write(&format!("rebalanced {}: drive now at {}", r.original, r.mxf.display()));
+            moved = true;
+        }
+    }
+    if moved && let Err(e) = journal.save(&path) {
+        log::write(&format!("rebalanced.json not saved: {e}"));
+    }
+    let entries = journal.entries;
+    app.set_rebalance_pending(entries.iter().filter(|r| !r.db_done).count() as i32);
+    let rows: Vec<RunRow> = entries
+        .iter()
+        .map(|r| {
+            let mut text = pick(lang, [
+                "{folder} → {k} rebalanced folders, {n} files moved · {date}",
+                "{folder} → {k} rebalanced-Ordner, {n} Dateien verschoben · {date}",
+                "{folder} → {k} dossiers rééquilibrés, {n} fichiers déplacés · {date}",
+                "{folder} → {k} carpetas reequilibradas, {n} archivos movidos · {date}",
+            ])
+            .replace("{folder}", &drive_and_folder(&r.mxf.join(&r.original)))
+            .replace("{k}", &r.rebalanced_folders().len().to_string())
+            .replace("{n}", &r.moved_files().to_string())
+            .replace("{date}", &r.date);
+            if let Some(old) = &r.renamed_from {
+                text += &pick(lang, [" (was {})", " (war {})", " (avant : {})", " (antes {})"]).replace("{}", old);
+            }
+            RunRow { text: text.into(), db_done: r.db_done }
+        })
+        .collect();
+    app.set_rebalanced(ModelRc::new(VecModel::from(rows)));
+}
+
+/// Next Media Composer folder to ask about (rename it first?), or run the rebalancing when all are answered.
+fn ask_next(app: &AppWindow, rebal: &Rc<RefCell<Rebal>>, settings: &Rc<RefCell<Settings>>, renames: &Rc<RefCell<Renames>>) {
+    let next = rebal.borrow_mut().ask.front().copied();
+    match next {
+        Some(i) => {
+            let main = rebal.borrow().plans[i].0.main.clone();
+            app.set_ask_folder(main.into());
+            app.set_ask_name("".into());
+            app.set_ask_error("".into());
+            app.set_page(Page::Askname);
+        }
+        None => start_rebalance(app, rebal, settings.borrow().limit, renames),
+    }
+}
+
+/// Lays out the ticked groups anew (fresh from the drive, with the new names) and moves the files.
+fn start_rebalance(app: &AppWindow, rebal: &Rc<RefCell<Rebal>>, limit: usize, renames: &Rc<RefCell<Renames>>) {
+    if media_composer_running() {
+        app.set_mc_running(true);
+        app.set_page(Page::Rebalance);
+        return;
+    }
+    let chosen: Vec<(Plan, Option<String>)> = {
+        let r = rebal.borrow();
+        r.plans.iter().enumerate().filter(|(_, p)| p.1 && !p.0.blocked).map(|(i, p)| (p.0.clone(), r.names.get(&i).cloned())).collect()
+    };
+    let away = renamed_away(&renames.borrow());
+    app.set_work_value(0.0);
+    app.set_work_text("".into());
+    app.set_page(Page::Working);
+    let (tx, rx) = std::sync::mpsc::channel::<(Vec<(Rebalanced, rebalance::Moved)>, Vec<NoticeRow>)>();
+    std::thread::spawn(move || {
+        let (mut done, mut errors) = (vec![], vec![]);
+        let path = rebalance_journal_path();
+        match rebalance::Journal::load(&path) {
+            Err(e) => errors.push(notice(3, "rebalanced.json", &e.to_string(), 0)),
+            Ok(mut journal) => {
+                let mut reserved: HashMap<PathBuf, HashSet<String>> = HashMap::new();
+                for (p, name) in &chosen {
+                    let res = reserved.entry(p.mxf.clone()).or_insert_with(|| away.iter().filter(|a| a.0 == p.mxf).map(|a| mediafiles_check::key(&a.1)).collect());
+                    let result = rebalance::plan(&p.mxf, &p.main, rebalance::per_folder(limit), name.as_deref(), p.mc_folder, res).and_then(|fresh| rebalance::execute(&fresh, &mut journal, &path));
+                    log::write(&format!("rebalance {} (limit {limit}{}): {}", p.mxf.join(&p.main).display(), name.as_ref().map_or(String::new(), |n| format!(", renamed to {n}")), result.as_ref().map_or_else(|e| e.to_string(), |(e, m)| format!("{} moved, {} skipped, folders {:?}", m.moved, m.skipped.len(), e.folders))));
+                    match result {
+                        Ok(r) => done.push(r),
+                        Err(e) => errors.push(notice(3, &drive_and_folder(&p.mxf.join(&p.main)), &e.to_string(), 0)),
+                    }
+                }
+            }
+        }
+        let _ = tx.send((done, errors));
+    });
+    let (timer, weak, rebal) = (Rc::new(slint::Timer::default()), app.as_weak(), rebal.clone());
+    let t = timer.clone();
+    timer.start(slint::TimerMode::Repeated, Duration::from_millis(200), move || {
+        let Ok((done, mut errors)) = rx.try_recv() else { return };
+        t.stop();
+        let Some(app) = weak.upgrade() else { return };
+        let lang = app.get_language().to_string();
+        show_rebalanced(&app, &lang);
+        let mut summary: Vec<String> = vec![];
+        for (r, m) in &done {
+            summary.push(
+                pick(&lang, [
+                    "{folder}: {n} media files moved, {k} rebalanced folders.",
+                    "{folder}: {n} Mediendateien verschoben, {k} rebalanced-Ordner.",
+                    "{folder} : {n} fichiers média déplacés, {k} dossiers rééquilibrés.",
+                    "{folder}: {n} archivos de medios movidos, {k} carpetas reequilibradas.",
+                ])
+                .replace("{folder}", &r.original)
+                .replace("{n}", &m.moved.to_string())
+                .replace("{k}", &r.folders.len().to_string()),
+            );
+            if !m.skipped.is_empty() {
+                errors.push(notice(7, &short_list(&m.skipped), "", m.skipped.len()));
+            }
+            errors.extend(m.kept.iter().map(|k| notice(6, k, "", 0)));
+        }
+        rebal.borrow_mut().done = done.iter().map(|(r, _)| (r.mxf.clone(), r.original.clone())).collect();
+        if !errors.is_empty() {
+            // something went wrong or was left: show it; the groups that worked are in the History (undo / databases)
+            app.set_notice(ModelRc::new(VecModel::from(errors)));
+            app.set_page(Page::Notice);
+            return;
+        }
+        app.set_rebalance_summary(summary.join("\n").into());
+        app.set_mc_running(media_composer_running());
+        app.set_page(Page::Rebalanced);
+    });
+}
+
+/// Which copies "Set aside" moved where – needed to undo it.
+fn dup_journal_path() -> PathBuf {
+    app_dir().unwrap_or_else(|| PathBuf::from(".")).join("duplicates.json")
+}
+
+/// Duplicates state: what the last search found, which groups are ticked, the run just done (for "Start").
+#[derive(Default)]
+struct Dups {
+    found: duplicates::Found,
+    selected: Vec<bool>,
+    done: Option<duplicates::Run>,
+}
+
+/// at most this many groups on the page (the report lists all; the rest are set aside with the automatic choice)
+const DUPS_SHOWN: usize = 300;
+
+fn size_text(bytes: u64) -> String {
+    match bytes {
+        b if b >= 1 << 30 => format!("{:.1} GB", b as f64 / (1u64 << 30) as f64),
+        b if b >= 1 << 20 => format!("{:.1} MB", b as f64 / (1u64 << 20) as f64),
+        b => format!("{} KB", b.div_ceil(1024)),
+    }
+}
+
+/// Folders renamed for Media Composer right now (their names on the drive): copies there are not touched.
+fn renamed_dirs(st: &Renames) -> Vec<PathBuf> {
+    st.journal.as_ref().map(|j| j.entries.iter().map(|e| e.dir()).collect()).unwrap_or_default()
+}
+
+fn dup_blocked(g: &duplicates::Group, renamed: &[PathBuf]) -> bool {
+    g.copies.iter().any(|c| c.path.parent().is_some_and(|p| renamed.iter().any(|r| r == p)))
+}
+
+fn show_dups(app: &AppWindow, d: &Dups, renamed: &[PathBuf], lang: &str) {
+    let f = &d.found;
+    let mut summary = if f.groups.is_empty() {
+        pick(lang, [
+            "No duplicates: each of the {f} media files is there only once.",
+            "Keine Duplikate: Jede der {f} Mediendateien gibt es nur einmal.",
+            "Aucun doublon : chacun des {f} fichiers média n’existe qu’une fois.",
+            "Sin duplicados: cada uno de los {f} archivos de medios está una sola vez.",
+        ])
+        .replace("{f}", &f.files.to_string())
+    } else {
+        pick(lang, [
+            "{g} media files are there more than once ({f} looked at). Setting the ticked copies aside frees {size}.",
+            "{g} Mediendateien gibt es mehrfach ({f} angesehen). Die gewählten Kopien zur Seite zu legen macht {size} frei.",
+            "{g} fichiers média existent en plusieurs exemplaires ({f} examinés). Mettre de côté les copies choisies libère {size}.",
+            "{g} archivos de medios están más de una vez ({f} revisados). Apartar las copias elegidas libera {size}.",
+        ])
+        .replace("{g}", &f.groups.len().to_string())
+        .replace("{f}", &f.files.to_string())
+        .replace("{size}", &size_text(f.groups.iter().zip(&d.selected).filter(|(g, s)| **s && !dup_blocked(g, renamed)).map(|(g, _)| g.extra()).sum()))
+    };
+    if f.groups.len() > DUPS_SHOWN {
+        summary += &pick(lang, [" The first {n} are shown; the report lists all.", " Die ersten {n} werden gezeigt, der Bericht listet alle.", " Les {n} premiers sont affichés ; le rapport les liste tous.", " Se muestran los primeros {n}; el informe los lista todos."]).replace("{n}", &DUPS_SHOWN.to_string());
+    }
+    if !f.mirrors.is_empty() {
+        summary += pick(lang, [" Mountpoint workspaces were left out (they show files of another drive).", " Mountpoint-Arbeitsbereiche wurden ausgelassen (sie zeigen Dateien eines anderen Laufwerks).", " Les espaces Mountpoint ont été ignorés (ils montrent les fichiers d’un autre disque).", " Se omitieron los espacios de Mountpoint (muestran archivos de otra unidad)."]);
+    }
+    if !f.unreadable.is_empty() {
+        summary += &pick(lang, [" {n} files could not be read (see report).", " {n} Dateien waren nicht lesbar (siehe Bericht).", " {n} fichiers étaient illisibles (voir le rapport).", " {n} archivos no se pudieron leer (ver informe)."]).replace("{n}", &f.unreadable.len().to_string());
+    }
+    let rows: Vec<DupGroup> = f
+        .groups
+        .iter()
+        .zip(&d.selected)
+        .take(DUPS_SHOWN)
+        .map(|(g, sel)| {
+            let blocked = dup_blocked(g, renamed);
+            let detail = pick(lang, ["{k} copies · {size} each", "{k} Kopien · je {size}", "{k} copies · {size} chacune", "{k} copias · {size} cada una"])
+                .replace("{k}", &g.copies.len().to_string())
+                .replace("{size}", &size_text(g.copies[g.keep].size));
+            let note = if blocked {
+                pick(lang, ["A copy is in a folder renamed for Media Composer – rename it back first.", "Eine Kopie liegt in einem für Media Composer umbenannten Ordner – erst zurückbenennen.", "Une copie est dans un dossier renommé pour Media Composer – renommez-le d’abord à l’inverse.", "Una copia está en una carpeta renombrada para Media Composer: primero devuélvele el nombre."])
+            } else if g.sizes_differ() {
+                pick(lang, ["Same Media Composer ID, but different sizes – check the copies before setting them aside.", "Gleiche Media-Composer-ID, aber unterschiedliche Größen – die Kopien vor dem Zur-Seite-Legen prüfen.", "Même ID Media Composer, mais tailles différentes – vérifiez les copies avant de les mettre de côté.", "Mismo ID de Media Composer, pero tamaños distintos: revisa las copias antes de apartarlas."])
+            } else if !g.by_id {
+                pick(lang, ["No Media Composer ID – found by name, size and checksum.", "Ohne Media-Composer-ID – gefunden über Name, Größe und Prüfsumme.", "Sans ID Media Composer – trouvé par nom, taille et somme de contrôle.", "Sin ID de Media Composer: encontrado por nombre, tamaño y suma de control."])
+            } else {
+                ""
+            };
+            let title = g.name();
+            let copies: Vec<DupCopy> = g
+                .copies
+                .iter()
+                .enumerate()
+                .map(|(i, c)| {
+                    let name = c.path.file_name().unwrap_or_default().to_string_lossy().into_owned();
+                    let place = c.path.parent().map(drive_and_folder).unwrap_or_default();
+                    DupCopy { place: if name == title { place } else { format!("{place} · {name}") }.into(), keep: i == g.keep }
+                })
+                .collect();
+            DupGroup { title: title.into(), detail: detail.into(), note: note.into(), selected: *sel && !blocked, blocked, copies: ModelRc::new(VecModel::from(copies)) }
+        })
+        .collect();
+    app.set_dup_summary(summary.into());
+    app.set_dup_selected(f.groups.iter().zip(&d.selected).filter(|(g, s)| **s && !dup_blocked(g, renamed)).count() as i32);
+    app.set_dup_groups(ModelRc::new(VecModel::from(rows)));
+}
+
+/// Earlier "set aside" runs (History).
+fn show_dup_runs(app: &AppWindow, lang: &str) {
+    let runs: duplicates::Journal = duplicates::load(&dup_journal_path()).unwrap_or_default();
+    app.set_dup_pending(runs.entries.iter().filter(|r| !r.db_done).count() as i32);
+    let rows: Vec<RunRow> = runs
+        .entries
+        .iter()
+        .map(|r| {
+            let text = pick(lang, ["{n} copies set aside ({size}) · {date}", "{n} Kopien zur Seite gelegt ({size}) · {date}", "{n} copies mises de côté ({size}) · {date}", "{n} copias apartadas ({size}) · {date}"])
+                .replace("{n}", &r.moved.len().to_string())
+                .replace("{size}", &size_text(r.bytes()))
+                .replace("{date}", &r.date);
+            RunRow { text: text.into(), db_done: r.db_done }
+        })
+        .collect();
+    app.set_dup_runs(ModelRc::new(VecModel::from(rows)));
+}
+
+/// Sets the databases of these folders aside and renames those Media Composer does not update itself.
+fn rewrite_folders(st: &mut Renames, folders: &[PathBuf]) -> Vec<NoticeRow> {
+    let (mut rows, mut to_rename) = (vec![], vec![]);
+    for f in folders.iter().filter(|f| f.is_dir()) {
+        rewrite_original(f, &st.computer, &mut rows, &mut to_rename);
+    }
+    rows.extend(rename_for_mc(st, &to_rename));
+    rows
+}
+
+/// Renames folders for Media Composer (same as the Rename page) and returns the errors as notice rows.
+fn rename_for_mc(st: &mut Renames, folders: &[PathBuf]) -> Vec<NoticeRow> {
+    let names = rename::plan_names(folders, &st.computer);
+    let Ok(journal) = st.journal.as_mut() else { return vec![notice(3, "renamed.json", "unreadable – nothing renamed", 0)] };
+    folders
+        .iter()
+        .zip(names)
+        .filter_map(|(folder, to)| {
+            let result = rename::rename_for_avid(folder, &to, journal, &journal_path());
+            log::write(&format!("rename {} -> {to}: {}", folder.display(), result.as_ref().map_or_else(|e| e.to_string(), |_| "ok".into())));
+            result.err().map(|e| notice(3, &volume_name(folder), &e.to_string(), 0))
+        })
+        .collect()
+}
+
+/// Sets the database of a full folder aside; a folder Media Composer does not update itself is renamed for it too.
+fn rewrite_original(folder: &Path, computer: &str, rows: &mut Vec<NoticeRow>, to_rename: &mut Vec<PathBuf>) {
+    match rebalance::set_aside_database(folder) {
+        Ok(Some(b)) => {
+            log::write(&format!("database of {} set aside: {}", folder.display(), b.display()));
+            rows.push(notice(8, &volume_name(folder), &b.display().to_string(), 0));
+        }
+        Ok(None) => {}
+        Err(e) => rows.push(notice(3, &volume_name(folder), &e.to_string(), 0)),
+    }
+    if rename::needs_rename(folder, computer) {
+        to_rename.push(folder.to_path_buf());
+    }
+}
+
 struct Renames {
     computer: String,
     /// Err: the journal could not be read – renaming stays off so it is never overwritten
@@ -860,7 +1889,30 @@ impl Renames {
     }
 }
 
-fn show_renamed(app: &AppWindow, st: &Renames) {
+/// Entries that no longer match the drive (moved mount point, app stopped mid-way) – see `rename::repair`.
+/// Not while renaming back: that flow holds copies of the entries.
+fn repair_renamed(st: &mut Renames) {
+    let Ok(journal) = st.journal.as_mut() else { return };
+    if st.back.is_some() {
+        return;
+    }
+    let before = journal.entries.len();
+    let mut changed = false;
+    journal.entries.retain_mut(|r| match rename::repair(r) {
+        None => true,
+        Some(how) => {
+            log::write(&format!("renamed folder {} (was {}): {how:?}", r.dir().display(), r.original));
+            changed = true;
+            how == rename::Repair::Moved
+        }
+    });
+    if (changed || journal.entries.len() != before) && let Err(e) = journal.save(&journal_path()) {
+        log::write(&format!("journal not saved: {e}"));
+    }
+}
+
+fn show_renamed(app: &AppWindow, st: &mut Renames) {
+    repair_renamed(st);
     let entries = st.journal.as_ref().map(|j| j.entries.as_slice()).unwrap_or_default();
     let rows: Vec<RenamedRow> = entries
         .iter()
@@ -874,6 +1926,7 @@ fn show_renamed(app: &AppWindow, st: &Renames) {
         })
         .collect();
     app.set_mc_running(!rows.is_empty() && media_composer_running());
+    app.set_ready_count(rows.iter().filter(|r| r.status == 2).count() as i32);
     app.set_renamed(ModelRc::new(VecModel::from(rows)));
 }
 
@@ -1072,7 +2125,169 @@ mod mac_menu {
     }
 }
 
+/// AppKit details Slint does not offer: colours in sRGB like the Swift apps, and the settings window's title bar.
+#[cfg(target_os = "macos")]
+mod mac_window {
+    use objc2::encode::{Encode, Encoding};
+    use objc2::runtime::{AnyObject, Imp, Sel};
+    use objc2::{class, msg_send, sel};
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    struct Size {
+        width: f64,
+        height: f64,
+    }
+    unsafe impl Encode for Size {
+        const ENCODING: Encoding = Encoding::Struct("CGSize", &[f64::ENCODING, f64::ENCODING]);
+    }
+
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    struct Rect {
+        x: f64,
+        y: f64,
+        width: f64,
+        height: f64,
+    }
+
+    unsafe impl Encode for Rect {
+        const ENCODING: Encoding = Encoding::Struct("CGRect", &[Encoding::Struct("CGPoint", &[f64::ENCODING, f64::ENCODING]), Size::ENCODING]);
+    }
+
+    /// Usable height of the screen with the key window (without menu bar and Dock), in points; 0 if unknown.
+    pub fn screen_height() -> f64 {
+        unsafe {
+            let screen: *mut AnyObject = msg_send![class!(NSScreen), mainScreen];
+            if screen.is_null() {
+                return 0.0;
+            }
+            let frame: Rect = msg_send![screen, visibleFrame];
+            frame.height
+        }
+    }
+
+    type Init = extern "C-unwind" fn(*mut AnyObject, Sel, Rect, usize, usize, bool) -> *mut AnyObject;
+    static ORIGINAL_INIT: AtomicUsize = AtomicUsize::new(0);
+
+    extern "C-unwind" fn init_srgb(this: *mut AnyObject, sel: Sel, rect: Rect, style: usize, backing: usize, defer: bool) -> *mut AnyObject {
+        let original: Init = unsafe { std::mem::transmute(ORIGINAL_INIT.load(Ordering::Relaxed)) };
+        let win = original(this, sel, rect, style, backing, defer);
+        if !win.is_null() {
+            unsafe {
+                let srgb: *mut AnyObject = msg_send![class!(NSColorSpace), sRGBColorSpace];
+                let _: () = msg_send![win, setColorSpace: srgb];
+            }
+        }
+        win
+    }
+
+    /// Slint (femtovg, OpenGL) draws without colour management, so #1f2225 came out as #21262a next to Mountpoint's
+    /// exact #1f2225. A window tagged as sRGB before its first frame shows the Theme colours exactly like the SwiftUI
+    /// apps; set later it only worked now and then – so every NSWindow gets sRGB right in its initializer.
+    /// Call once, before the first window is created.
+    pub fn srgb_windows() {
+        let cls = class!(NSWindow);
+        if let Some(m) = cls.instance_method(sel!(initWithContentRect:styleMask:backing:defer:)) {
+            let imp: Imp = unsafe { std::mem::transmute(init_srgb as Init) };
+            let original = unsafe { m.set_implementation(imp) };
+            ORIGINAL_INIT.store(original as usize, Ordering::Relaxed);
+        }
+    }
+
+    type KeyFn = extern "C-unwind" fn(*mut AnyObject, Sel);
+    static ORIGINAL_BECOME_KEY: AtomicUsize = AtomicUsize::new(0);
+    static ORIGINAL_RESIGN_KEY: AtomicUsize = AtomicUsize::new(0);
+    thread_local! {
+        static KEY_CHANGED: std::cell::RefCell<Option<Box<dyn Fn()>>> = std::cell::RefCell::new(None);
+    }
+
+    fn key_changed(original: &AtomicUsize, this: *mut AnyObject, sel: Sel) {
+        let original: KeyFn = unsafe { std::mem::transmute(original.load(Ordering::Relaxed)) };
+        original(this, sel);
+        KEY_CHANGED.with(|f| f.borrow().iter().for_each(|f| f()));
+    }
+    extern "C-unwind" fn become_key(this: *mut AnyObject, sel: Sel) {
+        key_changed(&ORIGINAL_BECOME_KEY, this, sel);
+    }
+    extern "C-unwind" fn resign_key(this: *mut AnyObject, sel: Sel) {
+        key_changed(&ORIGINAL_RESIGN_KEY, this, sel);
+    }
+
+    /// Calls `f` whenever any window becomes or stops being the key window – the tab bar then changes colour at once
+    /// together with the title bar (polling made it lag behind).
+    pub fn on_key_change(f: Box<dyn Fn()>) {
+        KEY_CHANGED.with(|k| *k.borrow_mut() = Some(f));
+        let cls = class!(NSWindow);
+        for (name, imp, original) in [
+            (sel!(becomeKeyWindow), become_key as KeyFn, &ORIGINAL_BECOME_KEY),
+            (sel!(resignKeyWindow), resign_key as KeyFn, &ORIGINAL_RESIGN_KEY),
+        ] {
+            if original.load(Ordering::Relaxed) != 0 {
+                continue;
+            }
+            if let Some(m) = cls.instance_method(name) {
+                let imp: Imp = unsafe { std::mem::transmute(imp) };
+                original.store(unsafe { m.set_implementation(imp) } as usize, Ordering::Relaxed);
+            }
+        }
+    }
+
+    fn ns_window(w: &slint::Window) -> Option<*mut AnyObject> {
+        let handle = w.window_handle();
+        let RawWindowHandle::AppKit(h) = handle.window_handle().ok()?.as_raw() else { return None };
+        let view = h.ns_view.as_ptr() as *mut AnyObject;
+        let win: *mut AnyObject = unsafe { msg_send![view, window] };
+        (!win.is_null()).then_some(win)
+    }
+
+    /// Content up to the top edge under a transparent title bar (like an NSToolbar window), so the tab bar and the
+    /// title bar are one surface without the separator line. Keeps the content size (`height` = whole window).
+    pub fn unify_titlebar(w: &slint::Window, width: f64, height: f64) {
+        let Some(win) = ns_window(w) else { return };
+        unsafe {
+            let mask: usize = msg_send![win, styleMask];
+            const FULL_SIZE_CONTENT_VIEW: usize = 1 << 15;
+            const MINIATURIZABLE: usize = 1 << 2;
+            if mask & FULL_SIZE_CONTENT_VIEW == 0 {
+                // HIG settings: minimize and zoom dimmed (zoom already is: the size is fixed)
+                let _: () = msg_send![win, setStyleMask: (mask | FULL_SIZE_CONTENT_VIEW) & !MINIATURIZABLE];
+                let _: () = msg_send![win, setTitlebarAppearsTransparent: true];
+                let _: () = msg_send![win, setContentSize: Size { width, height }];
+            }
+        }
+    }
+
+    /// Title bar, traffic lights and title text in the app's own light/dark (not the system's): every window.
+    pub fn appearance_all(dark: bool) {
+        let name: &std::ffi::CStr = if dark { c"NSAppearanceNameDarkAqua" } else { c"NSAppearanceNameAqua" };
+        unsafe {
+            let name: *mut AnyObject = msg_send![class!(NSString), stringWithUTF8String: name.as_ptr()];
+            let wanted: *mut AnyObject = msg_send![class!(NSAppearance), appearanceNamed: name];
+            let app: *mut AnyObject = msg_send![class!(NSApplication), sharedApplication];
+            let windows: *mut AnyObject = msg_send![app, windows];
+            let count: usize = msg_send![windows, count];
+            for i in 0..count {
+                let w: *mut AnyObject = msg_send![windows, objectAtIndex: i];
+                let current: *mut AnyObject = msg_send![w, appearance];
+                if current != wanted {
+                    let _: () = msg_send![w, setAppearance: wanted];
+                }
+            }
+        }
+    }
+
+    /// Whether the window is the key window (the title bar is lighter then; the tab bar follows).
+    pub fn is_key(w: &slint::Window) -> bool {
+        ns_window(w).is_some_and(|win| unsafe { msg_send![win, isKeyWindow] })
+    }
+}
+
 fn main() -> Result<(), slint::PlatformError> {
+    #[cfg(target_os = "macos")]
+    mac_window::srgb_windows();
     let settings = Rc::new(RefCell::new(load_settings()));
     let app = AppWindow::new()?;
     repaint_on_resize!(app);
@@ -1088,7 +2303,7 @@ fn main() -> Result<(), slint::PlatformError> {
         log::write(&format!("journal unreadable: {e}"));
         app.set_error(e.clone().into());
     }
-    show_renamed(&app, &renames.borrow());
+    show_renamed(&app, &mut renames.borrow_mut());
     log::write(&format!("start {} {}", env!("CARGO_PKG_VERSION"), std::env::consts::ARCH));
     std::panic::set_hook(Box::new(|info| log::write(&format!("crash: {info}"))));
 
@@ -1122,40 +2337,32 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
 
-    app.global::<Shared>().on_show_about({
-        let (weak, settings, about) = (app.as_weak(), settings.clone(), others.about.clone());
-        move || {
-            let (weak, settings, about) = (weak.clone(), settings.clone(), about.clone());
+    // "Get test versions": the old result no longer applies – hide "up to date" and check again quietly
+    app.global::<Shared>().on_select_betas({
+        let (weak, settings, others) = (app.as_weak(), settings.clone(), others.clone());
+        move |betas| {
+            let (weak, settings, others) = (weak.clone(), settings.clone(), others.clone());
             slint::Timer::single_shot(Duration::ZERO, move || {
-                let mut about = about.borrow_mut();
-                if about.is_none() {
-                    *about = AboutWindow::new().ok();
-                    if let Some(a) = about.as_ref() {
-                        repaint_on_resize!(a);
-                        a.set_version(env!("CARGO_PKG_VERSION").into());
-                        a.on_open_source(|| {
-                            let _ = std::process::Command::new("open").arg("https://github.com/moritz-poth/mediafiles-check").spawn();
-                        });
-                        a.on_open_license(|| {
-                            // bundled license text, otherwise the FSF page
-                            let bundled = std::env::current_exe().ok().and_then(|e| Some(e.parent()?.parent()?.join("Resources/LICENSE.txt")));
-                            let target = bundled.filter(|p| p.exists()).map_or("https://www.gnu.org/licenses/gpl-3.0.html".into(), |p| p.display().to_string());
-                            let _ = std::process::Command::new("open").arg(target).spawn();
-                        });
-                        forward_menu(&a.global::<Shared>(), &weak);
+                let Some(app) = weak.upgrade() else { return };
+                settings.borrow_mut().betas = betas;
+                save_settings(&settings.borrow());
+                {
+                    let s = settings.borrow();
+                    let mut u = s.update.lock().unwrap();
+                    if u.state == 2 || u.state == 4 {
+                        u.state = 0;
                     }
                 }
-                if let Some(a) = about.as_ref() {
-                    apply_menus(&a.global::<Shared>(), &settings.borrow());
-                    let _ = a.show();
-                }
+                apply_all(&app, &others, &settings.borrow());
+                check_for_update(&app, &settings.borrow(), false);
             });
         }
     });
 
-    app.global::<Shared>().on_show_settings({
+    // Settings… opens the tab chosen last (never About); About opens the same window on the About tab
+    let open_settings = {
         let (weak, settings, win) = (app.as_weak(), settings.clone(), others.settings.clone());
-        move || {
+        move |about: bool| {
             let (weak, settings, win) = (weak.clone(), settings.clone(), win.clone());
             slint::Timer::single_shot(Duration::ZERO, move || {
                 let mut win = win.borrow_mut();
@@ -1165,20 +2372,46 @@ fn main() -> Result<(), slint::PlatformError> {
                         repaint_on_resize!(w);
                         forward_menu(&w.global::<Shared>(), &weak);
                         wire_support(w, &settings);
+                        w.set_version(env!("CARGO_PKG_VERSION").into());
+                        // HIG settings: restore the most recently viewed pane (also after a restart)
+                        w.set_last_tab(settings.borrow().tab);
+                        w.on_tab_chosen({
+                            let settings = settings.clone();
+                            move |tab| {
+                                settings.borrow_mut().tab = tab;
+                                save_settings(&settings.borrow());
+                            }
+                        });
+                        w.on_open_source(|| {
+                            let _ = std::process::Command::new("open").arg("https://github.com/moritz-poth/mediafiles-check").spawn();
+                        });
+                        w.on_open_license(|| {
+                            // bundled license text, otherwise the FSF page
+                            let bundled = std::env::current_exe().ok().and_then(|e| Some(e.parent()?.parent()?.join("Resources/LICENSE.txt")));
+                            let target = bundled.filter(|p| p.exists()).map_or("https://www.gnu.org/licenses/gpl-3.0.html".into(), |p| p.display().to_string());
+                            let _ = std::process::Command::new("open").arg(target).spawn();
+                        });
                     });
                 }
                 if let Some(w) = win.as_ref() {
                     apply_menus(&w.global::<Shared>(), &settings.borrow());
+                    w.set_tab(if about { 3 } else { w.get_last_tab() });
                     let _ = w.show();
                 }
             });
         }
+    };
+    app.global::<Shared>().on_show_settings({
+        let open = open_settings.clone();
+        move || open(false)
     });
+    app.global::<Shared>().on_show_about(move || open_settings(true));
 
     app.global::<Shared>().on_refresh_update({
         let (weak, settings, others) = (app.as_weak(), settings.clone(), others.clone());
         move || weak.upgrade().iter().for_each(|a| apply_all(a, &others, &settings.borrow()))
     });
+
     app.global::<Shared>().on_check_update({
         let (weak, settings) = (app.as_weak(), settings.clone());
         move || weak.upgrade().iter().for_each(|a| check_for_update(a, &settings.borrow(), true))
@@ -1234,13 +2467,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     app.on_toggle_drive({
         let (weak, drives) = (app.as_weak(), drives.clone());
-        move |i| {
-            let mut d = drives.borrow_mut();
-            if let Some(x) = d.get_mut(i as usize) {
-                x.1 = !x.1;
-            }
-            show_drives(&weak.unwrap(), &d);
-        }
+        move |i| toggle_drive(&weak.unwrap(), &drives, i)
     });
 
     app.on_check_drives({
@@ -1270,7 +2497,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let Some(target) = rfd::FileDialog::new().set_file_name(name).add_filter("Text", &["txt"]).save_file() else { return };
             if let Err(e) = fs::write(&target, report_text(&last.lock().unwrap().reports, &lang)) {
                 app.set_error(format!("{}: {e}", target.display()).into());
-                app.set_page(Page::Home);
+                app.invoke_home();
             }
         }
     });
@@ -1280,8 +2507,427 @@ fn main() -> Result<(), slint::PlatformError> {
         move || {
             let app = weak.unwrap();
             sync_drives(&app, &drives);
-            show_renamed(&app, &renames.borrow());
-            app.set_page(Page::Home);
+            show_renamed(&app, &mut renames.borrow_mut());
+            app.invoke_home();
+        }
+    });
+
+
+    // ── Duplicates ─────────────────────────────────────────
+    let dups: Rc<RefCell<Dups>> = Rc::default();
+    show_dup_runs(&app, &settings.borrow().language);
+
+    app.on_find_dups({
+        let (weak, drives, dups, renames) = (app.as_weak(), drives.clone(), dups.clone(), renames.clone());
+        move || {
+            let app = weak.unwrap();
+            let roots: Vec<PathBuf> = drives.borrow().iter().filter(|d| d.1).map(|d| d.0.clone()).collect();
+            app.set_work_value(0.0);
+            app.set_work_text("".into());
+            app.set_page(Page::Working);
+            log::write(&format!("duplicates: looking through {}", roots.iter().map(|r| r.display().to_string()).collect::<Vec<_>>().join(", ")));
+            let (tx, rx) = std::sync::mpsc::channel::<duplicates::Found>();
+            let progress = app.as_weak();
+            std::thread::spawn(move || {
+                let found = duplicates::find(&roots, &mut |i, n, place| {
+                    let (place, w) = (place.to_string(), progress.clone());
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(a) = w.upgrade() {
+                            a.set_work_text(place.into());
+                            a.set_work_value(i as f32 / n.max(1) as f32);
+                        }
+                    });
+                });
+                let _ = tx.send(found);
+            });
+            let (timer, weak, dups, renames) = (Rc::new(slint::Timer::default()), weak.clone(), dups.clone(), renames.clone());
+            let t = timer.clone();
+            timer.start(slint::TimerMode::Repeated, Duration::from_millis(200), move || {
+                let Ok(found) = rx.try_recv() else { return };
+                t.stop();
+                let Some(app) = weak.upgrade() else { return };
+                log::write(&format!("duplicates: {} files, {} with copies, {} unreadable, {} workspaces left out", found.files, found.groups.len(), found.unreadable.len(), found.mirrors.len()));
+                let mut d = dups.borrow_mut();
+                // copies with different sizes are never ticked by themselves
+                d.selected = found.groups.iter().map(|g| !g.sizes_differ()).collect();
+                d.found = found;
+                show_dups(&app, &d, &renamed_dirs(&renames.borrow()), &app.get_language());
+                app.set_mc_running(media_composer_running());
+                app.set_page(Page::Dups);
+            });
+        }
+    });
+
+    app.on_toggle_dup({
+        let (weak, dups, renames) = (app.as_weak(), dups.clone(), renames.clone());
+        move |i| {
+            let app = weak.unwrap();
+            let mut d = dups.borrow_mut();
+            if let Some(s) = d.selected.get_mut(i as usize) {
+                *s = !*s;
+            }
+            show_dups(&app, &d, &renamed_dirs(&renames.borrow()), &app.get_language());
+        }
+    });
+
+    app.on_keep_copy({
+        let (weak, dups, renames) = (app.as_weak(), dups.clone(), renames.clone());
+        move |g, c| {
+            let app = weak.unwrap();
+            let mut d = dups.borrow_mut();
+            if let Some(group) = d.found.groups.get_mut(g as usize).filter(|gr| (c as usize) < gr.copies.len()) {
+                group.keep = c as usize;
+            }
+            show_dups(&app, &d, &renamed_dirs(&renames.borrow()), &app.get_language());
+        }
+    });
+
+    app.on_save_dups({
+        let (weak, dups) = (app.as_weak(), dups.clone());
+        move || {
+            let app = weak.unwrap();
+            let name = format!("MediaFiles Check Duplicates {}.txt", chrono::Local::now().format("%Y-%m-%d"));
+            let Some(target) = rfd::FileDialog::new().set_file_name(name).add_filter("Text", &["txt"]).save_file() else { return };
+            if let Err(e) = fs::write(&target, duplicates::report_text(&dups.borrow().found, &app.get_language())) {
+                app.set_notice(ModelRc::new(VecModel::from(vec![notice(3, &target.display().to_string(), &e.to_string(), 0)])));
+                app.set_page(Page::Notice);
+            }
+        }
+    });
+
+    app.on_set_aside_dups({
+        let (weak, dups, renames) = (app.as_weak(), dups.clone(), renames.clone());
+        move || {
+            let app = weak.unwrap();
+            if media_composer_running() {
+                app.set_mc_running(true);
+                return;
+            }
+            let renamed = renamed_dirs(&renames.borrow());
+            let copies: Vec<(duplicates::Copy, Vec<duplicates::Copy>)> = {
+                let d = dups.borrow();
+                d.found
+                    .groups
+                    .iter()
+                    .zip(&d.selected)
+                    .filter(|(g, s)| **s && !dup_blocked(g, &renamed))
+                    .map(|(g, _)| (g.copies[g.keep].clone(), g.copies.iter().enumerate().filter(|(i, _)| *i != g.keep).map(|(_, c)| c.clone()).collect()))
+                    .collect()
+            };
+            app.set_work_value(0.0);
+            app.set_work_text("".into());
+            app.set_page(Page::Working);
+            let (tx, rx) = std::sync::mpsc::channel::<std::io::Result<(duplicates::Run, duplicates::Moved)>>();
+            std::thread::spawn(move || {
+                let _ = tx.send(duplicates::set_aside(&copies, &dup_journal_path()));
+            });
+            let (timer, weak, dups) = (Rc::new(slint::Timer::default()), weak.clone(), dups.clone());
+            let t = timer.clone();
+            timer.start(slint::TimerMode::Repeated, Duration::from_millis(200), move || {
+                let Ok(result) = rx.try_recv() else { return };
+                t.stop();
+                let Some(app) = weak.upgrade() else { return };
+                let lang = app.get_language().to_string();
+                show_dup_runs(&app, &lang);
+                match result {
+                    Err(e) => {
+                        log::write(&format!("duplicates: set aside failed: {e}"));
+                        app.set_notice(ModelRc::new(VecModel::from(vec![notice(3, "duplicates", &e.to_string(), 0)])));
+                        app.set_page(Page::Notice);
+                    }
+                    Ok((run, m)) => {
+                        log::write(&format!("duplicates: {} copies set aside, {} skipped", m.moved, m.skipped.len()));
+                        let mut lines = vec![pick(&lang, [
+                            "{n} copies set aside ({size}) into “MediaFiles Check Duplicates” on their drives.",
+                            "{n} Kopien zur Seite gelegt ({size}), in „MediaFiles Check Duplicates“ auf ihren Laufwerken.",
+                            "{n} copies mises de côté ({size}) dans « MediaFiles Check Duplicates » sur leurs disques.",
+                            "{n} copias apartadas ({size}) en «MediaFiles Check Duplicates» en sus unidades.",
+                        ])
+                        .replace("{n}", &m.moved.to_string())
+                        .replace("{size}", &size_text(run.bytes()))];
+                        if !m.skipped.is_empty() {
+                            lines.push(pick(&lang, ["Left where they are (changed or gone meanwhile): {}", "Liegen geblieben (inzwischen geändert oder weg): {}", "Laissées en place (modifiées ou disparues entre-temps) : {}", "Se quedaron (cambiadas o desaparecidas entretanto): {}"]).replace("{}", &m.skipped.join(", ")));
+                        }
+                        lines.extend(run.changed.iter().map(|f| format!("· {}", drive_and_folder(f))));
+                        dups.borrow_mut().done = Some(run);
+                        app.set_dup_done_summary(lines.join("\n").into());
+                        app.set_mc_running(media_composer_running());
+                        app.set_page(Page::Dupsdone);
+                    }
+                }
+            });
+        }
+    });
+
+    // "Start" (-1 = the run just done) or "Rewrite databases" of one History entry
+    app.on_dup_db({
+        let (weak, dups, renames) = (app.as_weak(), dups.clone(), renames.clone());
+        move |i| {
+            let app = weak.unwrap();
+            if media_composer_running() {
+                app.set_mc_running(true);
+                return;
+            }
+            let path = dup_journal_path();
+            let mut rows = vec![];
+            match duplicates::load::<duplicates::Journal>(&path) {
+                Err(e) => rows.push(notice(3, "duplicates.json", &e.to_string(), 0)),
+                Ok(mut journal) => {
+                    let done = dups.borrow_mut().done.take();
+                    let index = usize::try_from(i).ok().or_else(|| done.and_then(|d| journal.entries.iter().position(|r| *r == d)));
+                    if let Some(run) = index.and_then(|i| journal.entries.get_mut(i)) {
+                        rows = rewrite_folders(&mut renames.borrow_mut(), &run.changed);
+                        run.db_done = true;
+                        if let Err(e) = duplicates::save(&journal, &path) {
+                            rows.push(notice(3, &path.display().to_string(), &e.to_string(), 0));
+                        }
+                    }
+                }
+            }
+            show_renamed(&app, &mut renames.borrow_mut());
+            show_dup_runs(&app, &app.get_language());
+            app.set_notice(ModelRc::new(VecModel::from(rows)));
+            app.set_page(Page::Notice);
+        }
+    });
+
+    app.on_undo_dup({
+        let (weak, renames) = (app.as_weak(), renames.clone());
+        move |i| {
+            let app = weak.unwrap();
+            if media_composer_running() {
+                app.set_mc_running(true);
+                return;
+            }
+            let lang = app.get_language().to_string();
+            let path = dup_journal_path();
+            let mut rows = vec![];
+            match duplicates::load::<duplicates::Journal>(&path) {
+                Err(e) => rows.push(notice(3, "duplicates.json", &e.to_string(), 0)),
+                Ok(mut journal) => {
+                    let Some(run) = journal.entries.get(i as usize).cloned() else { return };
+                    match duplicates::undo(&run) {
+                        Err(e) => rows.push(notice(3, "duplicates", &e.to_string(), 0)),
+                        Ok(u) => {
+                            log::write(&format!("duplicates: undo, {} back, {} skipped", u.moved, u.skipped.len()));
+                            rows.push(notice(5, pick(&lang, ["their folders", "ihre Ordner", "leurs dossiers", "sus carpetas"]), "", u.moved));
+                            if !u.skipped.is_empty() {
+                                rows.push(notice(7, &short_list(&u.skipped), "", u.skipped.len()));
+                            }
+                            journal.entries.remove(i as usize);
+                            if let Err(e) = duplicates::save(&journal, &path) {
+                                rows.push(notice(3, &path.display().to_string(), &e.to_string(), 0));
+                            }
+                            // databases rewritten after the run no longer fit: rewritten again; otherwise the old ones fit again
+                            if run.db_done {
+                                rows.extend(rewrite_folders(&mut renames.borrow_mut(), &run.changed));
+                            }
+                        }
+                    }
+                }
+            }
+            show_renamed(&app, &mut renames.borrow_mut());
+            show_dup_runs(&app, &lang);
+            app.set_notice(ModelRc::new(VecModel::from(rows)));
+            app.set_page(Page::Notice);
+        }
+    });
+
+    // ── Rebalancing ────────────────────────────────────────
+    let rebal: Rc<RefCell<Rebal>> = Rc::default();
+    show_rebalanced(&app, &settings.borrow().language);
+
+    app.global::<Shared>().on_select_limit({
+        let (weak, settings, others) = (app.as_weak(), settings.clone(), others.clone());
+        move |limit| {
+            let Some(app) = weak.upgrade() else { return };
+            let limit = limit as usize;
+            if !rebalance::LIMITS.contains(&limit) {
+                return;
+            }
+            settings.borrow_mut().limit = limit;
+            save_settings(&settings.borrow());
+            apply_all(&app, &others, &settings.borrow());
+        }
+    });
+
+    app.on_find_full({
+        let (weak, drives, settings, rebal, renames) = (app.as_weak(), drives.clone(), settings.clone(), rebal.clone(), renames.clone());
+        move || {
+            let app = weak.unwrap();
+            let roots: Vec<PathBuf> = drives.borrow().iter().filter(|d| d.1).map(|d| d.0.clone()).collect();
+            let limit = settings.borrow().limit;
+            let (away, computer) = { let st = renames.borrow(); (renamed_away(&st), st.computer.clone()) };
+            app.set_work_value(0.0);
+            app.set_work_text("".into());
+            app.set_page(Page::Working);
+            log::write(&format!("rebalance: looking for groups that do not match {limit} files"));
+            let (tx, rx) = std::sync::mpsc::channel::<Vec<Plan>>();
+            std::thread::spawn(move || {
+                let _ = tx.send(rebalance::full_folders(&roots, limit, &away, &|mxf, name| is_mc_folder(mxf, name, &computer)));
+            });
+            let (timer, weak, rebal) = (Rc::new(slint::Timer::default()), weak.clone(), rebal.clone());
+            let t = timer.clone();
+            timer.start(slint::TimerMode::Repeated, Duration::from_millis(200), move || {
+                let Ok(plans) = rx.try_recv() else { return };
+                t.stop();
+                let Some(app) = weak.upgrade() else { return };
+                log::write(&format!("rebalance: {} groups to lay out", plans.len()));
+                let mut r = rebal.borrow_mut();
+                r.plans = plans.into_iter().map(|p| (p, true)).collect();
+                show_plans(&app, &r.plans, &app.get_language());
+                app.set_mc_running(media_composer_running());
+                app.set_page(Page::Rebalance);
+            });
+        }
+    });
+
+    app.on_toggle_rebalance({
+        let (weak, rebal) = (app.as_weak(), rebal.clone());
+        move |i| {
+            let app = weak.unwrap();
+            let mut r = rebal.borrow_mut();
+            if let Some(p) = r.plans.get_mut(i as usize) {
+                p.1 = !p.1;
+            }
+            show_plans(&app, &r.plans, &app.get_language());
+        }
+    });
+
+    // "Rebalance": first ask about every ticked Media Composer folder (rename it?), then run
+    app.on_rebalance({
+        let (weak, rebal, settings, renames) = (app.as_weak(), rebal.clone(), settings.clone(), renames.clone());
+        move || {
+            let app = weak.unwrap();
+            if media_composer_running() {
+                app.set_mc_running(true);
+                return;
+            }
+            {
+                let mut r = rebal.borrow_mut();
+                r.names.clear();
+                r.ask = r.plans.iter().enumerate().filter(|(_, p)| p.1 && !p.0.blocked && p.0.mc_folder).map(|(i, _)| i).collect();
+            }
+            ask_next(&app, &rebal, &settings, &renames);
+        }
+    });
+
+    app.on_rename_main({
+        let (weak, rebal, settings, renames) = (app.as_weak(), rebal.clone(), settings.clone(), renames.clone());
+        move |name| {
+            let app = weak.unwrap();
+            let lang = app.get_language().to_string();
+            let computer = renames.borrow().computer.clone();
+            let problem = {
+                let r = rebal.borrow();
+                let Some(&i) = r.ask.front() else { return };
+                let mxf = &r.plans[i].0.mxf;
+                // names given to other groups in the same MXF folder are taken too
+                let taken: HashSet<String> = r.names.iter().filter(|(j, _)| r.plans[**j].0.mxf == *mxf).map(|(_, n)| mediafiles_check::key(n)).collect();
+                rebalance::check_name(mxf, &name, is_mc_folder(mxf, &name, &computer), &taken)
+            };
+            use rebalance::NameProblem as N;
+            let text = match problem {
+                None => {
+                    let mut r = rebal.borrow_mut();
+                    if let Some(i) = r.ask.pop_front() {
+                        r.names.insert(i, name.to_string());
+                    }
+                    drop(r);
+                    ask_next(&app, &rebal, &settings, &renames);
+                    return;
+                }
+                Some(N::Empty) => pick(&lang, ["Enter a name.", "Bitte einen Namen eingeben.", "Saisissez un nom.", "Escribe un nombre."]),
+                Some(N::BadCharacters) => pick(&lang, ["Not allowed: “/”, “:”, a leading dot or spaces at the ends.", "Nicht erlaubt: „/“, „:“, ein Punkt am Anfang oder Leerzeichen an den Enden.", "Interdit : « / », « : », un point au début ou des espaces aux extrémités.", "No se permite: «/», «:», un punto al principio ni espacios en los extremos."]),
+                Some(N::Exists) => pick(&lang, ["A folder with this name exists already.", "Einen Ordner mit diesem Namen gibt es schon.", "Un dossier de ce nom existe déjà.", "Ya existe una carpeta con este nombre."]),
+                Some(N::MediaComposer) => pick(&lang, ["Media Composer uses this name itself – choose another one.", "Diesen Namen verwendet Media Composer selbst – bitte einen anderen wählen.", "Media Composer utilise lui-même ce nom – choisissez-en un autre.", "Media Composer usa este nombre: elige otro."]),
+                Some(N::Reserved) => pick(&lang, ["Names with “-rebalanced-” are reserved for rebalanced folders.", "Namen mit „-rebalanced-“ sind für rebalanced-Ordner reserviert.", "Les noms avec « -rebalanced- » sont réservés aux dossiers rééquilibrés.", "Los nombres con «-rebalanced-» están reservados para las carpetas reequilibradas."]),
+            };
+            app.set_ask_error(text.into());
+        }
+    });
+
+    app.on_keep_main({
+        let (weak, rebal, settings, renames) = (app.as_weak(), rebal.clone(), settings.clone(), renames.clone());
+        move || {
+            let app = weak.unwrap();
+            rebal.borrow_mut().ask.pop_front();
+            ask_next(&app, &rebal, &settings, &renames);
+        }
+    });
+
+    // "Start" (-1 = the groups just done) or "Rewrite databases" of one History entry
+    app.on_rebalance_db({
+        let (weak, rebal, renames) = (app.as_weak(), rebal.clone(), renames.clone());
+        move |i| {
+            let app = weak.unwrap();
+            if media_composer_running() {
+                app.set_mc_running(true);
+                return;
+            }
+            let done = std::mem::take(&mut rebal.borrow_mut().done);
+            let journal = rebalance::Journal::load(&rebalance_journal_path()).map(|j| j.entries).unwrap_or_default();
+            let pick: Option<&Rebalanced> = usize::try_from(i).ok().and_then(|i| journal.get(i));
+            let mut st = renames.borrow_mut();
+            let rows = rewrite_runs(&mut st, |r| match pick {
+                Some(p) => r.mxf == p.mxf && r.original == p.original,
+                None => done.iter().any(|d| d.0 == r.mxf && d.1 == r.original),
+            });
+            show_renamed(&app, &mut st);
+            show_rebalanced(&app, &app.get_language());
+            app.set_notice(ModelRc::new(VecModel::from(rows)));
+            app.set_page(Page::Notice);
+        }
+    });
+
+    app.on_undo_rebalance({
+        let (weak, renames) = (app.as_weak(), renames.clone());
+        move |i| {
+            let app = weak.unwrap();
+            if media_composer_running() {
+                app.set_mc_running(true);
+                return;
+            }
+            let path = rebalance_journal_path();
+            let mut journal = match rebalance::Journal::load(&path) {
+                Ok(j) => j,
+                Err(e) => {
+                    app.set_notice(ModelRc::new(VecModel::from(vec![notice(3, "rebalanced.json", &e.to_string(), 0)])));
+                    app.set_page(Page::Notice);
+                    return;
+                }
+            };
+            let Some(entry) = journal.entries.get(i as usize).cloned() else { return };
+            let main = entry.mxf.join(&entry.original);
+            let mut rows = vec![];
+            match rebalance::undo(&entry) {
+                Ok(u) => {
+                    log::write(&format!("undo rebalance of {}: {} back, {} skipped, kept {:?}, renamed back {:?}", main.display(), u.moved_back, u.skipped.len(), u.kept, u.renamed_back));
+                    rows.push(notice(5, &entry.original, "", u.moved_back));
+                    if !u.skipped.is_empty() {
+                        rows.push(notice(7, &short_list(&u.skipped), "", u.skipped.len()));
+                    }
+                    rows.extend(u.kept.iter().map(|k| notice(6, k, "", 0)));
+                    if let Some(old) = &u.renamed_back {
+                        rows.push(notice(0, &entry.original, old, 0));
+                    }
+                    journal.entries.remove(i as usize);
+                    if let Err(e) = journal.save(&path) {
+                        rows.push(notice(3, &path.display().to_string(), &e.to_string(), 0));
+                    }
+                    // the main folder's database was set aside: a folder Media Composer does not update gets renamed
+                    let main = entry.mxf.join(u.renamed_back.as_deref().unwrap_or(&entry.original));
+                    let mut st = renames.borrow_mut();
+                    if rename::needs_rename(&main, &st.computer) {
+                        rows.extend(rename_for_mc(&mut st, std::slice::from_ref(&main)));
+                    }
+                    show_renamed(&app, &mut st);
+                }
+                Err(e) => rows.push(notice(3, &drive_and_folder(&main), &e.to_string(), 0)),
+            }
+            show_rebalanced(&app, &app.get_language());
+            app.set_notice(ModelRc::new(VecModel::from(rows)));
+            app.set_page(Page::Notice);
         }
     });
 
@@ -1314,9 +2960,9 @@ fn main() -> Result<(), slint::PlatformError> {
                     result.err().map(|e| notice(3, &volume_name(folder), &e.to_string(), 0))
                 })
                 .collect();
-            show_renamed(&app, &st);
+            show_renamed(&app, &mut st);
             if errors.is_empty() {
-                app.set_page(Page::Home);
+                app.set_page(Page::Maintain);
             } else {
                 app.set_notice(ModelRc::new(VecModel::from(errors)));
                 app.set_page(Page::Notice);
@@ -1340,15 +2986,26 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
 
-    let projects_state: Rc<RefCell<ProjectsState>> = Rc::default();
-    projects_state.borrow_mut().ama = others.ama.clone();
-    app.on_open_projects({
-        let (weak, win, st, settings) = (app.as_weak(), others.projects.clone(), projects_state.clone(), settings.clone());
+    wire_exchange(&app, &drives);
+    let welcome_seen = || app_dir().map(|d| d.join("welcome-seen"));
+    app.set_show_welcome(welcome_seen().is_some_and(|p| !p.exists()));
+    app.on_welcome_done({
+        let weak = app.as_weak();
         move || {
-            let (weak, win, st, settings) = (weak.clone(), win.clone(), st.clone(), settings.clone());
-            slint::Timer::single_shot(Duration::ZERO, move || open_projects(&weak, &win, &st, &settings));
+            if let Some(p) = welcome_seen() {
+                let _ = fs::create_dir_all(p.parent().unwrap());
+                let _ = fs::write(p, env!("CARGO_PKG_VERSION"));
+            }
+            weak.unwrap().set_show_welcome(false);
         }
     });
+    let task_acts = wire_tasks(&app, &last);
+    let projects_state: Rc<RefCell<ProjectsState>> = Rc::default();
+    projects_state.borrow_mut().media = others.media.clone();
+    wire_projects(&app, &projects_state, &settings);
+    let inv: inventory_ui::Inv = Rc::default();
+    inv.borrow_mut().win = others.table.clone();
+    inventory_ui::wire(&app, &inv, &drives, &projects_state, &settings, &renames);
 
     app.on_start_media_composer({
         let weak = app.as_weak();
@@ -1388,18 +3045,25 @@ fn main() -> Result<(), slint::PlatformError> {
     // shortcut: polls /Volumes every 2 s on the start page; a hanging network share could stall it – use DiskArbitration if that happens
     let timer = slint::Timer::default();
     timer.start(slint::TimerMode::Repeated, Duration::from_secs(2), {
-        let (weak, drives, renames) = (app.as_weak(), drives.clone(), renames.clone());
+        let (weak, drives, renames, task_acts) = (app.as_weak(), drives.clone(), renames.clone(), task_acts.clone());
         move || {
             let Some(app) = weak.upgrade() else { return };
             #[cfg(target_os = "macos")]
             mac_menu::ensure();
             match app.get_page() {
-                Page::Home => {
+                Page::Home | Page::Maintain | Page::Rebalstart | Page::Dupsstart | Page::Runs | Page::Exchange | Page::Projects | Page::Tasks | Page::Media => {
                     sync_drives(&app, &drives);
-                    show_renamed(&app, &renames.borrow());
+                    inventory_ui::show_runs(&app);
+                    show_renamed(&app, &mut renames.borrow_mut());
+                    show_rebalanced(&app, &app.get_language());
+                    show_dup_runs(&app, &app.get_language());
+                    show_tasks(&app, &task_acts);
                 }
-                Page::Rename => app.set_mc_running(media_composer_running()),
                 _ => {}
+            }
+            if app.get_page() != Page::Working {
+                app.set_mc_running(media_composer_running());
+                app.global::<Inventory>().set_mc_running(app.get_mc_running());
             }
         }
     });
@@ -1413,6 +3077,54 @@ fn main() -> Result<(), slint::PlatformError> {
             &app.get_txt_settings_menu(),
         );
     }
+
+    // title bars follow the app's light/dark; the settings tab bar follows the title bar (lighter while active)
+    // shortcut: polls every 200 ms for the title bar style and appearance – cheap, both only change something once
+    #[cfg(target_os = "macos")]
+    let chrome = slint::Timer::default();
+    #[cfg(target_os = "macos")]
+    chrome.start(slint::TimerMode::Repeated, Duration::from_millis(200), {
+        let (win, settings, weak) = (others.settings.clone(), settings.clone(), app.as_weak());
+        move || {
+            mac_window::appearance_all(settings.borrow().dark);
+            // the main window never grows past the screen (minus its title bar); longer pages scroll
+            let h = mac_window::screen_height();
+            if let Some(app) = weak.upgrade() {
+                if h > 0.0 {
+                    app.set_screen_height((h - 28.0) as f32);
+                }
+                // tab bar and title bar are one surface, as in the settings window
+                let size = app.window().size().to_logical(app.window().scale_factor());
+                mac_window::unify_titlebar(app.window(), size.width as f64, size.height as f64);
+            }
+            if let Some(w) = win.borrow().as_ref() {
+                // the NSWindow exists only once the event loop has run after show(); only changes it once
+                mac_window::unify_titlebar(w.window(), 800.0, 450.0);
+            }
+        }
+    });
+    #[cfg(target_os = "macos")]
+    mac_window::on_key_change({
+        let (win, weak) = (others.settings.clone(), app.as_weak());
+        Box::new(move || {
+            // called from inside AppKit (also while show() holds the window's RefCell): update on the next turn
+            let (win, weak) = (win.clone(), weak.clone());
+            slint::Timer::single_shot(Duration::ZERO, move || {
+                if let Some(app) = weak.upgrade() {
+                    let key = mac_window::is_key(app.window());
+                    if app.get_active() != key {
+                        app.set_active(key);
+                    }
+                }
+                if let Some(w) = win.borrow().as_ref() {
+                    let key = mac_window::is_key(w.window());
+                    if w.get_active() != key {
+                        w.set_active(key);
+                    }
+                }
+            });
+        })
+    });
 
     app.run()
 }

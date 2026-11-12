@@ -71,8 +71,9 @@ pub fn compare(a: &str, b: &str) -> Option<Ordering> {
     }))
 }
 
-/// Newest non-draft release that has the app's zip and its signature, from GitHub's releases JSON.
-pub fn newest_release(json: &[u8], app: &App) -> Option<Release> {
+/// Newest non-draft release that has the app's zip and its signature, from GitHub's releases JSON;
+/// prereleases (test versions) only with `prereleases`.
+pub fn newest_release(json: &[u8], app: &App, prereleases: bool) -> Option<Release> {
     #[derive(Deserialize)]
     struct Asset {
         name: String,
@@ -83,12 +84,14 @@ pub fn newest_release(json: &[u8], app: &App) -> Option<Release> {
         tag_name: String,
         html_url: String,
         draft: bool,
+        #[serde(default)]
+        prerelease: bool,
         assets: Vec<Asset>,
     }
     let prefix = format!("{}-", app.name.replace(' ', "-"));
     let list: Vec<R> = serde_json::from_slice(json).ok()?;
     list.into_iter()
-        .filter(|r| !r.draft && version(&r.tag_name).is_some())
+        .filter(|r| !r.draft && (prereleases || !r.prerelease) && version(&r.tag_name).is_some())
         .filter_map(|r| {
             let zip = r.assets.iter().find(|a| a.name.starts_with(&prefix) && a.name.ends_with(".zip"))?;
             let sig = r.assets.iter().find(|a| a.name == format!("{}.sig", zip.name))?;
@@ -101,8 +104,9 @@ fn quiet(cmd: &mut Command) -> bool {
     cmd.stdout(Stdio::null()).stderr(Stdio::null()).status().is_ok_and(|s| s.success())
 }
 
-/// The newest release if it is newer than `current` (the running version), None if up to date.
-pub fn check(app: &App, current: &str) -> Result<Option<Release>, Error> {
+/// The newest release if it is newer than `current` (the running version), None if up to date. Test versions
+/// (GitHub prereleases) only with `betas` or while a test version runs – like Mountpoint's "Get test versions".
+pub fn check(app: &App, current: &str, betas: bool) -> Result<Option<Release>, Error> {
     let url = format!("https://api.github.com/repos/{}/releases?per_page=20", app.repo);
     let out = Command::new("/usr/bin/curl")
         .args(["-fsSL", "--max-time", "30", "-H", "Accept: application/vnd.github+json", &url])
@@ -112,7 +116,11 @@ pub fn check(app: &App, current: &str) -> Result<Option<Release>, Error> {
     if !out.status.success() {
         return Err(Error::Check);
     }
-    let release = newest_release(&out.stdout, app).ok_or(Error::Check)?;
+    let prereleases = betas || version(current).is_some_and(|v| v.1.is_some());
+    let Some(release) = newest_release(&out.stdout, app, prereleases) else {
+        // a readable list without a release for us (e.g. only test versions so far) is "up to date", not an error
+        return serde_json::from_slice::<Vec<serde::de::IgnoredAny>>(&out.stdout).map(|_| None).map_err(|_| Error::Check);
+    };
     Ok((compare(current, &release.tag) == Some(Ordering::Less)).then_some(release))
 }
 
@@ -231,9 +239,17 @@ mod tests {
             {"tag_name":"v1.0.0-beta.10","html_url":"https://x/10","draft":false,"assets":[{"name":"My-App-1.0.0-beta.10.zip","browser_download_url":"https://x/10.zip"},{"name":"My-App-1.0.0-beta.10.zip.sig","browser_download_url":"https://x/10.sig"}]},
             {"tag_name":"v1.0.0-beta.7","html_url":"https://x/7","draft":false,"assets":[{"name":"My-App-1.0.0-beta.7.zip","browser_download_url":"https://x/7.zip"},{"name":"My-App-1.0.0-beta.7.zip.sig","browser_download_url":"https://x/7.sig"}]}]"#;
         // beta.11 has no signature: not offered
-        let r = newest_release(json, &APP).unwrap();
+        let r = newest_release(json, &APP, true).unwrap();
         assert_eq!((r.tag.as_str(), r.zip.as_str(), r.sig.as_str()), ("v1.0.0-beta.10", "https://x/10.zip", "https://x/10.sig"));
-        assert_eq!(newest_release(br#"{"message":"rate limit"}"#, &APP), None);
+        assert_eq!(newest_release(br#"{"message":"rate limit"}"#, &APP, true), None);
+        // test versions only when asked for: a prerelease beta.12 is skipped without, beta.10 (no flag) stays
+        let json = br#"[{"tag_name":"v1.0.0-beta.12","html_url":"https://x/12","draft":false,"prerelease":true,"assets":[{"name":"My-App-1.0.0-beta.12.zip","browser_download_url":"https://x/12.zip"},{"name":"My-App-1.0.0-beta.12.zip.sig","browser_download_url":"https://x/12.sig"}]},
+            {"tag_name":"v1.0.0","html_url":"https://x/1","draft":false,"prerelease":false,"assets":[{"name":"My-App-1.0.0.zip","browser_download_url":"https://x/1.zip"},{"name":"My-App-1.0.0.zip.sig","browser_download_url":"https://x/1.sig"}]}]"#;
+        assert_eq!(newest_release(json, &APP, false).unwrap().tag, "v1.0.0");
+        assert_eq!(newest_release(json, &APP, true).unwrap().tag, "v1.0.0");
+        let json = br#"[{"tag_name":"v1.1.0-beta.1","html_url":"https://x/b","draft":false,"prerelease":true,"assets":[{"name":"My-App-1.1.0-beta.1.zip","browser_download_url":"https://x/b.zip"},{"name":"My-App-1.1.0-beta.1.zip.sig","browser_download_url":"https://x/b.sig"}]}]"#;
+        assert_eq!(newest_release(json, &APP, false), None);
+        assert_eq!(newest_release(json, &APP, true).unwrap().tag, "v1.1.0-beta.1");
     }
 
     /// Key and signature made with CryptoKit (scripts/update-key.swift) are accepted; anything else is not.
@@ -276,8 +292,8 @@ mod tests {
         if std::env::var("UPDATE_IT").as_deref() != Ok("1") {
             return;
         }
-        let r = check(&crate::UPDATE_APP, "0.0.1").unwrap().unwrap();
+        let r = check(&crate::UPDATE_APP, "0.0.1", true).unwrap().unwrap();
         assert!(version(&r.tag).is_some() && r.zip.ends_with(".zip"));
-        assert_eq!(check(&crate::UPDATE_APP, "99.0.0"), Ok(None));
+        assert_eq!(check(&crate::UPDATE_APP, "99.0.0", true), Ok(None));
     }
 }

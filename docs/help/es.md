@@ -2,125 +2,200 @@
 
 ## Qué hace MediaFiles Check
 
-MediaFiles Check compara cada carpeta de `Avid MediaFiles/MXF` con su base de datos de Avid y muestra dónde no coinciden. Ayuda cuando faltan medios en Media Composer, aparecen sin conexión o después de copiar o mover archivos a mano.
+MediaFiles Check cuida de los archivos de medios de Avid (MXF) de tus puestos de edición:
 
-La comprobación **solo lee**. Solo si tú lo pides, MediaFiles Check cambia el nombre de carpetas para Media Composer (ver abajo); nunca borra ni sobrescribe un archivo o una base de datos.
+- **Intercambio** mantiene al día los medios de dos puestos, aunque no estén conectados (antes MediaFiles Ferry).
+- **Comprobar** compara cada carpeta de `Avid MediaFiles/MXF` con su base de datos de Avid y muestra dónde no coinciden.
+- **Mantenimiento** reúne las herramientas que cambian algo: renombrar carpetas para Media Composer, reequilibrado, duplicados y su historial.
+- **Proyectos** encuentra los archivos de medios que necesitan los bins de tus proyectos de Avid y que no están en ninguna unidad, y los solicita.
+- **Medios** muestra cada archivo de medios con clip, códec y tamaño, separa los archivos de render y aparta los archivos sin usar.
+- **Tareas** recoge todo lo que hay que hacer a mano.
 
-## Qué espera
+MediaFiles Check **nunca borra** un archivo de medios y **nunca sobrescribe** ninguno. Comprobar solo lee.
 
-En cada disco, también en discos de red:
+## La ventana
+
+Las pestañas de arriba son las áreas. Dentro de cada pestaña, la barra lateral de la izquierda muestra sus pasos en el orden en que se hacen; bajo cada paso, una línea corta indica cómo está. Un pequeño punto naranja en una pestaña indica que algo espera allí.
+
+## Qué se espera
+
+En cada unidad, también en unidades de red:
 
 - `Avid MediaFiles/MXF/<carpeta>/` con los archivos de medios `.mxf`
 - los dos archivos de base de datos de Avid `msmFMID.pmr` y `msmMMOB.mdb` en cada carpeta
 - las carpetas `Creating` y los archivos ocultos se ignoran
 
-Los nombres de carpeta pueden ser cualquiera, p. ej. `1`, `Avid8.1` o `Mac Studio.1`.
+Las carpetas pueden llamarse como sea, p. ej. `1`, `Avid8.1` o `Mac Studio.1`. Cada unidad conectada con `Avid MediaFiles/MXF` tiene un interruptor; los mismos interruptores valen para Intercambio › Analizar y Comprobar › Unidades, y se recuerdan. Las unidades nuevas quedan activadas.
 
-## Comprobar discos
+## Intercambio: analizar
 
-La página de inicio muestra cada disco conectado con `Avid MediaFiles/MXF`; el punto verde indica que el disco está listo. La lista se actualiza sola cuando conectas o expulsas un disco.
+Intercambio › **Analizar** registra cada archivo MXF de las unidades activadas con una suma de comprobación y escribe un pequeño *manifiesto*: una lista de archivos, sin medios.
 
-![Lista de discos](images/es/drives.png)
+- El primer análisis tarda, porque cada archivo se lee una vez. Los siguientes solo leen archivos nuevos o modificados.
+- Si la app se cierra durante un análisis, no se pierde nada: el siguiente continúa.
 
-1. Activa los discos que quieres comprobar. Los discos nuevos se activan automáticamente.
-2. Haz clic en **Comprobar discos**.
+**Guardar manifiesto…** lo guarda p. ej. como `261101-1312_Mac Studio_Manifest.ferry`. Envíalo al otro puesto, p. ej. por correo o memoria USB.
 
-## Comprobar una carpeta
+## Intercambio: comparar y reunir
 
-**Comprobar carpeta…** comprueba un lugar que elijas:
+1. Analiza primero este puesto para que tu manifiesto esté al día.
+2. Intercambio › **Comparar** → **Abrir manifiesto…** y elige el manifiesto del otro puesto, o una solicitud guardada en Proyectos › Solicitar.
+3. **Asignar unidades:** las unidades sin una del mismo nombre en el otro lado necesitan un destino, o **No enviar**. La elección se recuerda.
+4. **Carpetas en ambos lados:** elige **Unir** o **Renombrar** para cada carpeta (ver abajo).
+5. Revisa el número de archivos y las tareas; luego haz clic en **Reunir…** y elige dónde crear la carpeta de entrega.
 
-- un disco: todas sus carpetas MXF
-- la propia carpeta `MXF`
-- una sola carpeta de medios como `MXF/1`
-- cualquier carpeta que contenga carpetas MXF, p. ej. una copia en un disco de respaldo
+Cada archivo se copia con control de suma en una carpeta nueva como `261102-1830_Mac Studio_to_MacBook`, junto con `Tasks.txt` (instrucciones para importar a mano). Reunir de nuevo tras una interrupción continúa donde se quedó.
+
+![Comparar con otro puesto](images/es/exchange.png)
+
+## Intercambio: importar
+
+1. Cierra Media Composer.
+2. Intercambio › **Importar** → **Elegir entrega…**.
+3. Cada unidad de la entrega necesita una unidad en este puesto; las del mismo nombre se asignan solas.
+4. **Verificar e importar** verifica primero cada archivo. Solo se importa una entrega completa y sin daños: los archivos solo se añaden, nunca se sobrescribe un archivo de medios. Las bases de datos reemplazadas se guardan en `Avid MediaFiles/Ferry-Backup/`.
+5. Después vuelve a analizar para que el manifiesto esté al día.
+
+## ¿Cuándo se copia algo?
+
+Un archivo cuenta como **presente** si existe en algún lugar del otro puesto con el mismo nombre y la misma suma de comprobación.
+
+- **Carpeta idéntica en ambos lados:** no pasa nada.
+- **Carpeta ausente en el otro lado:** se copia la carpeta entera, con su base de datos.
+- **Un lado tiene archivos de más:** se copian los archivos y la base de datos del lado más completo.
+- **Ambos lados tienen archivos propios:** solo se copian los archivos; tarea «Reconstruir la base de datos».
+- **Mismo nombre de archivo, contenido distinto:** no se copia; una tarea pide comprobarlo.
+
+Una base de datos solo se entrega si la carpeta de destino queda exactamente como la de origen; nunca se borra una base de datos. Carpetas como `1` existen en cada puesto: **Unir** pone los archivos en la misma carpeta (hay que reconstruir la base de datos), **Renombrar** en una carpeta nueva como `261031_MacStudio_1`.
+
+## Comprobar unidades
+
+Comprobar › **Unidades** muestra cada unidad conectada; el punto verde indica que está lista. Activa las unidades que quieras comprobar y haz clic en **Comprobar**. **Comprobar carpeta…** comprueba un lugar que elijas: una unidad, la carpeta `MXF`, una sola carpeta como `MXF/1` o una copia en una unidad de respaldo.
 
 ## El resultado
 
-El resultado muestra cada carpeta con diferencias y lo que se encontró:
+Comprobar › **Resultado** muestra cada carpeta que difiere:
 
-![Resultado](images/es/result.png)
+- **Archivos que no están en la base de datos**: puede que Media Composer no los muestre.
+- **Entradas de la base de datos sin archivo**: aparecen como medios sin conexión.
+- **Sin base de datos** / **falta msmFMID.pmr o msmMMOB.mdb** / **base de datos vacía**.
+- **Base de datos ilegible**: un formato desconocido. MediaFiles Check nunca adivina.
 
-- **Archivos que no están en la base de datos**: la carpeta contiene archivos MXF que la base de datos no conoce. Puede que Media Composer no los muestre.
-- **Entradas de la base de datos sin archivo**: la base de datos nombra archivos que no están en la carpeta. Aparecen como medios sin conexión.
-- **Sin base de datos**: la carpeta tiene archivos MXF pero ningún archivo de base de datos.
-- **Falta msmFMID.pmr o msmMMOB.mdb**: falta uno de los dos archivos de base de datos.
-- **Base de datos vacía**: `msmFMID.pmr` no tiene contenido.
-- **Base de datos ilegible**: el archivo no se pudo leer o tiene un formato que MediaFiles Check no conoce. Nunca adivina.
+Se muestran hasta 10 nombres de archivo por hallazgo; **Guardar informe…** los escribe todos en un archivo de texto. Las carpetas que Media Composer no actualiza por sí mismo tienen ahí mismo **Cambiar el nombre para Media Composer…**.
 
-Se muestran hasta 10 nombres de archivo por hallazgo. **Guardar informe…** escribe todas las diferencias con cada nombre de archivo en un archivo de texto.
+![Resultado de la comprobación](images/es/check.png)
 
-## Cambiar el nombre para Media Composer
+## Renombrar para Media Composer
 
-Media Composer solo reconstruye las bases de datos de sus propias carpetas: carpetas numeradas como `1` o `2` en discos locales, `<nombre del ordenador>.<número>` (p. ej. `Mac Studio.3`) en discos de red. Las carpetas con otros nombres, p. ej. copiadas de otro sistema, conservan su base de datos antigua.
+Media Composer solo reconstruye las bases de datos de sus propias carpetas: carpetas numeradas como `1` en unidades locales, `<nombre del equipo>.<número>` en unidades de red. Las demás carpetas, p. ej. copiadas de otro puesto, conservan su base de datos antigua. Mantenimiento › **Renombrar** muestra el proceso arriba: Renombrar — Media Composer escribe — Recuperar el nombre.
 
-Después de una comprobación, **Cambiar el nombre para Media Composer…** ofrece cambiar el nombre de esas carpetas:
-
-![Cambiar el nombre para Media Composer](images/es/rename.png)
-
-1. Cierra Media Composer y haz clic en **Cambiar el nombre**. Cada carpeta recibe el siguiente número libre (o nombre del ordenador y número). MediaFiles Check recuerda el nombre original y cada archivo de medios.
-2. Haz clic en **Abrir Media Composer** (o ábrelo tú) y espera a que haya analizado los discos. En la página de inicio, el punto de una carpeta se vuelve verde en cuanto Media Composer ha escrito su base de datos.
+1. Cierra Media Composer y renombra las carpetas (desde Comprobar › Resultado, o al reequilibrar o apartar duplicados). Cada una recibe el siguiente número libre; se recuerdan el nombre original y cada archivo de medios.
+2. **Abrir Media Composer** y espera a que haya leído las unidades. El punto de una carpeta se pone verde cuando Media Composer ha escrito su base de datos.
 3. Cierra Media Composer y haz clic en **Recuperar el nombre**.
 
-![Carpetas renombradas en la página de inicio](images/es/rename-back.png)
+Antes de recuperar el nombre se comprueba cada carpeta: **archivos nuevos** (normalmente grabados mientras la carpeta tenía el nombre nuevo: moverlos a una carpeta nueva, a la carpeta `1` o dejarlos), **archivos que faltan o han cambiado**, **base de datos aún no reescrita**. **Dejarla así por ahora** la deja como está.
 
-Antes de recuperar el nombre, MediaFiles Check comprueba cada carpeta:
+Los nombres originales se guardan antes de renombrar nada, así sobreviven a un fallo o a un reinicio. Una carpeta se reconoce por su unidad, su nombre actual y sus archivos de medios; una unidad que vuelve con otro nombre se encuentra de nuevo. Una carpeta renombrada que se borró o se movió a mano desaparece de la lista.
 
-- **Archivos nuevos**: normalmente medios que Media Composer grabó en la carpeta mientras tenía el nombre nuevo. Puedes elegir: moverlos a una carpeta numerada nueva, moverlos a la carpeta `1` (o `<nombre del ordenador>.1`) o dejarlos en la carpeta.
-- **Archivos que faltan o han cambiado**: tú decides si se recupera el nombre de todos modos.
-- **Base de datos aún no reescrita**: tú decides si se recupera el nombre de todos modos.
+## Reequilibrado
 
-**Dejarla así por ahora** deja la carpeta como está; puedes recuperar el nombre más tarde. Si mientras tanto existe una carpeta con el nombre original, no se cambia nada y se te avisa.
+Recomendamos no más de 5000 archivos por carpeta MXF. El límite (Ajustes → Reequilibrado) cuenta cada archivo de una carpeta, incluidos los dos archivos de base de datos.
 
-## Proyectos de Avid
+Una carpeta y sus carpetas reequilibradas (`<nombre>-rebalanced-1`, `-2` …) van juntas. El reequilibrado reparte todo el grupo: los archivos de medios más antiguos van a `-rebalanced-1`, los siguientes a `-2` …, los más recientes se quedan en la carpeta principal. Los archivos de vídeo y audio de un clip se quedan juntos, así que una carpeta puede quedar unos archivos por debajo del límite. Mantenimiento › **Reequilibrado** → **Buscar carpetas llenas…** muestra cada grupo de las unidades activadas que no cumple el límite.
 
-**Abrir proyectos…** en la página de inicio abre la ventana de proyectos de Avid. Encuentra los archivos de medios que necesitan los bins de tus proyectos y que no están en ningún disco conectado, y escribe una solicitud para MediaFiles Ferry, que los reúne en el sistema que los tiene.
+1. Cierra Media Composer (en unidades de red, en cada puesto) y elige los grupos.
+2. Haz clic en **Reequilibrar**. Para una carpeta que crea Media Composer (`1`, `<nombre del equipo>.1`) recomendamos darle antes un nombre propio. No se copia ni se borra nada; una carpeta reequilibrada sin archivos de medios va entera a `MediaFiles Check Database Backups`.
+3. Después hay que reescribir las bases de datos de las carpetas modificadas. **Iniciar** pone sus archivos de base de datos en `MediaFiles Check Database Backups` en la misma unidad y renombra las carpetas que Media Composer no actualiza por sí mismo; sigue en Mantenimiento › Renombrar. **Cancelar** deja las bases de datos como están; queda en Tareas e Historial.
 
-![Medios que faltan por bin](images/es/projects.png)
+Cada cambio del límite pregunta antes; la siguiente **Buscar carpetas llenas…** vuelve a repartir cada grupo.
 
-1. **Elegir carpeta…**: la carpeta con tus proyectos de Avid. Cada carpeta con un archivo `.avp` cuenta como proyecto (las copias de seguridad en `Attic` se omiten). La carpeta se recuerda.
-2. Activa los proyectos que quieres comprobar; al principio todos están desactivados.
-3. Haz clic en **Analizar**. MediaFiles Check lee cada bin y sigue cada master clip, subclip y secuencia hasta los archivos de medios que usan, también entre bins del proyecto. Los compara con las bases de datos de Avid de todos los discos conectados.
-4. El resultado muestra, por bin, cada archivo de medios que falta una sola vez, con el nombre de su master clip y «3 archivos» cuando faltan p. ej. la imagen y el sonido de un clip. Haz clic en un archivo para ver dónde se usa en el bin (master clip, subclips, secuencias). **Guardar lista…** escribe la lista completa en un archivo de texto.
-5. **Guardar solicitud…** escribe un archivo `…_Request.ferry`. Ábrelo en MediaFiles Ferry en el sistema que tiene los medios (**Abrir manifiesto…**); Ferry reúne los archivos en una entrega normal, que luego importas aquí con **Comprobar e importar**.
+## Duplicados
+
+Mantenimiento › **Duplicados** → **Buscar duplicados…** busca en las unidades activadas archivos de medios que están más de una vez, por su ID de Media Composer, así que también encuentra copias renombradas; los archivos sin ID, por nombre, tamaño y suma de comprobación. Los espacios de trabajo de Mountpoint se dejan fuera.
+
+El punto verde marca la copia que se queda (la que conoce la base de datos de su carpeta; si no, la más antigua); haz clic en otra copia para quedarte con ella. Las copias con el mismo ID pero distinto tamaño no se activan solas. **Apartar** mueve las demás copias a `MediaFiles Check Duplicates` en su unidad; una carpeta que se queda sin archivos de medios va con ellas. Después se reescriben las bases de datos como en el reequilibrado.
+
+![Duplicados](images/es/duplicates.png)
+
+## Historial
+
+Mantenimiento › **Historial** muestra cada operación de reequilibrado y de duplicados: **Reescribir bases de datos** hace el paso de las bases más tarde, **Deshacer** lo devuelve todo (nunca sobre un archivo existente); recupera antes el nombre de las carpetas renombradas.
+
+## Proyectos
+
+1. Proyectos › **Elegir proyectos** → **Elegir carpeta…**: la carpeta con tus proyectos de Avid (cada carpeta con un archivo `.avp`; `Attic` se deja fuera). Se recuerda. Activa los proyectos que quieras comprobar y haz clic en **Analizar**.
+2. **Medios que faltan** muestra por bin cada archivo de medios que falta una vez, con el nombre de su master clip. Un clic muestra dónde se usa. **Guardar lista…** escribe la lista entera.
+3. **Clips AMA** muestra dónde se usan los archivos vinculados por AMA. No se solicitan.
+4. **Solicitar** → **Guardar solicitud…** escribe un archivo `…_Request.ferry`. Envíalo al puesto que tiene los medios; allí: Intercambio › Comparar, ábrelo y luego Reunir. Aquí: Intercambio › Importar la entrega.
 
 Conviene saber:
 
-- Clips y medios se asocian por los identificadores de medios de Avid, no por los nombres de archivo. Un archivo de un disco que no está en **ninguna** base de datos de Avid se identifica por el identificador de medios de su cabecera MXF; solo los archivos con cabecera ilegible (dañados, aún escribiéndose) quedan sin reconocer: el resultado lo advierte.
-- Los archivos vinculados por AMA no se solicitan. **Mostrar clips AMA…** abre una ventana que muestra dónde se usan: igual que los medios que faltan, un clic en un clip muestra sus usos. Los clips AMA que tienen un clip master con el mismo nombre y sus medios en los discos (p. ej. vinculados y luego importados) se omiten y solo se cuentan. La lista guardada también los incluye.
-- Un archivo que falta cuya fuente (clip de cámara o cinta, imagen o sonido) está en los discos como otro archivo de medios se marca **en los discos – revincular**: el clip solo perdió su vínculo; revincúlalo en Media Composer. No se solicita.
-- Los archivos sin referencia de medios de Avid (p. ej. importados por AAF) se cuentan aparte. Ferry solo los encuentra si el otro sistema los tiene en Avid MediaFiles.
-- Los clips master de la cámara suelen tener pistas de sonido para las que nunca se creó un archivo de medios (el sonido se grabó aparte). Esas referencias se omiten y solo se cuentan; un subclip solo necesita las pistas que usa de verdad.
-- Los archivos de render que faltan (efectos renderizados) solo se cuentan, no se listan ni se solicitan: Media Composer los vuelve a renderizar.
-- Un disco que no responde durante 30 segundos se omite y se nombra en el resultado.
+- Los clips se relacionan con sus medios por los ID de medios de Avid, no por los nombres de archivo. Un archivo que no está en ninguna base de Avid se reconoce por el ID de su cabecera MXF.
+- Un archivo que falta cuya fuente está en las unidades en otro archivo de medios se marca **en las unidades: volver a vincular**: vuelve a vincularlo en Media Composer. No se solicita.
+- Los archivos sin referencia de medios de Avid (p. ej. importados por AAF) se cuentan aparte; el intercambio solo los encuentra si el otro puesto los tiene en Avid MediaFiles.
+- Las pistas de sonido de cámara que nunca tuvieron archivo de medios y los archivos de render que faltan solo se cuentan.
+- Una unidad que no responde durante 30 segundos se omite y se nombra en el resultado.
+
+## Medios
+
+1. Medios › **Unidades y proyectos**: activa las unidades y los proyectos cuyos bins cuentan y pulsa **Analizar**. El primer análisis lee la cabecera de cada archivo de medios; los siguientes solo los archivos nuevos o cambiados. Se guardan los cinco últimos análisis: **Cargar…** vuelve a mostrar uno sin analizar, tras preguntar si no ha cambiado nada desde entonces.
+2. **Resumen** cuenta medios y archivos de render, en uso o no, y cuántos archivos usados por los proyectos no están en ninguna de las unidades leídas. **Mostrar tabla…** abre la tabla de medios: cada archivo con clip, tipo, códec, imagen, fps, duración, sonido, tamaño, proyecto y carpeta; filtrar, buscar, ordenar por columna, doble clic en el borde de una columna para ajustarla a su entrada más larga, seleccionar archivos, **Guardar lista…**.
+
+![Resumen de medios](images/es/media.png)
+
+Cómo se clasifica un archivo:
+
+- **Render**: Media Composer marca cada archivo de render en su cabecera; un archivo de render que un efecto aún usa también se conoce por los bins.
+- **Medio**: todo lo demás que escribió Media Composer u otro programa. Un archivo que nada distingue queda como **Desconocido** y nunca se mueve por una regla.
+- **Sin usar**: ningún clip, secuencia ni efecto de los proyectos activados lo usa. Los medios de otros proyectos en las mismas unidades también cuentan como sin usar; activa todos los proyectos que usan estas unidades.
+
+Acciones (Media Composer debe estar cerrado):
+
+- **Archivos de render en sus propias carpetas**: los archivos de render van a carpetas como `Mac Studio-renderfiles-1` junto a su carpeta, como máximo tantos como permite el límite de reequilibrado.
+- **Intercambiar**: elige la unidad de importación y la de render. Los archivos de render de la unidad de importación van a la de render y los medios de la unidad de render a la de importación, cada uno a una carpeta con el mismo nombre. Cada archivo se copia y la copia se comprueba con una suma de control; después el original se borra o va a `MediaFiles Check Aside`: lo eliges cada vez.
+- **Apartar**: elige qué se aparta: archivos de render que ningún proyecto activado usa (activado por defecto), también archivos de render en uso (Media Composer los vuelve a renderizar), archivos de medios que ningún proyecto activado usa (desactivado, para conservar los medios). Las carpetas que desactives en la lista se quedan como están y se recuerdan, p. ej. bibliotecas de efectos de sonido. También se pueden apartar los archivos seleccionados en la tabla. Todo va a `MediaFiles Check Aside` en su unidad.
+- **Medios de un bin**: elige un bin (`.avb`); cada archivo de medios que usan sus clips, subclips y secuencias (también de otros bins del proyecto y, si quieres, con los archivos de render de sus secuencias) se copia o mueve a la unidad de destino, a una carpeta con el mismo nombre. Lo que ya está allí se queda.
+
+Nunca se sobrescribe nada; un archivo cambiado desde el análisis se queda donde está. Después se reescriben las bases de datos de las carpetas cambiadas, como en el reequilibrado. Medios › **Historial** muestra cada operación: **Reescribir bases de datos**, **Deshacer**.
+
+## Tareas
+
+Tareas › **Pendientes** muestra todo lo que hay que hacer a mano: tareas de entregas reunidas o importadas aquí (el puesto al que corresponden va entre corchetes; un punto amarillo significa este puesto), bases de datos que aún hay que reescribir tras un reequilibrado o duplicados, y carpetas que esperan recuperar su nombre. Donde la app puede ayudar, el botón está al lado, p. ej. **Comprobar…** para una carpeta de este puesto que necesita una base de datos nueva. **Listo** pasa una tarea a **Hechas**.
+
+**Importar a mano** explica cómo importar una entrega sin la app. La regla más importante: copia solo el contenido de la carpeta de entrega; nunca arrastres la carpeta entera sobre una existente, el Finder la reemplazaría con todos sus archivos de medios.
+
+![Tareas](images/es/tasks.png)
 
 ## Reconstruir una base de datos
 
 1. Cierra Media Composer.
-2. Mueve `msmMMOB.mdb` y `msmFMID.pmr` fuera de la carpeta, p. ej. a una carpeta en el escritorio. No los borres hasta que todo vuelva a funcionar.
+2. Saca `msmMMOB.mdb` y `msmFMID.pmr` de la carpeta, p. ej. a una carpeta del escritorio. No los borres hasta que todo vuelva a funcionar.
 3. Abre Media Composer. Escribe una base de datos nueva para la carpeta.
-4. Comprueba la carpeta de nuevo.
+4. Vuelve a comprobar la carpeta.
+
+Para las carpetas que Media Composer no actualiza por sí mismo, usa en su lugar Mantenimiento › Renombrar.
 
 ## Ajustes
 
-**MediaFiles Check → Ajustes…** (⌘,) ajusta el aspecto (interruptor **Claro/Oscuro**, activado = oscuro) y el idioma (English, Deutsch, Français, Español). **MediaFiles Check → Acerca de MediaFiles Check** muestra la versión y la licencia.
+**MediaFiles Check → Ajustes…** (⌘,) abre la ventana de ajustes: **General** (Claro/Oscuro, idioma), **Reequilibrado** (archivos por carpeta), **Actualizaciones**, **Soporte** y **Acerca de**.
 
 ![Ajustes](images/es/settings.png)
 
 ## Actualizaciones
 
-MediaFiles Check busca una nueva versión en GitHub poco después de arrancar y cada 6 horas; **Ajustes… → Buscar actualizaciones** lo hace al momento. Una nueva versión aparece arriba en la ventana principal: **Novedades** abre las notas de la versión, **Instalar actualización** la descarga, comprueba que esté completa e intacta, mueve la versión anterior a la papelera y reinicia la app.
+MediaFiles Check busca una versión nueva en GitHub poco después de abrirse y cada 6 horas; **Ajustes… → Actualizaciones → Buscar actualizaciones** busca enseguida. Una versión nueva aparece como una barra bajo las pestañas: **Novedades** abre las notas de la versión, **Instalar actualización** la descarga, comprueba que está completa y sin cambios, lleva la versión antigua a la Papelera y reinicia la app. **Recibir versiones de prueba** ofrece también versiones que aún se están probando.
 
 ## Soporte
 
-**Ajustes… → Soporte** ofrece cuatro cosas:
+**Ajustes… → Soporte**:
 
-- **Autoprueba…** comprueba la lectura de bases de datos, la comparación, el renombrado para Media Composer y la vuelta, y las actualizaciones, con sus propios datos de prueba en una carpeta temporal. Tus discos solo se listan, nunca se cambian. **Enviar informe** nos envía el resultado de forma anónima; **Guardar** lo deja en Descargas para que puedas verlo antes.
-- **Informar…** nos envía un problema o una idea, sin cuenta de GitHub. Puedes indicar tu correo para preguntas y adjuntar la información del sistema y el archivo de registro; tu nombre de usuario y los nombres de carpetas se sustituyen.
+- **Autoprueba…** comprueba la lectura de bases de datos, la comparación, el renombrado y las actualizaciones con sus propios datos de prueba. **Enviar informe** manda el resultado de forma anónima; **Guardar** lo deja en Descargas.
+- **Informar…** nos envía un problema o una idea, sin cuenta de GitHub.
 - **Ver registro** (ver abajo).
-- **Invítame a un café**: si usas MediaFiles Check y te gusta, me alegraría un café.
+- **Invítame a un café**: si usas MediaFiles Check y te gusta, me alegrará un café.
 
 Si el envío falla, el informe se guarda en Descargas.
 
 ## Archivo de registro
 
-MediaFiles Check anota lo que hace (comprobaciones, cambios de nombre, errores) en un archivo de registro. **Ayuda → Mostrar archivo de registro** lo muestra en el Finder; envíalo cuando informes de un problema.
+MediaFiles Check anota lo que hace (comprobaciones, análisis, entregas, renombrados, errores) en un archivo de registro. **Ayuda → Mostrar archivo de registro** lo muestra en el Finder; adjúntalo cuando informes de un problema.

@@ -8,6 +8,904 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 
+msgid "ACTIONS"
+msgstr "ACTIONS"
+
+msgid "Files copied"
+msgstr "Fichiers copiés"
+
+msgid "Choose bin…"
+msgstr "Choisir un chutier…"
+
+msgid "Media of a bin"
+msgstr "Médias d’un chutier"
+
+msgid "{n} more on none of the scanned drives"
+msgid_plural "{n} more on none of the scanned drives"
+msgstr[0] "{n} autre sur aucun des disques lus"
+msgstr[1] "{n} autres sur aucun des disques lus"
+
+msgid "Also the render files of its sequences"
+msgstr "Aussi les fichiers de rendu de ses séquences"
+
+msgid "Copy"
+msgstr "Copier"
+
+msgid "Target drive"
+msgstr "Disque cible"
+
+msgid "Copy or move the media of a bin to another drive"
+msgstr "Copier ou déplacer les médias d’un chutier vers un autre disque"
+
+msgid "Reading the bin…"
+msgstr "Lecture du chutier…"
+
+msgid "Every clip, subclip and sequence of the bin counts, with clips it takes from other bins of the project. Each file goes into a folder of the same name on the target drive, the copy checked by checksum; files already there stay. Afterwards the databases of the changed folders have to be rewritten."
+msgstr "Chaque clip, sous-clip et séquence du chutier compte, avec les clips pris dans d’autres chutiers du projet. Chaque fichier va dans un dossier du même nom sur le disque cible, la copie vérifiée par somme de contrôle ; ce qui y est déjà reste. Ensuite, les bases de données des dossiers modifiés doivent être réécrites."
+
+msgid "RECENT SCANS"
+msgstr "DERNIÈRES ANALYSES"
+
+msgid "Load…"
+msgstr "Charger…"
+
+msgid "Load"
+msgstr "Charger"
+
+msgid "Are you sure nothing changed on these drives and in these projects since then? Otherwise the overview is no longer right – scan again instead."
+msgstr "Êtes-vous sûr que rien n’a changé depuis sur ces disques et dans ces projets ? Sinon, la vue d’ensemble n’est plus juste – analysez plutôt à nouveau."
+
+msgid "Search…"
+msgstr "Rechercher…"
+
+msgid "Delete"
+msgstr "Supprimer"
+
+msgid "Move"
+msgstr "Déplacer"
+
+msgid "Move or delete each original after its copy is checked?"
+msgstr "Déplacer ou supprimer l’original après vérification de la copie ?"
+
+msgid "Media files no switched-on project uses"
+msgstr "Fichiers média qu’aucun projet activé n’utilise"
+
+msgid "Render files no switched-on project uses"
+msgstr "Fichiers de rendu qu’aucun projet activé n’utilise"
+
+msgid "Render files and files no switched-on project uses"
+msgstr "Fichiers de rendu et fichiers qu’aucun projet activé n’utilise"
+
+msgid "FOLDERS – switch off what stays (remembered)"
+msgstr "DOSSIERS – désactivez ce qui reste (mémorisé)"
+
+msgid "Also render files in use (Media Composer renders them again)"
+msgstr "Aussi les fichiers de rendu utilisés (Media Composer les recalcule)"
+
+msgid "Used by the projects but on none of the scanned drives: {} media files, {} render files."
+msgstr "Utilisés par les projets mais sur aucun des disques lus : {} fichiers média, {} fichiers de rendu."
+
+msgid "{} render files to the render drive, {} media files to the import drive"
+msgstr "{} fichiers de rendu vers le disque de rendu, {} fichiers média vers le disque d’import"
+
+msgid "Every file is copied and the copy checked by checksum; the original goes into “MediaFiles Check Aside” on its drive – delete that folder yourself once all works."
+msgstr "Chaque fichier est copié et la copie vérifiée par somme de contrôle ; l’original va dans « MediaFiles Check Aside » sur son disque – supprimez ce dossier vous-même quand tout fonctionne."
+
+msgid "Afterwards the databases of the changed folders have to be rewritten. Everything can be undone under History."
+msgstr "Ensuite, les bases de données des dossiers modifiés doivent être réécrites. Tout peut être annulé sous Historique."
+
+msgid "The files go into “MediaFiles Check Aside” on their drive – Media Composer no longer sees them. Only the switched-on projects count: media of other projects on these drives would go offline."
+msgstr "Les fichiers vont dans « MediaFiles Check Aside » sur leur disque – Media Composer ne les voit plus. Seuls les projets activés comptent : les médias d’autres projets sur ces disques passeraient hors ligne."
+
+msgid "Moving files…"
+msgstr "Déplacement des fichiers…"
+
+msgid "Render drive"
+msgstr "Disque de rendu"
+
+msgid "Import drive"
+msgstr "Disque d’import"
+
+msgid "Swap"
+msgstr "Échanger"
+
+msgid "Media › History"
+msgstr "Médias › Historique"
+
+msgid "Render files go into folders like “Mac Studio-renderfiles-1” next to their folder, at most {} files each (Settings → Rebalancing). Within a drive nothing is copied."
+msgstr "Les fichiers de rendu vont dans des dossiers comme « Mac Studio-renderfiles-1 » à côté de leur dossier, {} au plus par dossier (Réglages → Rééquilibrage). Sur un même disque, rien n’est copié."
+
+msgid "Render files to the render drive, media to the import drive"
+msgstr "Fichiers de rendu vers le disque de rendu, médias vers le disque d’import"
+
+msgid "Set files aside"
+msgstr "Mettre des fichiers de côté"
+
+msgid "Every file is copied, the copy checked by checksum, then the original deleted."
+msgstr "Chaque fichier est copié, la copie vérifiée par somme de contrôle, puis l’original supprimé."
+
+msgid "Set aside…"
+msgstr "Mettre de côté…"
+
+msgid "Cancel leaves the databases as they are – you can start it later under Media › History."
+msgstr "Annuler laisse les bases de données telles quelles – vous pourrez lancer cela plus tard sous Médias › Historique."
+
+msgid "Separate"
+msgstr "Séparer"
+
+msgid "Choose two different drives."
+msgstr "Choisissez deux disques différents."
+
+msgid "Each file goes into a folder of the same name on the other drive. Unknown files stay where they are."
+msgstr "Chaque fichier va dans un dossier du même nom sur l’autre disque. Les fichiers inconnus restent où ils sont."
+
+msgid "Files moved"
+msgstr "Fichiers déplacés"
+
+msgid "Render files into folders of their own"
+msgstr "Fichiers de rendu dans leurs propres dossiers"
+
+msgid "Swap render files and media"
+msgstr "Échanger fichiers de rendu et médias"
+
+msgid "DRIVES"
+msgstr "DISQUES"
+
+msgid "PROJECTS"
+msgstr "PROJETS"
+
+msgid "Media"
+msgstr "Médias"
+
+msgid "Render files"
+msgstr "Fichiers de rendu"
+
+msgid "Render"
+msgstr "Rendu"
+
+msgid "Unknown"
+msgstr "Inconnu"
+
+msgid "reading…"
+msgstr "lecture…"
+
+msgid "Size"
+msgstr "Taille"
+
+msgid "Choose the folder with your Avid projects under Projects. Without projects, the files are only sorted into media and render files – nothing can be called unused."
+msgstr "Choisissez le dossier de vos projets Avid sous Projets. Sans projets, les fichiers sont seulement triés en médias et fichiers de rendu – rien ne peut être dit inutilisé."
+
+msgid "Render files in use"
+msgstr "Fichiers de rendu utilisés"
+
+msgid "Render files not used"
+msgstr "Fichiers de rendu inutilisés"
+
+msgid "Media in use"
+msgstr "Médias utilisés"
+
+msgid "Media not used"
+msgstr "Médias inutilisés"
+
+msgid "header"
+msgstr "en-tête"
+
+msgid "project"
+msgstr "projet"
+
+msgid "Known by"
+msgstr "Reconnu par"
+
+msgid "File"
+msgstr "Fichier"
+
+msgid "yes"
+msgstr "oui"
+
+msgid "no"
+msgstr "non"
+
+msgid "Search"
+msgstr "Recherche"
+
+msgid "Media table"
+msgstr "Tableau des médias"
+
+msgid "Duration"
+msgstr "Durée"
+
+msgid "Clip"
+msgstr "Clip"
+
+msgid "The first scan reads the header of every media file; later scans only read new or changed files."
+msgstr "La première analyse lit l’en-tête de chaque fichier média ; les suivantes ne lisent que les fichiers nouveaux ou modifiés."
+
+msgid "Reading media files…"
+msgstr "Lecture des fichiers média…"
+
+msgid "Used"
+msgstr "Utilisé"
+
+msgid "Overview"
+msgstr "Vue d’ensemble"
+
+msgid "No project was switched on, so nothing can be called unused."
+msgstr "Aucun projet n’était activé, rien ne peut donc être dit inutilisé."
+
+msgid "Drive / folder"
+msgstr "Disque / dossier"
+
+msgid "Picture"
+msgstr "Image"
+
+msgid "Clear selection"
+msgstr "Désélectionner"
+
+msgid "Kind"
+msgstr "Type"
+
+msgid "Stop"
+msgstr "Arrêter"
+
+msgid "Lists every media file on the switched-on drives with its clip, codec and size, and sorts out render files. A file the switched-on projects do not use is unused – media of other projects on the same drives would count as unused too. Nothing is changed."
+msgstr "Liste chaque fichier média des disques activés avec son clip, son codec et sa taille, et met à part les fichiers de rendu. Un fichier que les projets activés n’utilisent pas est inutilisé – les médias d’autres projets sur les mêmes disques compteraient aussi. Rien n’est modifié."
+
+msgid "All"
+msgstr "Tous"
+
+msgid "Project"
+msgstr "Projet"
+
+msgid "Sound"
+msgstr "Son"
+
+msgid "Codec"
+msgstr "Codec"
+
+msgid "Select all shown"
+msgstr "Sélectionner tout l’affiché"
+
+msgid "Show table…"
+msgstr "Afficher le tableau…"
+
+msgid "Drives and projects"
+msgstr "Disques et projets"
+
+msgid "{n} bin could not be read – what only it uses counts as unused."
+msgid_plural "{n} bins could not be read – what only they use counts as unused."
+msgstr[0] "{n} chutier illisible – ce que lui seul utilise compte comme inutilisé."
+msgstr[1] "{n} chutiers illisibles – ce qu’eux seuls utilisent compte comme inutilisé."
+
+msgid "{n} selected"
+msgid_plural "{n} selected"
+msgstr[0] "{n} sélectionné"
+msgstr[1] "{n} sélectionnés"
+
+msgid "{n} file shown"
+msgid_plural "{n} files shown"
+msgstr[0] "{n} fichier affiché"
+msgstr[1] "{n} fichiers affichés"
+
+msgid "Used or not: by the bins of {n} project."
+msgid_plural "Used or not: by the bins of {n} projects."
+msgstr[0] "Utilisé ou non : d’après les chutiers de {n} projet."
+msgstr[1] "Utilisé ou non : d’après les chutiers de {n} projets."
+
+msgid "{n} file could not be read."
+msgid_plural "{n} files could not be read."
+msgstr[0] "{n} fichier illisible."
+msgstr[1] "{n} fichiers illisibles."
+
+msgid "{n} media file"
+msgid_plural "{n} media files"
+msgstr[0] "{n} fichier média"
+msgstr[1] "{n} fichiers média"
+
+msgid "Show media…"
+msgstr "Afficher les médias…"
+
+msgid "Show clips…"
+msgstr "Afficher les clips…"
+
+msgid "Click a file to see where it is used: master clips, subclips and sequences."
+msgstr "Cliquez sur un fichier pour voir où il est utilisé : master clips, sous-clips et séquences."
+
+msgid "Welcome to MediaFiles Check"
+msgstr "Bienvenue dans MediaFiles Check"
+
+msgid "Get started"
+msgstr "Commencer"
+
+msgid "MediaFiles Check never deletes or overwrites a media file. Still, keep a backup of your media – you use it at your own risk."
+msgstr "MediaFiles Check ne supprime ni n’écrase jamais un fichier média. Gardez quand même une sauvegarde de vos médias – l’utilisation est à vos risques."
+
+msgid "lists everything that has to be done by hand."
+msgstr "liste tout ce qu’il faut faire à la main."
+
+msgid "keeps the media of two edit systems in step – formerly MediaFiles Ferry."
+msgstr "synchronise les médias de deux postes – anciennement MediaFiles Ferry."
+
+msgid "When macOS asks whether MediaFiles Check may access files on removable or network volumes, allow it – until then reading such a drive waits."
+msgstr "Quand macOS demande si MediaFiles Check peut accéder aux fichiers des volumes amovibles ou réseau, autorisez-le – jusque-là, la lecture de ces disques attend."
+
+msgid "renames folders for Media Composer, rebalances full folders, sets duplicates aside."
+msgstr "renomme des dossiers pour Media Composer, rééquilibre les dossiers pleins, met les doublons de côté."
+
+msgid "finds the media your bins need that are on none of the drives."
+msgstr "trouve les médias dont vos chutiers ont besoin et qui ne sont sur aucun disque."
+
+msgid "Connect a drive with Avid media. If macOS asks whether MediaFiles Check may access files on removable or network volumes, allow it."
+msgstr "Connectez un disque avec des médias Avid. Si macOS demande si MediaFiles Check peut accéder aux fichiers des volumes amovibles ou réseau, autorisez-le."
+
+msgid "compares every MXF folder with its Avid database."
+msgstr "compare chaque dossier MXF à sa base de données Avid."
+
+msgid "Rebalanced"
+msgstr "Rééquilibrage terminé"
+
+msgid "Rename back: {} → {}"
+msgstr "Renommer à l’origine : {} → {}"
+
+msgid "Copies set aside"
+msgstr "Copies mises de côté"
+
+msgid "Rename folder?"
+msgstr "Renommer le dossier ?"
+
+msgid "Check…"
+msgstr "Vérifier…"
+
+msgid "If you are asked to replace .mxf files: don't – cancel and check."
+msgstr "Si l’on vous demande de remplacer des fichiers .mxf : ne le faites pas – annulez et vérifiez."
+
+msgid "Clear list"
+msgstr "Vider la liste"
+
+msgid "Maintain › Duplicates"
+msgstr "Entretien › Doublons"
+
+msgid "Maintain › Rebalancing"
+msgstr "Entretien › Rééquilibrage"
+
+msgid "Maintain › Rename"
+msgstr "Entretien › Renommer"
+
+msgid "Copy only the contents of the delivery folder into it – never drag the whole folder onto an existing folder: the Finder would replace it with all its media files."
+msgstr "Copiez seulement le contenu du dossier de livraison – ne glissez jamais le dossier entier sur un dossier existant : le Finder le remplacerait avec tous ses fichiers média."
+
+msgid "Delivery for {}"
+msgstr "Livraison pour {}"
+
+msgid "Nothing completed yet."
+msgstr "Rien de terminé pour l’instant."
+
+msgid "Import a delivery by hand"
+msgstr "Importer une livraison à la main"
+
+msgid "instructions"
+msgstr "instructions"
+
+msgid "Replace msmFMID.pmr and msmMMOB.mdb only in the folders listed in the delivery's Tasks.txt."
+msgstr "Ne remplacez msmFMID.pmr et msmMMOB.mdb que dans les dossiers listés dans le Tasks.txt de la livraison."
+
+msgid "Rename {} folders back after Media Composer has written their databases"
+msgstr "Renommer {} dossiers comme avant une fois que Media Composer a écrit leurs bases de données"
+
+msgid "Quit Media Composer."
+msgstr "Quittez Media Composer."
+
+msgid "Reopen"
+msgstr "Rouvrir"
+
+msgid "Easier and safe: Exchange › Import verifies everything and imports only a complete delivery."
+msgstr "Plus simple et sûr : Échange › Importer vérifie tout et n’importe qu’une livraison complète."
+
+msgid "Every folder of the delivery is named <drive>/<folder>. On that drive open “Avid MediaFiles/MXF/<folder>” (create it if it is missing)."
+msgstr "Chaque dossier de la livraison s’appelle <disque>/<dossier>. Sur ce disque, ouvrez « Avid MediaFiles/MXF/<dossier> » (créez-le s’il manque)."
+
+msgid "Tasks come from deliveries (Exchange) and from Maintain. A yellow dot is for this system; the others go with a delivery to the other system."
+msgstr "Les tâches viennent des livraisons (Échange) et de l’Entretien. Un point jaune concerne ce poste ; les autres partent avec une livraison vers l’autre poste."
+
+msgid "{n} open task"
+msgid_plural "{n} open tasks"
+msgstr[0] "{n} tâche en cours"
+msgstr[1] "{n} tâches en cours"
+
+msgid "Scanning{} {}"
+msgstr "Analyse{} {}"
+
+msgid "Not scanned yet"
+msgstr "Pas encore analysé"
+
+msgid "Last scan: just now"
+msgstr "Dernière analyse : à l’instant"
+
+msgid "Last scan: {n} minute ago"
+msgid_plural "Last scan: {n} minutes ago"
+msgstr[0] "Dernière analyse : il y a {n} minute"
+msgstr[1] "Dernière analyse : il y a {n} minutes"
+
+msgid "Last scan: {n} hour ago"
+msgid_plural "Last scan: {n} hours ago"
+msgstr[0] "Dernière analyse : il y a {n} heure"
+msgstr[1] "Dernière analyse : il y a {n} heures"
+
+msgid "Last scan: {n} day ago"
+msgid_plural "Last scan: {n} days ago"
+msgstr[0] "Dernière analyse : il y a {n} jour"
+msgstr[1] "Dernière analyse : il y a {n} jours"
+
+msgid "{n} warning"
+msgid_plural "{n} warnings"
+msgstr[0] "{n} avertissement"
+msgstr[1] "{n} avertissements"
+
+msgid "Save manifest…"
+msgstr "Enregistrer le manifeste…"
+
+msgid "Open manifest…"
+msgstr "Ouvrir un manifeste…"
+
+msgid "Other manifest…"
+msgstr "Autre manifeste…"
+
+msgid "not scanned yet"
+msgstr "pas encore analysé"
+
+msgid "not connected"
+msgstr "non connecté"
+
+msgid "Manifest from {}"
+msgstr "Manifeste du {}"
+
+msgid "Request from {}"
+msgstr "Demande de {}"
+
+msgid "ASSIGN DRIVES"
+msgstr "ASSOCIER LES DISQUES"
+
+msgid "These drives have no drive with the same name on the other system."
+msgstr "Ces disques n’ont pas de disque du même nom sur l’autre système."
+
+msgid "FOLDERS ON BOTH SIDES"
+msgstr "DOSSIERS DES DEUX CÔTÉS"
+
+msgid "These folders exist on both systems with files of their own."
+msgstr "Ces dossiers existent sur les deux systèmes, chacun avec ses propres fichiers."
+
+msgid "Merge"
+msgstr "Fusionner"
+
+msgid "Merge: same folder, the database must be rebuilt. Rename: new folder with a unique name."
+msgstr "Fusionner : même dossier, la base de données doit être reconstruite. Renommer : nouveau dossier avec un nom unique."
+
+msgid "FOR {}"
+msgstr "POUR {}"
+
+msgid "Nothing to collect – the other system has everything."
+msgstr "Rien à rassembler – l’autre système a tout."
+
+msgid "{n} file to collect ({})"
+msgid_plural "{n} files to collect ({})"
+msgstr[0] "{n} fichier à rassembler ({})"
+msgstr[1] "{n} fichiers à rassembler ({})"
+
+msgid "TASKS"
+msgstr "TÂCHES"
+
+msgid "Collect…"
+msgstr "Rassembler…"
+
+msgid "PROBLEMS"
+msgstr "PROBLÈMES"
+
+msgid "Show in Finder"
+msgstr "Afficher dans le Finder"
+
+msgid "{n} file ({})"
+msgid_plural "{n} files ({})"
+msgstr[0] "{n} fichier ({})"
+msgstr[1] "{n} fichiers ({})"
+
+msgid "Verify & import"
+msgstr "Vérifier et importer"
+
+msgid "Collecting for {}"
+msgstr "Rassemblement pour {}"
+
+msgid "Verifying the delivery"
+msgstr "Vérification de la livraison"
+
+msgid "Importing the delivery"
+msgstr "Import de la livraison"
+
+msgid "Delivery ready"
+msgstr "Livraison prête"
+
+msgid "Delivery ready – some files could not be copied"
+msgstr "Livraison prête – certains fichiers n’ont pas pu être copiés"
+
+msgid "Delivery imported"
+msgstr "Livraison importée"
+
+msgid "Delivery imported with problems"
+msgstr "Livraison importée avec des problèmes"
+
+msgid "Delivery is incomplete or damaged – nothing was imported"
+msgstr "Livraison incomplète ou endommagée – rien n’a été importé"
+
+msgid "Give this folder to {} (e.g. on a drive); there it is imported with Exchange › Import. Instructions for importing by hand are inside."
+msgstr "Transmettez ce dossier à {} (par ex. sur un disque) ; là-bas, il s’importe avec Échange › Importer. Les instructions pour importer à la main sont dedans."
+
+msgid "Ask {} for a new delivery or copy the folder again."
+msgstr "Demandez une nouvelle livraison à {} ou copiez à nouveau le dossier."
+
+msgid "Scan again so that the manifest is up to date."
+msgstr "Analysez à nouveau pour que le manifeste soit à jour."
+
+msgid "Choose…"
+msgstr "Choisir…"
+
+msgid "Don't send"
+msgstr "Ne pas envoyer"
+
+msgid "this manifest is from this system"
+msgstr "ce manifeste provient de ce système"
+
+msgid "Choose where to create the delivery folder"
+msgstr "Choisissez où créer le dossier de livraison"
+
+msgid "Choose the delivery folder"
+msgstr "Choisissez le dossier de livraison"
+
+msgid "Scan this system"
+msgstr "Analyser ce poste"
+
+msgid "Checksums are remembered – only new or changed files are read. The manifest lists what this system has; the other system opens it under Exchange › Compare."
+msgstr "Les sommes de contrôle sont mémorisées – seuls les fichiers nouveaux ou modifiés sont lus. Le manifeste liste ce que ce poste possède ; l’autre l’ouvre sous Échange › Comparer."
+
+msgid "The switches apply to Check › Drives too."
+msgstr "Les interrupteurs valent aussi pour Vérifier › Disques."
+
+msgid "Compare with another system"
+msgstr "Comparer avec un autre poste"
+
+msgid "Compare with {}"
+msgstr "Comparer avec {}"
+
+msgid "Open the manifest of the other system, or a request saved under Projects › Request."
+msgstr "Ouvrez le manifeste de l’autre poste, ou une demande enregistrée sous Projets › Demander."
+
+msgid "Scan this system first (Exchange › Scan)."
+msgstr "Analysez d’abord ce poste (Échange › Analyser)."
+
+msgid "Every file is compared with its checksum after copying. Interrupted? Collect again continues where it stopped."
+msgstr "Chaque fichier est comparé à sa somme de contrôle après la copie. Interrompu ? Rassembler à nouveau reprend là où il s’est arrêté."
+
+msgid "Adds files only and never overwrites a media file. Replaced databases go to Ferry-Backup."
+msgstr "Ajoute seulement et n’écrase jamais un fichier média. Les bases de données remplacées vont dans Ferry-Backup."
+
+msgid "Collect a delivery"
+msgstr "Rassembler une livraison"
+
+msgid "Collect… is under Exchange › Compare."
+msgstr "Rassembler… se trouve sous Échange › Comparer."
+
+msgid "Compare with the other system first: Exchange › Compare. Collecting copies the files it is missing, with checksums, into a delivery folder."
+msgstr "Comparez d’abord avec l’autre poste : Échange › Comparer. Rassembler copie les fichiers qui lui manquent, avec sommes de contrôle, dans un dossier de livraison."
+
+msgid "Import a delivery"
+msgstr "Importer une livraison"
+
+msgid "Delivery from {}"
+msgstr "Livraison de {}"
+
+msgid "Choose delivery…"
+msgstr "Choisir la livraison…"
+
+msgid "Choose the delivery folder another system collected for this one. Everything is verified first; only a complete delivery is imported."
+msgstr "Choisissez le dossier de livraison qu’un autre poste a rassemblé pour celui-ci. Tout est d’abord vérifié ; seule une livraison complète est importée."
+
+msgid "Quit Media Composer before importing. Every file is verified first, and only a complete delivery is imported. A media file is never overwritten."
+msgstr "Quittez Media Composer avant d’importer. Chaque fichier est d’abord vérifié, et seule une livraison complète est importée. Un fichier média n’est jamais écrasé."
+
+msgid "scanning…"
+msgstr "analyse…"
+
+msgid "scanned"
+msgstr "analysé"
+
+msgid "collecting…"
+msgstr "rassemblement…"
+
+msgid "delivery ready"
+msgstr "livraison prête"
+
+msgid "importing…"
+msgstr "import…"
+
+msgid "current step"
+msgstr "étape en cours"
+
+msgid "Media Composer writes"
+msgstr "Media Composer écrit"
+
+msgid "Rename for Media Composer"
+msgstr "Renommer pour Media Composer"
+
+msgid "Show AMA clips"
+msgstr "Afficher les clips AMA"
+
+msgid "Request missing media"
+msgstr "Demander les médias manquants"
+
+msgid "Nothing to request – all media files are on the drives."
+msgstr "Rien à demander – tous les fichiers média sont sur les disques."
+
+msgid "{n} media file will be requested."
+msgid_plural "{n} media files will be requested."
+msgstr[0] "{n} fichier média sera demandé."
+msgstr[1] "{n} fichiers média seront demandés."
+
+msgid "Files to relink are not part of it."
+msgstr "Les fichiers à reconnecter n’en font pas partie."
+
+msgid "Send the request file to the system that has the media (mail, USB stick)."
+msgstr "Envoyez le fichier de demande au poste qui a les médias (e-mail, clé USB)."
+
+msgid "There: Exchange › Compare, open the file, then Collect."
+msgstr "Là-bas : Échange › Comparer, ouvrez le fichier, puis Rassembler."
+
+msgid "Here: Exchange › Import the delivery."
+msgstr "Ici : Échange › Importer la livraison."
+
+msgid "{n} AMA-linked file"
+msgid_plural "{n} AMA-linked files"
+msgstr[0] "{n} fichier lié en AMA"
+msgstr[1] "{n} fichiers liés en AMA"
+
+msgid "{n} file"
+msgid_plural "{n} files"
+msgstr[0] "{n} fichier"
+msgstr[1] "{n} fichiers"
+
+msgid "Exchange"
+msgstr "Échange"
+
+msgid "Check"
+msgstr "Vérifier"
+
+msgid "Projects"
+msgstr "Projets"
+
+msgid "Maintain"
+msgstr "Entretien"
+
+msgid "Tasks"
+msgstr "Tâches"
+
+msgid "needs attention"
+msgstr "demande votre attention"
+
+msgid "Compare"
+msgstr "Comparer"
+
+msgid "Collect"
+msgstr "Rassembler"
+
+msgid "Import"
+msgstr "Importer"
+
+msgid "Drives"
+msgstr "Disques"
+
+msgid "Result"
+msgstr "Résultat"
+
+msgid "{} of {} on"
+msgstr "{} sur {} activés"
+
+msgid "all match"
+msgstr "tous concordent"
+
+msgid "{n} folder differs"
+msgid_plural "{n} folders differ"
+msgstr[0] "{n} dossier diffère"
+msgstr[1] "{n} dossiers diffèrent"
+
+msgid "Choose projects"
+msgstr "Choisir les projets"
+
+msgid "Missing media"
+msgstr "Médias manquants"
+
+msgid "AMA clips"
+msgstr "Clips AMA"
+
+msgid "Request"
+msgstr "Demander"
+
+msgid "Duplicates"
+msgstr "Doublons"
+
+msgid "{n} folder renamed"
+msgid_plural "{n} folders renamed"
+msgstr[0] "{n} dossier renommé"
+msgstr[1] "{n} dossiers renommés"
+
+msgid "databases pending"
+msgstr "bases en attente"
+
+msgid "{n} run"
+msgid_plural "{n} runs"
+msgstr[0] "{n} opération"
+msgstr[1] "{n} opérations"
+
+msgid "Open"
+msgstr "En cours"
+
+msgid "Import by hand"
+msgstr "Importer à la main"
+
+msgid "Completed"
+msgstr "Terminées"
+
+msgid "Nothing to do by hand right now."
+msgstr "Rien à faire à la main pour l’instant."
+
+msgid "No runs yet."
+msgstr "Aucune opération pour l’instant."
+
+msgid "The switches apply to Exchange › Scan too."
+msgstr "Les interrupteurs valent aussi pour Échange › Analyser."
+
+msgid "No folder is renamed right now. Folders are renamed for Media Composer from a check result (Check › Result) or when rebalancing and setting duplicates aside."
+msgstr "Aucun dossier n’est renommé pour l’instant. Les dossiers sont renommés pour Media Composer depuis un résultat (Vérifier › Résultat) ou lors du rééquilibrage et de la mise de côté de doublons."
+
+msgid "Rebalancing"
+msgstr "Rééquilibrage"
+
+msgid "REBALANCING"
+msgstr "RÉÉQUILIBRAGE"
+
+msgid "Rebalance"
+msgstr "Rééquilibrer"
+
+msgid "Find full folders…"
+msgstr "Chercher les dossiers pleins…"
+
+msgid "Databases not rewritten yet"
+msgstr "Bases de données pas encore réécrites"
+
+msgid "Rewrite databases"
+msgstr "Réécrire les bases"
+
+msgid "Cancel leaves the databases as they are – you can start it later under Maintain › History."
+msgstr "« Annuler » laisse les bases de données telles quelles – vous pouvez le lancer plus tard sous Entretien › Historique."
+
+msgid "{n} run is waiting for new databases (History)."
+msgid_plural "{n} runs are waiting for new databases (History)."
+msgstr[0] "{n} rééquilibrage attend de nouvelles bases de données (Historique)."
+msgstr[1] "{n} rééquilibrages attendent de nouvelles bases de données (Historique)."
+
+msgid "New folders get the name of the full folder with “-rebalanced-1”, “-2” … (“Mac Studio.1” becomes “Mac Studio-rebalanced-1”). After a change of the limit, the next “Find full folders…” lays them out anew."
+msgstr "Les nouveaux dossiers prennent le nom du dossier plein suivi de « -rebalanced-1 », « -2 »… (« Mac Studio.1 » devient « Mac Studio-rebalanced-1 »). Après un changement de limite, la prochaine recherche « Chercher les dossiers pleins… » les répartit à nouveau."
+
+msgid "Keep the name"
+msgstr "Garder le nom"
+
+msgid "Change…"
+msgstr "Modifier…"
+
+msgid "Change"
+msgstr "Modifier"
+
+msgid "Change the limit to {}?"
+msgstr "Passer la limite à {} ?"
+
+msgid "The next “Find full folders…” lays out every rebalanced folder on the drives anew for this limit: media files move into more folders or back. With many files that can take a long time, and the databases of every changed folder have to be rewritten."
+msgstr "La prochaine recherche « Chercher les dossiers pleins… » répartit à nouveau chaque dossier rééquilibré des disques selon cette limite : les fichiers média vont dans plus de dossiers ou reviennent. Avec beaucoup de fichiers, cela peut prendre longtemps, et les bases de données de chaque dossier modifié doivent être réécrites."
+
+msgid "New name"
+msgstr "Nouveau nom"
+
+msgid "“{}” is a folder Media Composer creates and fills itself. We recommend giving it a name of its own before rebalancing – the folder and its rebalanced folders then carry that name, and Media Composer starts a new folder for new media."
+msgstr "« {} » est un dossier que Media Composer crée et remplit lui-même. Nous recommandons de lui donner un nom propre avant le rééquilibrage – le dossier et ses dossiers rééquilibrés portent alors ce nom, et Media Composer crée un nouveau dossier pour les nouveaux médias."
+
+msgid "The oldest media files go into the rebalanced folders, the youngest stay in the main folder; nothing is copied or deleted. Afterwards the databases of the changed folders have to be rewritten. You can undo it under History."
+msgstr "Les fichiers média les plus anciens vont dans les dossiers rééquilibrés, les plus récents restent dans le dossier principal ; rien n’est copié ni supprimé. Ensuite, les bases de données des dossiers modifiés doivent être réécrites. Vous pouvez annuler depuis l’Historique."
+
+msgid "Now the databases of the changed folders have to be rewritten. Start sets their databases aside (Media Composer writes new ones) and renames the folders Media Composer does not update itself – then go on under Maintain › Rename."
+msgstr "Il faut maintenant réécrire les bases de données des dossiers modifiés. « Lancer » met leurs bases de côté (Media Composer en écrit de nouvelles) et renomme les dossiers que Media Composer ne met pas à jour lui-même – ensuite, continuez sous Entretien › Renommer."
+
+msgid "set aside"
+msgstr "de côté"
+
+msgid "stays"
+msgstr "reste"
+
+msgid "Set aside"
+msgstr "Mettre de côté"
+
+msgid "DUPLICATES"
+msgstr "DOUBLONS"
+
+msgid "Find duplicates…"
+msgstr "Chercher les doublons…"
+
+msgid "Finds media files that are on the selected drives more than once – by their Media Composer ID, also when renamed."
+msgstr "Trouve les fichiers média présents plusieurs fois sur les disques choisis – grâce à leur ID Media Composer, même s’ils ont été renommés."
+
+msgid "Click a copy to keep it. The others go into “MediaFiles Check Duplicates” on their drive – nothing is deleted, you can undo it under Maintain › History."
+msgstr "Cliquez sur une copie pour la garder. Les autres vont dans « MediaFiles Check Duplicates » sur leur disque – rien n’est supprimé, vous pouvez annuler sous Entretien › Historique."
+
+msgid "History"
+msgstr "Historique"
+
+msgid "Undo"
+msgstr "Annuler"
+
+msgid "Start"
+msgstr "Lancer"
+
+msgid "Cancel"
+msgstr "Annuler"
+
+msgid "Files per folder"
+msgstr "Fichiers par dossier"
+
+msgid "Splits MXF folders with more than {} files (database included): the oldest media files move into new folders."
+msgstr "Répartit les dossiers MXF de plus de {} fichiers (base de données comprise) : les fichiers média les plus anciens vont dans de nouveaux dossiers."
+
+msgid "No folder on the selected drives has more than {} files, the two database files included."
+msgstr "Aucun dossier des disques choisis ne contient plus de {} fichiers, les deux fichiers de base de données compris."
+
+msgid "Media Composer must stay closed while moving – on network drives on every workstation."
+msgstr "Media Composer doit rester fermé pendant le déplacement – sur les disques réseau, sur chaque poste."
+
+msgid "Counts every file of a folder, the two database files included – a folder keeps at most this many minus 2 media files. Rebalancing moves the oldest media files of a fuller folder into new folders. We recommend no more than 5000 (between 100 and 50000)."
+msgstr "Compte chaque fichier d’un dossier, les deux fichiers de base de données compris – un dossier garde donc au plus ce nombre moins 2 fichiers média. Le rééquilibrage déplace les fichiers média les plus anciens d’un dossier trop plein vers de nouveaux dossiers. Nous recommandons 5000 au maximum (entre 100 et 50000)."
+
+msgid "{} kept – it holds other files"
+msgstr "{} conservé – il contient d’autres fichiers"
+
+msgid "Database of {} set aside: {}"
+msgstr "Base de données de {} mise de côté : {}"
+
+msgid "{n} file moved back to {}"
+msgid_plural "{n} files moved back to {}"
+msgstr[0] "{n} fichier remis dans {}"
+msgstr[1] "{n} fichiers remis dans {}"
+
+msgid "{n} file left where it is (changed, or the name exists again): {}"
+msgid_plural "{n} files left where they are (changed, or the name exists again): {}"
+msgstr[0] "{n} fichier laissé en place (modifié, ou le nom existe de nouveau) : {}"
+msgstr[1] "{n} fichiers laissés en place (modifiés, ou le nom existe de nouveau) : {}"
+
+msgid "General"
+msgstr "Général"
+
+msgid "Updates"
+msgstr "Mises à jour"
+
+msgid "Support"
+msgstr "Assistance"
+
+msgid "About"
+msgstr "À propos"
+
+msgid "Get test versions"
+msgstr "Recevoir les versions de test"
+
+msgid "Also offers versions that are still being tested. For testers only – they can contain errors."
+msgstr "Propose aussi des versions encore en test. Réservé aux testeurs – elles peuvent contenir des erreurs."
+
+msgid "Switches all windows of MediaFiles Check between a light and a dark look."
+msgstr "Fait passer toutes les fenêtres de MediaFiles Check entre un aspect clair et sombre."
+
+msgid "MediaFiles Check checks GitHub for new versions on its own and shows a notice."
+msgstr "MediaFiles Check recherche lui-même les nouvelles versions sur GitHub et affiche un avis."
+
 msgid "Run self-test…"
 msgstr "Autotest…"
 
@@ -83,9 +981,6 @@ msgstr "Masquer"
 msgid "Skipped"
 msgstr "Ignoré"
 
-msgid "SUPPORT"
-msgstr "ASSISTANCE"
-
 msgid "SELF-TEST"
 msgstr "AUTOTEST"
 
@@ -104,9 +999,6 @@ msgstr "Teste la lecture des bases de données, la comparaison, le renommage et 
 msgid "MediaFiles Check tests reading databases, comparing, renaming and updates on test data of its own and sends us an anonymous report. Your drives and folders are only listed, never changed. It takes less than a minute."
 msgstr "MediaFiles Check teste la lecture des bases de données, la comparaison, le renommage et les mises à jour sur ses propres données de test et nous envoie un rapport anonyme. Vos disques et dossiers sont seulement listés, jamais modifiés. Cela prend moins d’une minute."
 
-msgid "Settings"
-msgstr "Réglages"
-
 msgid "Language"
 msgstr "Langue"
 
@@ -116,9 +1008,6 @@ msgstr "Aide"
 msgid "Manual"
 msgstr "Manuel"
 
-msgid "About MediaFiles Check"
-msgstr "À propos de MediaFiles Check"
-
 msgid "MediaFiles Check Manual"
 msgstr "Manuel de MediaFiles Check"
 
@@ -127,9 +1016,6 @@ msgstr "Choisir un disque ou un dossier MXF"
 
 msgid "… and {} more (see report)"
 msgstr "… et {} de plus (voir le rapport)"
-
-msgid "DRIVES"
-msgstr "DISQUES"
 
 msgid "No drive with “Avid MediaFiles/MXF” found."
 msgstr "Aucun disque avec « Avid MediaFiles/MXF » trouvé."
@@ -148,9 +1034,6 @@ msgstr "VÉRIFICATION"
 
 msgid "Please wait{}"
 msgstr "Veuillez patienter{}"
-
-msgid "RESULT"
-msgstr "RÉSULTAT"
 
 msgid "No MXF folders found"
 msgstr "Aucun dossier MXF trouvé"
@@ -177,17 +1060,11 @@ msgstr "Enregistrer le rapport…"
 msgid "Done"
 msgstr "Terminé"
 
-msgid "VERSION {}"
-msgstr "VERSION {}"
-
 msgid "MediaFiles Check is free software: you can redistribute and modify it under the terms of the GNU General Public License, version 3 or later."
 msgstr "MediaFiles Check est un logiciel libre : vous pouvez le redistribuer et le modifier selon les termes de la GNU General Public License, version 3 ou ultérieure."
 
 msgid "It comes with ABSOLUTELY NO WARRANTY – use at your own risk."
 msgstr "Il est fourni SANS AUCUNE GARANTIE – utilisation à vos propres risques."
-
-msgid "UPDATES"
-msgstr "MISES À JOUR"
 
 msgid "Version {}"
 msgstr "Version {}"
@@ -243,9 +1120,6 @@ msgstr "Police JetBrains Mono – SIL Open Font License 1.1. Boîte à outils Sl
 msgid "Avid and Media Composer are trademarks of Avid Technology, Inc. MediaFiles Check is not affiliated with Avid."
 msgstr "Avid et Media Composer sont des marques d'Avid Technology, Inc. MediaFiles Check n'est pas affilié à Avid."
 
-msgid "RENAMED FOR MEDIA COMPOSER"
-msgstr "RENOMMÉS POUR MEDIA COMPOSER"
-
 msgid "{} (was {})"
 msgstr "{} (était {})"
 
@@ -278,11 +1152,8 @@ msgstr[1] "{n} de ces dossiers portent des noms que Media Composer ne met pas à
 msgid "Rename for Media Composer…"
 msgstr "Renommer pour Media Composer…"
 
-msgid "RENAME FOR MEDIA COMPOSER"
-msgstr "RENOMMER POUR MEDIA COMPOSER"
-
-msgid "The original names and all media files are remembered. Once Media Composer has rebuilt the databases, rename the folders back on the start page."
-msgstr "Les noms d'origine et tous les fichiers médias sont mémorisés. Dès que Media Composer a reconstruit les bases de données, rendez aux dossiers leur nom depuis la page d'accueil."
+msgid "The original names and all media files are remembered. Once Media Composer has rebuilt the databases, rename the folders back under Maintain › Rename."
+msgstr "Les noms d'origine et tous les fichiers médias sont mémorisés. Dès que Media Composer a reconstruit les bases de données, rendez aux dossiers leur nom sous Entretien › Renommer."
 
 msgid "Quit Media Composer first."
 msgstr "Quittez d'abord Media Composer."
@@ -295,9 +1166,6 @@ msgstr "Retour"
 
 msgid "Rename"
 msgstr "Renommer"
-
-msgid "RENAME BACK: {} → {}"
-msgstr "RENOMMER À L'ORIGINE : {} → {}"
 
 msgid "{n} new file since renaming"
 msgid_plural "{n} new files since renaming"
@@ -353,26 +1221,11 @@ msgstr "Afficher le fichier journal"
 msgid "Settings…"
 msgstr "Réglages…"
 
-msgid "SETTINGS"
-msgstr "RÉGLAGES"
-
 msgid "Start Media Composer"
 msgstr "Lancer Media Composer"
 
 msgid "Media Composer could not be started."
 msgstr "Impossible de lancer Media Composer."
-
-msgid "AVID PROJECTS"
-msgstr "PROJETS AVID"
-
-msgid "Avid Projects"
-msgstr "Projets Avid"
-
-msgid "Find the media files the bins of your Avid projects need that are on none of the drives, and request them with MediaFiles Ferry."
-msgstr "Trouve les fichiers médias dont les chutiers de vos projets Avid ont besoin et qui ne sont sur aucun disque, et les demande avec MediaFiles Ferry."
-
-msgid "Open projects…"
-msgstr "Ouvrir les projets…"
 
 msgid "Choose the folder with your Avid projects"
 msgstr "Choisir le dossier de vos projets Avid"
@@ -421,10 +1274,10 @@ msgid_plural "{n} references without a media file left out – e.g. camera sound
 msgstr[0] "{n} référence sans fichier média ignorée – p. ex. son caméra jamais importé ; Media Composer affiche ces clips en ligne."
 msgstr[1] "{n} références sans fichier média ignorées – p. ex. son caméra jamais importé ; Media Composer affiche ces clips en ligne."
 
-msgid "{n} of the missing files has no Avid media reference – e.g. imported via AAF. Ferry only finds it if the other system has it in Avid MediaFiles."
-msgid_plural "{n} of the missing files have no Avid media reference – e.g. imported via AAF. Ferry only finds them if the other system has them in Avid MediaFiles."
-msgstr[0] "{n} des fichiers manquants n'a pas de référence média Avid – p. ex. importé par AAF. Ferry ne le trouve que si l'autre système l'a dans Avid MediaFiles."
-msgstr[1] "{n} des fichiers manquants n'ont pas de référence média Avid – p. ex. importés par AAF. Ferry ne les trouve que si l'autre système les a dans Avid MediaFiles."
+msgid "{n} of the missing files has no Avid media reference – e.g. imported via AAF. the exchange only finds it if the other system has it in Avid MediaFiles."
+msgid_plural "{n} of the missing files have no Avid media reference – e.g. imported via AAF. the exchange only finds them if the other system has them in Avid MediaFiles."
+msgstr[0] "{n} des fichiers manquants n'a pas de référence média Avid – p. ex. importé par AAF. l’échange ne le trouve que si l'autre système l'a dans Avid MediaFiles."
+msgstr[1] "{n} des fichiers manquants n'ont pas de référence média Avid – p. ex. importés par AAF. l’échange ne les trouve que si l'autre système les a dans Avid MediaFiles."
 
 msgid "{n} missing file is on the drives as another media file of the same source (camera clip or tape) – the clip only lost its link: relink it in Media Composer. Not requested."
 msgid_plural "{n} missing files are on the drives as other media files of the same source (camera clip or tape) – the clips only lost their link: relink them in Media Composer. Not requested."
@@ -441,23 +1294,11 @@ msgid_plural "{n} AMA-linked files have a master clip of the same name with its 
 msgstr[0] "{n} fichier lié par AMA a un clip master du même nom avec ses médias sur les disques – ignoré."
 msgstr[1] "{n} fichiers liés par AMA ont un clip master du même nom avec ses médias sur les disques – ignorés."
 
-msgid "Show AMA clips…"
-msgstr "Afficher les clips AMA…"
-
-msgid "AMA-Linked Clips"
-msgstr "Clips liés par AMA"
-
 msgid "Where the AMA-linked clips are used. Click a clip to see its master clips, subclips and sequences. AMA files are not requested."
 msgstr "Où les clips liés par AMA sont utilisés. Un clic sur un clip affiche ses clips master, sous-clips et séquences. Les fichiers AMA ne sont pas demandés."
 
-msgid "AMA-LINKED CLIPS PER BIN"
-msgstr "CLIPS LIÉS PAR AMA PAR CHUTIER"
-
 msgid "on the drives – relink"
 msgstr "sur les disques – à relier"
-
-msgid "MISSING MEDIA FILES PER BIN"
-msgstr "FICHIERS MÉDIAS MANQUANTS PAR CHUTIER"
 
 msgid "1 file"
 msgstr "1 fichier"
@@ -479,9 +1320,6 @@ msgstr "séquence"
 msgid "… more in the saved list"
 msgstr "… la suite dans la liste enregistrée"
 
-msgid "Save the request and open it in MediaFiles Ferry on the system that has the media (Open manifest…). Ferry collects the files into a delivery you import here."
-msgstr "Enregistrez la demande et ouvrez-la dans MediaFiles Ferry sur le système qui a les médias (Ouvrir un manifeste…). Ferry rassemble les fichiers dans une livraison que vous importez ici."
-
 msgid "Reading the media databases of the drives…"
 msgstr "Lecture des bases de données médias des disques…"
 
@@ -493,3 +1331,6 @@ msgstr "Enregistrer la liste…"
 
 msgid "Save request…"
 msgstr "Enregistrer la demande…"
+
+msgid "Preview…"
+msgstr "Aperçu…"

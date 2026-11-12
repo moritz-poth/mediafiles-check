@@ -4,29 +4,30 @@
 
 <p align="center">☕ If you use MediaFiles Check and like it, I would be glad if you <a href="https://buymeacoffee.com/moritzpoth">bought me a coffee</a>.</p>
 
-Checks whether every folder in **Avid MediaFiles/MXF** matches its Avid database – and tells you where it doesn't.
-
-<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/home-dark.png"><img src="assets/screenshots/home-light.png" width="420" alt="Start page: drive list, Avid projects, renamed folders"></picture></p>
+Looks after the Avid media files (MXF) of your edit systems: keeps two systems in step, checks every folder in **Avid MediaFiles/MXF** against its Avid database, finds what your Avid projects are missing, and tidies up full folders and duplicates. It now includes **MediaFiles Ferry** (the Exchange tab).
 
 > **Beta.** Please report problems in [Issues](../../issues) or in the app: **Settings… → Support → Report…** (no GitHub account needed).
 
-## What it reports
+## What it does
 
-For every MXF folder (e.g. `Avid MediaFiles/MXF/1`) it compares the `.mxf` files with the list in the folder's database (`msmFMID.pmr`):
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/exchange-dark.png"><img src="assets/screenshots/exchange-light.png" width="700" alt="Exchange: compare with another edit system"></picture></p>
 
-- **Files not in the database** – Media Composer may not show them.
-- **Entries in the database without a file** – they show up as offline media.
-- **No database, a missing database file, an empty or unreadable database.**
+One window with six tabs; each tab lists its steps on the left in the order you do them.
 
-Checking only reads. The start page lists every drive with `Avid MediaFiles/MXF` and updates itself when a drive is connected or ejected; switch on the ones you want and click **Check drives**. **Check folder…** takes a drive, the MXF folder or a single media folder (also on network drives). **Save report…** writes every difference with all file names to a text file. English, German, French and Spanish (Settings → Language), dark or light, with a built-in manual (Help → Manual) and a log file for error reports (Help → Show Log File). Updates install from within the app (Settings… → Check for updates, or the notice at the top of the window).
+- **Exchange** (formerly MediaFiles Ferry) keeps the media of two edit systems in step without a network: scan this system into a small manifest (checksums are remembered, later scans are fast), open the other system's manifest, collect the files it is missing into a delivery folder (copied with checksum checks), and import a delivery on the other side – verified first, only complete deliveries, files are only added. A file counts as present if the other side has it anywhere with the same name and checksum; a database is only delivered if the target folder ends up exactly like the source.
+- **Check** compares the `.mxf` files of every MXF folder with its database (`msmFMID.pmr`): files not in the database (Media Composer may not show them), entries without a file (offline media), missing, empty or unreadable databases. Checking only reads. **Save report…** writes every difference.
 
-<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/result-dark.png"><img src="assets/screenshots/result-light.png" width="420" alt="Result: folders that differ from their database, rename for Media Composer"></picture></p>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/check-dark.png"><img src="assets/screenshots/check-light.png" width="700" alt="Check: folders that differ from their database"></picture></p>
 
-**Rename for Media Composer:** Media Composer only rebuilds the databases of its own folders – numbers on local drives, `<computer name>.<number>` on network drives. After a check, MediaFiles Check can give other folders the next free such name, remembers the original name and every media file, shows when Media Composer has rewritten the database and renames the folders back. New files found then (e.g. recorded meanwhile) can be moved to a new numbered folder or to `1` / `<computer name>.1`, or kept. Nothing is deleted or overwritten.
+- **Maintain:** *Rename for Media Composer* – Media Composer only rebuilds the databases of its own folders (numbers on local drives, `<computer name>.<number>` on network drives); MediaFiles Check gives other folders such a name, remembers the original name and every media file, shows when Media Composer has rewritten the database and renames them back. *Rebalancing* splits MXF folders with more than 5000 files, the two database files included (adjustable): the oldest files move into `-rebalanced-1`, `-2` … folders. *Duplicates* finds media files that are on the drives more than once (by their Media Composer ID, also when renamed) and sets the extra copies aside on their own drive. *History* undoes any run.
+- **Projects** reads every bin (`.avb`) of the Avid projects you switch on, follows each master clip, subclip and sequence to its media files and lists per bin those that are on none of the connected drives. Render and AMA-linked files are only counted; files whose source is on the drives in another media file are marked for relinking. **Save request…** writes a `…_Request.ferry` file that Exchange opens on the system that has the media. Bins are read with a small reader of our own (`src/avb.rs`), based on the format knowledge of [pyavb](https://github.com/markreidvfx/pyavb) (MIT, see THIRD-PARTY.md).
+- **Media** lists every MXF file of the switched-on drives in a resizable table (clip, kind, codec, picture, fps, duration, sound, size, project, folder). Render files are recognised by the mark Media Composer writes into their header, or by the effect that uses them; files the switched-on projects do not use count as unused. It can move render files into folders of their own (`<name>-renderfiles-1`), swap render files and media between an import and a render drive (checked copies), and set unused files aside – with history and undo.
 
-**Avid projects:** choose the folder with your Avid projects, switch on the ones to check, and MediaFiles Check reads every bin (`.avb`), follows each master clip, subclip and sequence to its media files and lists those that are on none of the connected drives – per bin, each missing file once, unfolding to where it is used. Render files and AMA-linked files are only counted; files whose source is on the drives in another media file are marked for relinking instead of requested; MXF files missing from a database are identified by their header. **Save request…** writes a `…_Request.ferry` file that [MediaFiles Ferry](https://github.com/moritz-poth/mediafiles-ferry) opens on the system that has the media and turns into a normal delivery. AMA-linked clips are not requested; **Show AMA clips…** lists them per bin, so you can see where in the project they are used. Bins are read with a small reader of our own (`src/avb.rs`), based on the format knowledge of [pyavb](https://github.com/markreidvfx/pyavb) (MIT, see THIRD-PARTY.md).
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/media-dark.png"><img src="assets/screenshots/media-light.png" width="700" alt="Media: files in use and not used, actions"></picture></p>
 
-<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/projects-dark.png"><img src="assets/screenshots/projects-light.png" width="680" alt="Avid projects: missing media files per bin"></picture></p>
+- **Tasks** lists everything that needs doing by hand – tasks of deliveries, databases still to be rewritten, folders waiting to be renamed back – with a button where the app can help, plus instructions for importing a delivery by hand.
+
+Nothing is ever deleted or overwritten. English, German, French and Spanish (Settings → Language), dark or light, a built-in manual (Help → Manual) and a log file for error reports (Help → Show Log File). Updates install from within the app.
 
 To rebuild a database by hand: quit Media Composer, move `msmMMOB.mdb` and `msmFMID.pmr` out of the folder, start Media Composer again.
 

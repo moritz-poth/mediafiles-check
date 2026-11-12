@@ -84,6 +84,9 @@ pub fn mxf_files(dir: &Path) -> io::Result<Vec<(String, u64)>> {
 
 /// The name Media Composer uses for its network folders, e.g. "Mac Studio.1".
 pub fn computer_name() -> String {
+    if let Some(n) = crate::lab_computer() {
+        return n;
+    }
     let out = std::process::Command::new("scutil").args(["--get", "ComputerName"]).output().ok();
     match out.filter(|o| o.status.success()) {
         Some(o) => String::from_utf8_lossy(&o.stdout).trim().to_string(),
@@ -166,12 +169,43 @@ pub fn rename_for_avid(folder: &Path, new_name: &str, journal: &mut Journal, jou
     let original = folder.file_name().unwrap_or_default().to_string_lossy().into_owned();
     journal.entries.push(Renamed { mxf, original, current: new_name.into(), files: mxf_files(folder)?, db: db_stamps(folder) });
     journal.save(journal_path)?;
-    if let Err(e) = fs::rename(folder, &target) {
+    if let Err(e) = crate::move_new(folder, &target) {
         journal.entries.pop();
         journal.save(journal_path)?;
         return Err(e);
     }
     Ok(())
+}
+
+/// What the journal entry says no longer matches the drive, and why (checked at every refresh of the start page).
+#[derive(Debug, PartialEq)]
+pub enum Repair {
+    /// the drive is mounted under another path: `mxf` was updated
+    Moved,
+    /// the folder still (or again) has its original name and the renamed one is gone: the app stopped between
+    /// writing the journal and renaming, or between renaming back and removing the entry – the entry goes
+    NotRenamed,
+    /// the drive is there but the renamed folder is not (deleted or moved away by hand) – the entry goes
+    Gone,
+}
+
+/// Checks an entry against the drive. The folder is recognised by the MXF folder it is in, its current name and
+/// the recorded MXF files (unique names) – not by the path alone, so a drive mounted under another name still works.
+pub fn repair(r: &mut Renamed) -> Option<Repair> {
+    if r.dir().is_dir() {
+        return None;
+    }
+    if let Some(m) = crate::find_moved(&r.mxf, &r.current, &r.files) {
+        r.mxf = m;
+        return Some(Repair::Moved);
+    }
+    let original = r.mxf.join(&r.original);
+    let names: HashSet<String> = mxf_files(&original).map(|v| v.into_iter().map(|f| key(&f.0)).collect()).unwrap_or_default();
+    if original.is_dir() && r.files.iter().all(|(n, _)| names.contains(&key(n))) {
+        return Some(Repair::NotRenamed);
+    }
+    // MXF folder there = drive online; without it the drive is just not connected
+    r.mxf.is_dir().then_some(Repair::Gone)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -236,7 +270,7 @@ pub fn rename_back(r: &Renamed, added: &[String], choice: Added, computer: &str)
         return Err(io::Error::new(io::ErrorKind::AlreadyExists, format!("{} exists already", original.display())));
     }
     let network = is_network(&r.dir());
-    fs::rename(r.dir(), &original)?;
+    crate::move_new(&r.dir(), &original)?;
     let mut back = Back::default();
     if added.is_empty() || choice == Added::Keep {
         return Ok(back);
@@ -250,11 +284,12 @@ pub fn rename_back(r: &Renamed, added: &[String], choice: Added, computer: &str)
     let mut moved = 0;
     for f in added {
         let dst = target.join(f);
-        if dst.exists() {
-            back.not_moved.push(f.clone());
-        } else {
-            fs::rename(original.join(f), dst)?;
-            moved += 1;
+        match crate::move_new(&original.join(f), &dst) {
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => back.not_moved.push(f.clone()),
+            r => {
+                r?;
+                moved += 1;
+            }
         }
     }
     back.moved_to = Some((target_name, moved));
@@ -315,6 +350,30 @@ mod tests {
         let back = rename_back(&r, &d.added, Added::FirstFolder, "Mac").unwrap();
         assert_eq!(back.moved_to, Some(("1".into(), 1)));
         assert!(mxf.join("Avid10.1/a.mxf").exists() && mxf.join("1/new.mxf").exists() && !mxf.join("2").exists());
+        fs::remove_dir_all(mxf.join("../..")).unwrap();
+    }
+
+    #[test]
+    fn repairs_after_a_crash() {
+        let mxf = setup("repair");
+        let dir = mxf.join("Avid10.1");
+        let mut j = Journal::default();
+        let jp = mxf.join("../../journal.json");
+        rename_for_avid(&dir, "7", &mut j, &jp).unwrap();
+        let mut r = j.entries[0].clone();
+        assert_eq!(repair(&mut r), None, "renamed and in place");
+        // stopped after renaming back, before the entry was removed
+        fs::rename(mxf.join("7"), &dir).unwrap();
+        assert_eq!(repair(&mut r), Some(Repair::NotRenamed));
+        // drive offline: nothing to say
+        let mut gone = r.clone();
+        gone.mxf = mxf.join("missing");
+        assert_eq!(repair(&mut gone), None);
+        // renamed folder deleted by hand while the drive is online
+        rename_for_avid(&dir, "7", &mut j, &jp).unwrap();
+        let mut r = j.entries.last().unwrap().clone();
+        fs::remove_dir_all(mxf.join("7")).unwrap();
+        assert_eq!(repair(&mut r), Some(Repair::Gone));
         fs::remove_dir_all(mxf.join("../..")).unwrap();
     }
 

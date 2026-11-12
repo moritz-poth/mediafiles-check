@@ -2,125 +2,200 @@
 
 ## Ce que fait MediaFiles Check
 
-MediaFiles Check compare chaque dossier de `Avid MediaFiles/MXF` avec sa base de données Avid et montre où les deux ne correspondent pas. C'est utile quand des médias manquent dans Media Composer, apparaissent hors ligne, ou après avoir copié ou déplacé des fichiers à la main.
+MediaFiles Check prend soin des fichiers média Avid (MXF) de vos postes de montage :
 
-La vérification **ne fait que lire**. Seulement si vous le demandez, MediaFiles Check renomme des dossiers pour Media Composer (voir plus bas) – il ne supprime ni n'écrase jamais un fichier ou une base de données.
+- **Échange** synchronise les médias de deux postes, même s’ils ne sont pas connectés (anciennement MediaFiles Ferry).
+- **Vérifier** compare chaque dossier de `Avid MediaFiles/MXF` à sa base de données Avid et montre où les deux ne concordent pas.
+- **Entretien** regroupe les outils qui modifient quelque chose : renommer des dossiers pour Media Composer, rééquilibrage, doublons et leur historique.
+- **Projets** trouve les fichiers média dont les chutiers de vos projets Avid ont besoin et qui ne sont sur aucun disque, et les demande.
+- **Médias** liste chaque fichier média avec clip, codec et taille, sépare les fichiers de rendu et met de côté les fichiers inutilisés.
+- **Tâches** réunit tout ce qu’il faut faire à la main.
 
-## Ce qu'il attend
+MediaFiles Check **ne supprime jamais** un fichier média et **n’en écrase jamais**. Vérifier ne fait que lire.
+
+## La fenêtre
+
+Les onglets en haut sont les domaines. Dans chaque onglet, la barre latérale à gauche liste ses étapes dans l’ordre où on les fait ; sous chaque étape, une courte ligne indique où elle en est. Un petit point orange sur un onglet signale que quelque chose y attend.
+
+## Ce qui est attendu
 
 Sur chaque disque, y compris les disques réseau :
 
-- `Avid MediaFiles/MXF/<dossier>/` avec les fichiers médias `.mxf`
+- `Avid MediaFiles/MXF/<dossier>/` avec les fichiers média `.mxf`
 - les deux fichiers de base de données Avid `msmFMID.pmr` et `msmMMOB.mdb` dans chaque dossier
 - les dossiers `Creating` et les fichiers cachés sont ignorés
 
-Les noms de dossier sont libres, p. ex. `1`, `Avid8.1` ou `Mac Studio.1`.
+Les dossiers peuvent porter n’importe quel nom, p. ex. `1`, `Avid8.1` ou `Mac Studio.1`. Chaque disque connecté avec `Avid MediaFiles/MXF` a un interrupteur ; les mêmes interrupteurs valent pour Échange › Analyser et Vérifier › Disques, et ils sont mémorisés. Les nouveaux disques sont activés.
+
+## Échange : analyser
+
+Échange › **Analyser** enregistre chaque fichier MXF des disques activés avec une somme de contrôle et écrit un petit *manifeste* – une liste de fichiers, sans médias.
+
+- La première analyse prend du temps, car chaque fichier est lu une fois. Les suivantes ne lisent que les fichiers nouveaux ou modifiés.
+- Si l’app est fermée pendant une analyse, rien n’est perdu – la suivante reprend.
+
+**Enregistrer le manifeste…** l’enregistre p. ex. sous `261101-1312_Mac Studio_Manifest.ferry`. Envoyez-le à l’autre poste, p. ex. par e-mail ou clé USB.
+
+## Échange : comparer et rassembler
+
+1. Analysez d’abord ce poste, pour que votre manifeste soit à jour.
+2. Échange › **Comparer** → **Ouvrir un manifeste…** et choisissez le manifeste de l’autre poste – ou une demande enregistrée sous Projets › Demander.
+3. **Associer les disques :** les disques sans disque du même nom de l’autre côté ont besoin d’une cible – ou de **Ne pas envoyer**. Le choix est mémorisé.
+4. **Dossiers des deux côtés :** choisissez **Fusionner** ou **Renommer** pour chaque dossier (voir plus bas).
+5. Vérifiez le nombre de fichiers et les tâches, puis cliquez sur **Rassembler…** et choisissez où créer le dossier de livraison.
+
+Chaque fichier est copié avec contrôle de somme dans un nouveau dossier comme `261102-1830_Mac Studio_to_MacBook`, avec `Tasks.txt` (instructions pour importer à la main). Rassembler à nouveau après une interruption reprend là où cela s’est arrêté.
+
+![Comparer avec un autre poste](images/fr/exchange.png)
+
+## Échange : importer
+
+1. Quittez Media Composer.
+2. Échange › **Importer** → **Choisir la livraison…**.
+3. Chaque disque de la livraison a besoin d’un disque sur ce poste ; les disques du même nom sont associés automatiquement.
+4. **Vérifier et importer** vérifie d’abord chaque fichier. Seule une livraison complète et intacte est importée – les fichiers sont seulement ajoutés, un fichier média n’est jamais écrasé. Les bases de données remplacées sont gardées dans `Avid MediaFiles/Ferry-Backup/`.
+5. Analysez à nouveau ensuite, pour que le manifeste soit à jour.
+
+## Quand quelque chose est-il copié ?
+
+Un fichier est **présent** s’il existe quelque part sur l’autre poste avec le même nom et la même somme de contrôle.
+
+- **Dossier identique des deux côtés :** rien ne se passe.
+- **Dossier absent de l’autre côté :** le dossier entier est copié, avec sa base de données.
+- **Un côté a des fichiers en plus :** les fichiers et la base de données du côté le plus complet sont copiés.
+- **Les deux côtés ont leurs propres fichiers :** seuls les fichiers sont copiés – tâche « Reconstruire la base de données ».
+- **Même nom de fichier, contenu différent :** pas copié – une tâche demande de vérifier.
+
+Une base de données n’est livrée que si le dossier cible devient exactement comme le dossier source ; une base de données n’est jamais supprimée. Des dossiers comme `1` existent sur chaque poste : **Fusionner** met les fichiers dans le même dossier (la base de données doit être reconstruite), **Renommer** dans un nouveau dossier comme `261031_MacStudio_1`.
 
 ## Vérifier les disques
 
-La page d'accueil montre chaque disque connecté avec `Avid MediaFiles/MXF` – le point vert signifie que le disque est prêt. La liste se met à jour toute seule quand vous connectez ou éjectez un disque.
-
-![Liste des disques](images/fr/drives.png)
-
-1. Activez les disques à vérifier. Les nouveaux disques sont activés automatiquement.
-2. Cliquez sur **Vérifier les disques**.
-
-## Vérifier un dossier
-
-**Vérifier un dossier…** vérifie un emplacement de votre choix :
-
-- un disque – tous ses dossiers MXF
-- le dossier `MXF` lui-même
-- un seul dossier de médias comme `MXF/1`
-- n'importe quel dossier contenant des dossiers MXF, p. ex. une copie sur un disque de sauvegarde
+Vérifier › **Disques** liste chaque disque connecté – le point vert signifie qu’il est prêt. Activez les disques à vérifier et cliquez sur **Vérifier**. **Vérifier un dossier…** vérifie l’emplacement de votre choix : un disque, le dossier `MXF`, un seul dossier comme `MXF/1`, ou une copie sur un disque de sauvegarde.
 
 ## Le résultat
 
-Le résultat liste chaque dossier qui diffère, avec ce qui a été trouvé :
+Vérifier › **Résultat** liste chaque dossier qui diffère :
 
-![Résultat](images/fr/result.png)
+- **Fichiers absents de la base** – Media Composer risque de ne pas les afficher.
+- **Entrées de la base sans fichier** – elles apparaissent comme médias hors ligne.
+- **Pas de base de données** / **msmFMID.pmr ou msmMMOB.mdb manque** / **Base de données vide**.
+- **Base de données illisible** – un format inconnu. MediaFiles Check ne devine jamais.
 
-- **Fichiers absents de la base de données** – le dossier contient des fichiers MXF que la base de données ne connaît pas. Media Composer ne les affiche peut-être pas.
-- **Entrées de la base de données sans fichier** – la base de données liste des fichiers absents du dossier. Ils apparaissent comme médias hors ligne.
-- **Pas de base de données** – le dossier a des fichiers MXF mais aucun fichier de base de données.
-- **msmFMID.pmr ou msmMMOB.mdb manque** – l'un des deux fichiers de base de données a disparu.
-- **Base de données vide** – `msmFMID.pmr` n'a aucun contenu.
-- **Base de données illisible** – le fichier n'a pas pu être lu ou a un format que MediaFiles Check ne connaît pas. Il ne devine jamais.
+Jusqu’à 10 noms de fichiers sont affichés par constat ; **Enregistrer le rapport…** les écrit tous dans un fichier texte. Les dossiers que Media Composer ne met pas à jour lui-même ont directement **Renommer pour Media Composer…**.
 
-Jusqu'à 10 noms de fichiers sont affichés par constat. **Enregistrer le rapport…** écrit toutes les différences avec chaque nom de fichier dans un fichier texte.
+![Résultat de la vérification](images/fr/check.png)
 
 ## Renommer pour Media Composer
 
-Media Composer ne reconstruit que les bases de données de ses propres dossiers : des dossiers numérotés comme `1` ou `2` sur les disques locaux, `<nom de l'ordinateur>.<numéro>` (p. ex. `Mac Studio.3`) sur les disques réseau. Les dossiers portant d'autres noms – p. ex. copiés depuis un autre système – gardent leur ancienne base de données.
+Media Composer ne reconstruit que les bases de données de ses propres dossiers : des dossiers numérotés comme `1` sur les disques locaux, `<nom de l’ordinateur>.<numéro>` sur les disques réseau. Les autres dossiers – p. ex. copiés depuis un autre poste – gardent leur ancienne base. Entretien › **Renommer** montre le déroulement en haut : Renommer — Media Composer écrit — Renommer à l’origine.
 
-Après une vérification, **Renommer pour Media Composer…** propose de renommer ces dossiers :
+1. Quittez Media Composer et renommez les dossiers (depuis Vérifier › Résultat, ou lors du rééquilibrage ou de la mise de côté de doublons). Chacun reçoit le prochain numéro libre ; le nom d’origine et chaque fichier média sont mémorisés.
+2. **Lancer Media Composer** et attendez qu’il ait lu les disques. Le point d’un dossier devient vert dès que Media Composer a écrit sa base de données.
+3. Quittez Media Composer et cliquez sur **Renommer à l’origine**.
 
-![Renommer pour Media Composer](images/fr/rename.png)
+Avant de renommer à l’origine, chaque dossier est vérifié : **nouveaux fichiers** (en général enregistrés pendant que le dossier avait le nouveau nom – les déplacer dans un nouveau dossier, dans le dossier `1`, ou les garder), **fichiers manquants ou modifiés**, **base pas encore réécrite**. **Le laisser renommé pour l’instant** le garde tel quel.
 
-1. Quittez Media Composer et cliquez sur **Renommer**. Chaque dossier reçoit le prochain numéro libre (ou nom de l'ordinateur et numéro). MediaFiles Check retient le nom d'origine et chaque fichier média.
-2. Cliquez sur **Lancer Media Composer** (ou lancez-le vous-même) et attendez qu'il ait analysé les disques. Sur la page d'accueil, le point d'un dossier devient vert dès que Media Composer a écrit sa base de données.
-3. Quittez Media Composer et cliquez sur **Renommer à l'origine**.
+Les noms d’origine sont enregistrés avant tout renommage et survivent ainsi à un plantage ou un redémarrage. Un dossier est reconnu par son disque, son nom actuel et ses fichiers média ; un disque qui revient sous un autre nom est retrouvé. Un dossier renommé supprimé ou déplacé à la main disparaît de la liste.
 
-![Dossiers renommés sur la page d’accueil](images/fr/rename-back.png)
+## Rééquilibrage
 
-Avant de rendre son nom d'origine, MediaFiles Check vérifie chaque dossier :
+Nous recommandons au plus 5000 fichiers par dossier MXF. La limite (Réglages → Rééquilibrage) compte chaque fichier d’un dossier, les deux fichiers de base de données compris.
 
-- **Nouveaux fichiers** – en général des médias que Media Composer a enregistrés dans le dossier pendant qu'il portait le nouveau nom. Au choix : les déplacer dans un nouveau dossier numéroté, les déplacer dans le dossier `1` (ou `<nom de l'ordinateur>.1`), ou les laisser dans le dossier.
-- **Fichiers manquants ou modifiés** – vous décidez si le dossier reprend quand même son nom.
-- **Base de données pas encore réécrite** – vous décidez si le dossier reprend quand même son nom.
+Un dossier et ses dossiers rééquilibrés (`<nom>-rebalanced-1`, `-2` …) vont ensemble. Le rééquilibrage répartit tout le groupe : les fichiers média les plus anciens vont dans `-rebalanced-1`, les suivants dans `-2` …, les plus récents restent dans le dossier principal. Les fichiers vidéo et audio d’un clip restent ensemble ; un dossier peut donc finir quelques fichiers sous la limite. Entretien › **Rééquilibrage** → **Chercher les dossiers pleins…** liste chaque groupe des disques activés qui ne respecte pas la limite.
 
-**Le laisser renommé pour l'instant** laisse le dossier tel quel ; vous pourrez le renommer plus tard. Si un dossier portant le nom d'origine existe entre-temps, rien n'est renommé et vous en êtes informé.
+1. Quittez Media Composer – sur les disques réseau, sur chaque poste – et choisissez les groupes.
+2. Cliquez sur **Rééquilibrer**. Pour un dossier que Media Composer crée lui-même (`1`, `<nom de l’ordinateur>.1`), nous recommandons de lui donner d’abord un nom propre. Rien n’est copié ni supprimé ; un dossier rééquilibré sans fichiers média part en entier dans `MediaFiles Check Database Backups`.
+3. Ensuite, les bases de données des dossiers modifiés doivent être réécrites. **Lancer** met leurs fichiers de base dans `MediaFiles Check Database Backups` sur le même disque et renomme les dossiers que Media Composer ne met pas à jour lui-même ; continuez sous Entretien › Renommer. **Annuler** laisse les bases telles quelles – cela reste dans Tâches et Historique.
 
-## Projets Avid
+Chaque changement de limite demande d’abord confirmation ; la prochaine recherche **Chercher les dossiers pleins…** répartit à nouveau chaque groupe.
 
-**Ouvrir les projets…** sur la page d'accueil ouvre la fenêtre des projets Avid. Elle trouve les fichiers médias dont les chutiers de vos projets ont besoin et qui ne sont sur aucun disque connecté – et écrit une demande pour MediaFiles Ferry, qui les rassemble sur le système qui les possède.
+## Doublons
 
-![Médias manquants par chutier](images/fr/projects.png)
+Entretien › **Doublons** → **Chercher les doublons…** cherche sur les disques activés les fichiers média présents plusieurs fois – par leur ID Media Composer, donc aussi les copies renommées ; les fichiers sans ID par nom, taille et somme de contrôle. Les espaces de travail Mountpoint sont laissés de côté.
 
-1. **Choisir un dossier…** – le dossier de vos projets Avid. Chaque dossier contenant un fichier `.avp` compte comme projet (les sauvegardes dans `Attic` sont ignorées). Le dossier est mémorisé.
-2. Activez les projets à vérifier – au départ, tous sont désactivés.
-3. Cliquez sur **Analyser**. MediaFiles Check lit chaque chutier et suit chaque master clip, sous-clip et séquence jusqu'aux fichiers médias qu'ils utilisent, y compris d'un chutier à l'autre du projet. Il les compare aux bases de données Avid de tous les disques connectés.
-4. Le résultat liste, par chutier, chaque fichier média manquant une seule fois – nommé d'après son master clip, « 3 fichiers » quand p. ex. l'image et le son d'un clip manquent. Cliquez sur un fichier pour voir où il est utilisé dans le chutier (master clip, sous-clips, séquences). **Enregistrer la liste…** écrit toute la liste dans un fichier texte.
-5. **Enregistrer la demande…** écrit un fichier `…_Request.ferry`. Ouvrez-le dans MediaFiles Ferry sur le système qui a les médias (**Ouvrir un manifeste…**) ; Ferry rassemble les fichiers dans une livraison normale, que vous importez ici avec **Vérifier et importer**.
+Le point vert marque la copie qui reste (celle que connaît la base de son dossier, sinon la plus ancienne) – cliquez sur une autre copie pour garder celle-ci. Les copies de même ID mais de taille différente ne sont pas activées d’elles-mêmes. **Mettre de côté** déplace les autres copies dans `MediaFiles Check Duplicates` sur leur disque ; un dossier sans fichiers média part avec. Ensuite, les bases de données sont réécrites comme pour le rééquilibrage.
+
+![Doublons](images/fr/duplicates.png)
+
+## Historique
+
+Entretien › **Historique** liste chaque opération de rééquilibrage et de doublons : **Réécrire les bases** fait l’étape des bases plus tard, **Annuler** remet tout en place (jamais par-dessus un fichier existant) – renommez d’abord à l’origine les dossiers renommés.
+
+## Projets
+
+1. Projets › **Choisir les projets** → **Choisir un dossier…** : le dossier de vos projets Avid (chaque dossier avec un fichier `.avp` ; `Attic` est laissé de côté). Il est mémorisé. Activez les projets à vérifier et cliquez sur **Analyser**.
+2. **Médias manquants** liste par chutier chaque fichier média manquant une fois, nommé d’après son master clip. Un clic montre où il est utilisé. **Enregistrer la liste…** écrit la liste entière.
+3. **Clips AMA** montre où sont utilisés les fichiers liés en AMA. Ils ne sont pas demandés.
+4. **Demander** → **Enregistrer la demande…** écrit un fichier `…_Request.ferry`. Envoyez-le au poste qui a les médias ; là-bas : Échange › Comparer, ouvrez-le, puis Rassembler. Ici : Échange › Importer la livraison.
 
 Bon à savoir :
 
-- Clips et médias sont associés par les identifiants médias d'Avid, pas par les noms de fichiers. Un fichier présent sur un disque mais dans **aucune** base de données Avid est identifié par l'identifiant média de son en-tête MXF ; seuls les fichiers à l'en-tête illisible (endommagés, en cours d'écriture) restent non reconnus – le résultat vous en avertit.
-- Les fichiers liés par AMA ne sont pas demandés. **Afficher les clips AMA…** ouvre une fenêtre qui montre où ils sont utilisés – comme les médias manquants, un clic sur un clip affiche ses utilisations. Les clips AMA qui ont un clip master du même nom avec ses médias sur les disques (p. ex. liés puis importés) sont ignorés et seulement comptés. La liste enregistrée les contient aussi.
-- Un fichier manquant dont la source (clip caméra ou bande, image ou son) est sur les disques sous un autre fichier média est marqué **sur les disques – à relier** : le clip a seulement perdu son lien ; reliez-le dans Media Composer. Il n'est pas demandé.
-- Les fichiers sans référence média Avid (p. ex. importés par AAF) sont comptés à part. Ferry ne les trouve que si l'autre système les a dans Avid MediaFiles.
-- Les clips master de la caméra ont souvent des pistes son pour lesquelles aucun fichier média n'a jamais été créé (le son a été enregistré à part). Ces références sont ignorées et seulement comptées ; un sous-clip n'a besoin que des pistes qu'il utilise vraiment.
-- Les fichiers de rendu manquants (effets calculés) sont seulement comptés, ni listés ni demandés – Media Composer les recalcule.
+- Les clips sont reliés à leurs médias par les ID média d’Avid, pas par les noms de fichiers. Un fichier présent dans aucune base Avid est reconnu par l’ID de son en-tête MXF.
+- Un fichier manquant dont la source se trouve sur les disques dans un autre fichier média est marqué **sur les disques – reconnecter** : reconnectez-le dans Media Composer. Il n’est pas demandé.
+- Les fichiers sans référence média Avid (p. ex. importés par AAF) sont comptés à part ; l’échange ne les trouve que si l’autre poste les a dans Avid MediaFiles.
+- Les pistes son de caméra qui n’ont jamais eu de fichier média et les fichiers de rendu manquants sont seulement comptés.
 - Un disque qui ne répond pas pendant 30 secondes est ignoré et nommé dans le résultat.
+
+## Médias
+
+1. Médias › **Disques et projets** : activez les disques et les projets dont les chutiers comptent, puis **Analyser**. La première analyse lit l’en-tête de chaque fichier média ; les suivantes seulement les fichiers nouveaux ou modifiés. Les cinq dernières analyses sont gardées : **Charger…** en réaffiche une sans nouvelle analyse, après avoir demandé si rien n’a changé depuis.
+2. **Vue d’ensemble** compte médias et fichiers de rendu, utilisés ou non, et combien de fichiers utilisés par les projets ne sont sur aucun des disques lus. **Afficher le tableau…** ouvre le tableau des médias : chaque fichier avec clip, type, codec, image, fps, durée, son, taille, projet et dossier – filtrer, chercher, trier par colonne, double-clic sur le bord d’une colonne pour l’ajuster à son entrée la plus longue, sélectionner, **Enregistrer la liste…**.
+
+![Vue d’ensemble des médias](images/fr/media.png)
+
+Comment un fichier est classé :
+
+- **Rendu** : Media Composer marque chaque fichier de rendu dans son en-tête ; un fichier de rendu qu’un effet utilise encore est aussi connu par les chutiers.
+- **Média** : tout le reste écrit par Media Composer ou un autre programme. Un fichier que rien ne distingue reste **Inconnu** et n’est jamais déplacé par une règle.
+- **Inutilisé** : aucun clip, séquence ou effet des projets activés ne l’utilise. Les médias d’autres projets sur les mêmes disques comptent aussi comme inutilisés – activez chaque projet qui utilise ces disques.
+
+Actions (Media Composer doit être fermé) :
+
+- **Fichiers de rendu dans leurs propres dossiers** : les fichiers de rendu vont dans des dossiers comme `Mac Studio-renderfiles-1` à côté de leur dossier, au plus autant que la limite de rééquilibrage le permet.
+- **Échanger** : choisissez le disque d’import et le disque de rendu. Les fichiers de rendu du disque d’import vont sur le disque de rendu, les médias du disque de rendu sur le disque d’import, chaque fois dans un dossier du même nom. Chaque fichier est copié et la copie vérifiée par somme de contrôle ; ensuite l’original est supprimé ou mis dans `MediaFiles Check Aside` – vous choisissez à chaque fois.
+- **Mettre de côté** : choisissez ce qui part – fichiers de rendu qu’aucun projet activé n’utilise (activé par défaut), aussi les fichiers de rendu utilisés (Media Composer les recalcule), fichiers média qu’aucun projet activé n’utilise (désactivé, pour garder les médias). Les dossiers désactivés dans la liste restent tels quels et sont mémorisés, par ex. des bibliothèques de bruitages. Les fichiers sélectionnés dans le tableau peuvent aussi être mis de côté. Tout va dans `MediaFiles Check Aside` sur son disque.
+- **Médias d’un chutier** : choisissez un chutier (`.avb`) ; chaque fichier média utilisé par ses clips, sous-clips et séquences – aussi depuis d’autres chutiers du projet, au choix avec les fichiers de rendu de ses séquences – est copié ou déplacé vers le disque cible, dans un dossier du même nom. Ce qui y est déjà reste.
+
+Rien n’est jamais écrasé ; un fichier modifié depuis l’analyse reste en place. Ensuite, les bases de données des dossiers modifiés sont réécrites comme pour le rééquilibrage. Médias › **Historique** liste chaque opération : **Réécrire les bases**, **Annuler**.
+
+## Tâches
+
+Tâches › **En cours** liste tout ce qu’il faut faire à la main : les tâches des livraisons rassemblées ou importées ici (le poste concerné est entre crochets ; un point jaune signifie ce poste), les bases à réécrire après un rééquilibrage ou des doublons, et les dossiers qui attendent d’être renommés à l’origine. Là où l’app peut aider, le bouton est juste à côté – p. ex. **Vérifier…** pour un dossier de ce poste qui a besoin d’une nouvelle base. **Terminé** déplace une tâche dans **Terminées**.
+
+**Importer à la main** explique comment importer une livraison sans l’app. La règle la plus importante : copiez seulement le contenu du dossier de livraison – ne glissez jamais le dossier entier sur un dossier existant, le Finder le remplacerait avec tous ses fichiers média.
+
+![Tâches](images/fr/tasks.png)
 
 ## Reconstruire une base de données
 
 1. Quittez Media Composer.
-2. Déplacez `msmMMOB.mdb` et `msmFMID.pmr` hors du dossier, p. ex. dans un dossier sur le bureau. Ne les supprimez pas avant que tout fonctionne de nouveau.
+2. Sortez `msmMMOB.mdb` et `msmFMID.pmr` du dossier, p. ex. dans un dossier sur le bureau. Ne les supprimez pas avant que tout fonctionne à nouveau.
 3. Lancez Media Composer. Il écrit une nouvelle base de données pour le dossier.
 4. Vérifiez à nouveau le dossier.
 
+Pour les dossiers que Media Composer ne met pas à jour lui-même, utilisez plutôt Entretien › Renommer.
+
 ## Réglages
 
-**MediaFiles Check → Réglages…** (⌘,) règle l'apparence (interrupteur **Clair/Sombre**, activé = sombre) et la langue (English, Deutsch, Français, Español). **MediaFiles Check → À propos de MediaFiles Check** affiche la version et la licence.
+**MediaFiles Check → Réglages…** (⌘,) ouvre la fenêtre des réglages : **Général** (Clair/Sombre, langue), **Rééquilibrage** (fichiers par dossier), **Mises à jour**, **Assistance** et **À propos**.
 
 ![Réglages](images/fr/settings.png)
 
 ## Mises à jour
 
-MediaFiles Check recherche une nouvelle version sur GitHub peu après le démarrage puis toutes les 6 heures ; **Réglages… → Rechercher des mises à jour** le fait immédiatement. Une nouvelle version s'affiche en haut de la fenêtre principale : **Nouveautés** ouvre les notes de version, **Installer la mise à jour** la télécharge, vérifie qu'elle est complète et intacte, met l'ancienne version à la corbeille et redémarre l'app.
+MediaFiles Check cherche une nouvelle version sur GitHub peu après le démarrage puis toutes les 6 heures ; **Réglages… → Mises à jour → Rechercher des mises à jour** cherche tout de suite. Une nouvelle version s’affiche comme une barre sous les onglets : **Nouveautés** ouvre les notes de version, **Installer la mise à jour** la télécharge, vérifie qu’elle est complète et intacte, met l’ancienne version à la corbeille et redémarre l’app. **Recevoir les versions de test** propose aussi des versions encore en test.
 
 ## Assistance
 
-**Réglages… → Assistance** propose quatre choses :
+**Réglages… → Assistance** :
 
-- **Autotest…** vérifie la lecture des bases de données, la comparaison, le renommage pour Media Composer et le retour, ainsi que les mises à jour – sur ses propres données de test dans un dossier temporaire. Vos disques sont seulement listés, jamais modifiés. **Envoyer** nous envoie le résultat de façon anonyme ; **Enregistrer** le place dans Téléchargements pour que vous puissiez le consulter d’abord.
-- **Signaler…** nous envoie un problème ou une idée – sans compte GitHub. Vous pouvez indiquer votre e-mail pour des questions et joindre les infos système et le fichier journal ; votre nom d’utilisateur et les noms de dossiers sont remplacés.
-- **Afficher le journal** (voir ci-dessous).
-- **Offrez-moi un café** – si vous utilisez MediaFiles Check et qu’il vous plaît, un café me ferait plaisir.
+- **Autotest…** vérifie la lecture des bases, la comparaison, le renommage et les mises à jour sur ses propres données de test. **Envoyer** transmet le résultat anonymement ; **Enregistrer** le met dans Téléchargements.
+- **Signaler…** nous envoie un problème ou une idée – sans compte GitHub.
+- **Afficher le journal** (voir plus bas).
+- **Offrez-moi un café** – si vous utilisez MediaFiles Check et l’appréciez, un café me ferait plaisir.
 
 Si l’envoi échoue, le rapport est enregistré dans Téléchargements.
 
-## Fichier journal
+## Journal
 
-MediaFiles Check note ce qu'il fait – vérifications, renommages, erreurs – dans un fichier journal. **Aide → Afficher le fichier journal** le montre dans le Finder ; joignez-le quand vous signalez un problème.
+MediaFiles Check note ce qu’il fait – vérifications, analyses, livraisons, renommages, erreurs – dans un fichier journal. **Aide → Afficher le fichier journal** le montre dans le Finder ; joignez-le quand vous signalez un problème.

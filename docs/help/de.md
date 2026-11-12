@@ -2,11 +2,22 @@
 
 ## Was MediaFiles Check macht
 
-MediaFiles Check vergleicht jeden Ordner in `Avid MediaFiles/MXF` mit seiner Avid-Datenbank und zeigt, wo beide nicht zusammenpassen. Das hilft, wenn Medien in Media Composer fehlen, offline erscheinen oder nachdem Dateien von Hand kopiert oder verschoben wurden.
+MediaFiles Check kümmert sich um die Avid-Mediendateien (MXF) deiner Schnittplätze:
 
-Das Prüfen **liest nur**. Nur wenn du es möchtest, benennt MediaFiles Check Ordner für Media Composer um (siehe unten) – es löscht oder überschreibt nie eine Datei oder eine Datenbank.
+- **Austausch** gleicht die Medien zweier Schnittplätze ab, auch wenn sie nicht verbunden sind (früher MediaFiles Ferry).
+- **Prüfen** vergleicht jeden Ordner in `Avid MediaFiles/MXF` mit seiner Avid-Datenbank und zeigt, wo beide nicht zusammenpassen.
+- **Pflegen** enthält die Werkzeuge, die etwas verändern: Ordner für Media Composer umbenennen, Rebalancing, Duplikate und ihr Verlauf.
+- **Projekte** findet die Mediendateien, die die Bins deiner Avid-Projekte brauchen, die aber auf keinem Laufwerk liegen, und fordert sie an.
+- **Medien** listet jede Mediendatei mit Clip, Codec und Größe, trennt Render-Dateien ab und legt unbenutzte Dateien beiseite.
+- **Aufgaben** sammelt alles, was von Hand zu tun ist.
 
-## Was es erwartet
+MediaFiles Check **löscht nie** eine Mediendatei und **überschreibt nie** eine. Prüfen liest nur.
+
+## Das Fenster
+
+Die Reiter oben sind die Bereiche. In jedem Reiter stehen links in der Seitenleiste seine Schritte in der Reihenfolge, in der man sie macht; unter jedem Schritt steht kurz sein Stand. Ein kleiner oranger Punkt auf einem Reiter heißt: Dort wartet etwas.
+
+## Was erwartet wird
 
 Auf jedem Laufwerk, auch auf Netzlaufwerken:
 
@@ -14,113 +25,177 @@ Auf jedem Laufwerk, auch auf Netzlaufwerken:
 - die beiden Avid-Datenbankdateien `msmFMID.pmr` und `msmMMOB.mdb` in jedem Ordner
 - `Creating`-Ordner und versteckte Dateien werden ignoriert
 
-Ordnernamen sind beliebig, z. B. `1`, `Avid8.1` oder `Mac Studio.1`.
+Die Ordner dürfen beliebig heißen, z. B. `1`, `Avid8.1` oder `Mac Studio.1`. Jedes angeschlossene Laufwerk mit `Avid MediaFiles/MXF` hat einen Schalter; dieselben Schalter gelten für Austausch › Scannen und Prüfen › Laufwerke und werden gemerkt. Neue Laufwerke sind eingeschaltet.
+
+## Austausch: Scannen
+
+Austausch › **Scannen** erfasst jede MXF-Datei der eingeschalteten Laufwerke mit Prüfsumme und schreibt ein kleines *Manifest* – eine Dateiliste, keine Medien.
+
+- Der erste Scan dauert, weil jede Datei einmal gelesen wird. Spätere Scans lesen nur neue oder geänderte Dateien.
+- Wird die App während eines Scans beendet, geht nichts verloren – der nächste Scan macht weiter.
+
+**Manifest sichern…** speichert es z. B. als `261101-1312_Mac Studio_Manifest.ferry`. Schick es an den anderen Schnittplatz, z. B. per Mail oder USB-Stick.
+
+## Austausch: Vergleichen und Sammeln
+
+1. Zuerst diesen Schnittplatz scannen, damit das eigene Manifest aktuell ist.
+2. Austausch › **Vergleichen** → **Manifest öffnen…** und das Manifest des anderen Schnittplatzes wählen – oder eine Anforderung aus Projekte › Anfordern.
+3. **Laufwerke zuordnen:** Laufwerke ohne gleichnamiges Laufwerk auf der anderen Seite brauchen ein Ziel – oder **Nicht senden**. Die Wahl wird gemerkt.
+4. **Ordner auf beiden Seiten:** für jeden Ordner **Zusammenführen** oder **Umbenennen** wählen (siehe unten).
+5. Anzahl der Dateien und die Aufgaben prüfen, dann **Sammeln…** und wählen, wo der Lieferordner entstehen soll.
+
+Jede Datei wird mit Prüfsumme in einen neuen Ordner wie `261102-1830_Mac Studio_to_MacBook` kopiert, zusammen mit `Aufgaben.txt` (Anleitung zum Importieren von Hand). Nochmal Sammeln nach einer Unterbrechung macht dort weiter, wo es aufgehört hat.
+
+![Mit einem anderen Schnittplatz vergleichen](images/de/exchange.png)
+
+## Austausch: Importieren
+
+1. Media Composer beenden.
+2. Austausch › **Importieren** → **Lieferung wählen…**.
+3. Jedes Laufwerk der Lieferung braucht ein Laufwerk auf diesem Schnittplatz; gleichnamige werden automatisch zugeordnet.
+4. **Prüfen & importieren** prüft zuerst jede Datei. Nur eine vollständige, unbeschädigte Lieferung wird importiert – Dateien kommen nur dazu, eine Mediendatei wird nie überschrieben. Ersetzte Datenbanken bleiben in `Avid MediaFiles/Ferry-Backup/`.
+5. Danach noch einmal scannen, damit das Manifest aktuell ist.
+
+## Wann wird etwas kopiert?
+
+Eine Datei gilt als **vorhanden**, wenn sie irgendwo auf dem anderen Schnittplatz mit gleichem Namen und gleicher Prüfsumme liegt.
+
+- **Ordner auf beiden Seiten gleich:** nichts passiert.
+- **Ordner fehlt auf der anderen Seite:** der ganze Ordner wird kopiert, samt Datenbank.
+- **Eine Seite hat zusätzliche Dateien:** die Dateien und die Datenbank der volleren Seite werden kopiert.
+- **Beide Seiten haben eigene Dateien:** nur die Dateien werden kopiert – Aufgabe „Datenbank neu bauen“.
+- **Gleicher Dateiname, anderer Inhalt:** nicht kopiert – eine Aufgabe bittet um Prüfung.
+
+Eine Datenbank wird nur geliefert, wenn der Zielordner danach genau wie der Quellordner aussieht; eine Datenbank wird nie gelöscht. Ordner wie `1` gibt es auf jedem Schnittplatz: **Zusammenführen** legt die Dateien in denselben Ordner (die Datenbank muss neu gebaut werden), **Umbenennen** in einen neuen Ordner wie `261031_MacStudio_1`.
 
 ## Laufwerke prüfen
 
-Die Startseite zeigt jedes angeschlossene Laufwerk mit `Avid MediaFiles/MXF` – der grüne Punkt heißt: das Laufwerk ist bereit. Die Liste aktualisiert sich von selbst, wenn du ein Laufwerk anschließt oder auswirfst.
-
-![Laufwerksliste](images/de/drives.png)
-
-1. Schalte die Laufwerke ein, die du prüfen möchtest. Neue Laufwerke sind automatisch eingeschaltet.
-2. Auf **Laufwerke prüfen** klicken.
-
-## Einen Ordner prüfen
-
-**Ordner prüfen…** prüft einen Ort deiner Wahl:
-
-- ein Laufwerk – alle seine MXF-Ordner
-- den `MXF`-Ordner selbst
-- einen einzelnen Medienordner wie `MXF/1`
-- einen beliebigen Ordner mit MXF-Ordnern darin, z. B. eine Kopie auf einer Backup-Platte
+Prüfen › **Laufwerke** listet jedes angeschlossene Laufwerk – der grüne Punkt heißt: bereit. Die zu prüfenden Laufwerke einschalten und **Prüfen** klicken. **Ordner prüfen…** prüft einen Ort deiner Wahl: ein Laufwerk, den Ordner `MXF`, einen einzelnen Ordner wie `MXF/1` oder eine Kopie auf einem Backup-Laufwerk.
 
 ## Das Ergebnis
 
-Das Ergebnis zeigt jeden Ordner mit Abweichungen und was gefunden wurde:
+Prüfen › **Ergebnis** listet jeden Ordner mit Abweichung:
 
-![Ergebnis](images/de/result.png)
+- **Dateien nicht in der Datenbank** – Media Composer zeigt sie womöglich nicht.
+- **Einträge in der Datenbank ohne Datei** – sie erscheinen als Offline-Medien.
+- **Keine Datenbank** / **msmFMID.pmr oder msmMMOB.mdb fehlt** / **Datenbank ist leer**.
+- **Datenbank unlesbar** – ein unbekanntes Format. MediaFiles Check rät nie.
 
-- **Dateien nicht in der Datenbank** – im Ordner liegen MXF-Dateien, die die Datenbank nicht kennt. Media Composer zeigt sie eventuell nicht an.
-- **Einträge in der Datenbank ohne Datei** – die Datenbank nennt Dateien, die nicht im Ordner liegen. Sie erscheinen als Offline-Medien.
-- **Keine Datenbank** – der Ordner hat MXF-Dateien, aber keine Datenbankdateien.
-- **msmFMID.pmr oder msmMMOB.mdb fehlt** – eine der beiden Datenbankdateien ist weg.
-- **Datenbank ist leer** – `msmFMID.pmr` hat keinen Inhalt.
-- **Datenbank nicht lesbar** – die Datei ließ sich nicht lesen oder hat ein Format, das MediaFiles Check nicht kennt. Es rät nie.
+Pro Befund stehen bis zu 10 Dateinamen da; **Bericht sichern…** schreibt alle in eine Textdatei. Für Ordner, die Media Composer nicht selbst aktualisiert, gibt es gleich dort **Für Media Composer umbenennen…**.
 
-Pro Befund werden bis zu 10 Dateinamen gezeigt. **Bericht sichern…** schreibt alle Abweichungen mit jedem Dateinamen in eine Textdatei.
+![Prüfergebnis](images/de/check.png)
 
 ## Für Media Composer umbenennen
 
-Media Composer baut nur die Datenbanken seiner eigenen Ordner neu auf: Zahlenordner wie `1` oder `2` auf lokalen Laufwerken, `<Rechnername>.<Zahl>` (z. B. `Mac Studio.3`) auf Netzlaufwerken. Ordner mit anderen Namen – z. B. von einem anderen System kopiert – behalten ihre alte Datenbank.
+Media Composer baut nur die Datenbanken seiner eigenen Ordner neu: nummerierte Ordner wie `1` auf lokalen Laufwerken, `<Rechnername>.<Nummer>` auf Netzlaufwerken. Andere Ordner – z. B. von einem anderen Schnittplatz kopiert – behalten ihre alte Datenbank. Pflegen › **Umbenennen** zeigt oben den Ablauf: Umbenennen — Media Composer schreibt — Zurückbenennen.
 
-Nach einer Prüfung bietet **Für Media Composer umbenennen…** an, solche Ordner umzubenennen:
+1. Media Composer beenden und die Ordner umbenennen (aus Prüfen › Ergebnis, oder beim Rebalancing bzw. Beiseitelegen von Duplikaten). Jeder bekommt die nächste freie Nummer; der Originalname und jede Mediendatei werden gemerkt.
+2. **Media Composer starten** und warten, bis er die Laufwerke gelesen hat. Der Punkt eines Ordners wird grün, sobald Media Composer seine Datenbank geschrieben hat.
+3. Media Composer beenden und **Zurückbenennen** klicken.
 
-![Für Media Composer umbenennen](images/de/rename.png)
+Vor dem Zurückbenennen wird jeder Ordner geprüft: **neue Dateien** (meist aufgenommen, während der Ordner umbenannt war – in einen neuen Ordner, nach Ordner `1` verschieben oder im Ordner lassen), **Dateien fehlen oder geändert**, **Datenbank noch nicht neu geschrieben**. **Erst mal umbenannt lassen** lässt ihn, wie er ist.
 
-1. Media Composer beenden und auf **Umbenennen** klicken. Jeder Ordner bekommt die nächste freie Zahl (bzw. Rechnername und Zahl). MediaFiles Check merkt sich den Originalnamen und jede Mediendatei.
-2. Auf **Media Composer starten** klicken (oder es selbst starten) und warten, bis es die Laufwerke gescannt hat. Auf der Startseite wird der Punkt eines Ordners grün, sobald Media Composer seine Datenbank geschrieben hat.
-3. Media Composer beenden und auf **Zurückbenennen** klicken.
+Die Originalnamen werden gespeichert, bevor etwas umbenannt wird, und überstehen so einen Absturz oder Neustart. Ein Ordner wird an seinem Laufwerk, seinem jetzigen Namen und seinen Mediendateien erkannt; ein Laufwerk, das unter anderem Namen zurückkommt, wird wiedergefunden. Ein umbenannter Ordner, der von Hand gelöscht oder weggeschoben wurde, verschwindet aus der Liste.
 
-![Umbenannte Ordner auf der Startseite](images/de/rename-back.png)
+## Rebalancing
 
-Vor dem Zurückbenennen prüft MediaFiles Check jeden Ordner:
+Wir empfehlen höchstens 5000 Dateien pro MXF-Ordner. Die Grenze (Einstellungen → Rebalancing) zählt jede Datei eines Ordners, die zwei Datenbankdateien eingeschlossen.
 
-- **Neue Dateien** – meist Medien, die Media Composer in den Ordner aufgenommen hat, solange er den neuen Namen hatte. Zur Wahl: in einen neuen Zahlenordner verschieben, in den Ordner `1` (bzw. `<Rechnername>.1`) verschieben oder im Ordner lassen.
-- **Dateien fehlen oder sind verändert** – du entscheidest, ob trotzdem zurückbenannt wird.
-- **Datenbank noch nicht neu geschrieben** – du entscheidest, ob trotzdem zurückbenannt wird.
+Ein Ordner und seine rebalanced-Ordner (`<Name>-rebalanced-1`, `-2` …) gehören zusammen. Rebalancing verteilt die ganze Gruppe: Die ältesten Mediendateien kommen nach `-rebalanced-1`, die nächsten nach `-2` …, die jüngsten bleiben im Hauptordner. Bild- und Tondateien eines Clips bleiben zusammen, ein Ordner kann deshalb ein paar Dateien unter der Grenze enden. Pflegen › **Rebalancing** → **Volle Ordner suchen…** listet jede Gruppe auf den eingeschalteten Laufwerken, die nicht zur Grenze passt.
 
-**Erst mal umbenannt lassen** lässt den Ordner, wie er ist; du kannst ihn später zurückbenennen. Gibt es inzwischen einen Ordner mit dem Originalnamen, wird nichts umbenannt und du bekommst einen Hinweis.
+1. Media Composer beenden – bei Netzlaufwerken auf jedem Arbeitsplatz – und die Gruppen wählen.
+2. **Rebalancing starten** klicken. Für einen Ordner, den Media Composer selbst anlegt (`1`, `<Rechnername>.1`), empfehlen wir vorher einen eigenen Namen. Nichts wird kopiert oder gelöscht; ein rebalanced-Ordner ohne Mediendateien wandert als Ganzes nach `MediaFiles Check Database Backups`.
+3. Danach müssen die Datenbanken der geänderten Ordner neu geschrieben werden. **Starten** legt ihre Datenbankdateien nach `MediaFiles Check Database Backups` auf demselben Laufwerk und benennt die Ordner um, die Media Composer nicht selbst aktualisiert; weiter unter Pflegen › Umbenennen. **Abbrechen** lässt die Datenbanken, wie sie sind – es bleibt in Aufgaben und Verlauf stehen.
 
-## Avid-Projekte
+Jede Änderung der Grenze fragt vorher nach; das nächste **Volle Ordner suchen…** verteilt jede Gruppe neu.
 
-**Projekte öffnen…** auf der Startseite öffnet das Fenster für Avid-Projekte. Es findet die Mediendateien, die die Bins deiner Projekte brauchen und die auf keinem angeschlossenen Laufwerk liegen – und schreibt eine Anforderung für MediaFiles Ferry, das sie auf dem System einsammelt, das sie hat.
+## Duplikate
 
-![Fehlende Medien pro Bin](images/de/projects.png)
+Pflegen › **Duplikate** → **Duplikate suchen…** sucht auf den eingeschalteten Laufwerken nach Mediendateien, die es mehrfach gibt – über ihre Media-Composer-ID, also auch umbenannte Kopien; Dateien ohne ID über Name, Größe und Prüfsumme. Mountpoint-Arbeitsbereiche bleiben außen vor.
 
-1. **Ordner wählen…** – den Ordner mit deinen Avid-Projekten. Jeder Ordner mit einer `.avp`-Datei zählt als Projekt (Sicherungen in `Attic` bleiben außen vor). Der Ordner wird gemerkt.
-2. Schalte die Projekte ein, die du prüfen möchtest – anfangs sind alle aus.
-3. Auf **Scannen** klicken. MediaFiles Check liest jeden Bin und verfolgt jeden Masterclip, Subclip und jede Sequenz bis zu den Mediendateien, die sie nutzen, auch über Bins des Projekts hinweg. Es vergleicht sie mit den Avid-Datenbanken aller angeschlossenen Laufwerke.
-4. Das Ergebnis zeigt pro Bin jede fehlende Mediendatei einmal – benannt nach ihrem Masterclip, „3 Dateien“, wenn z. B. Bild und Ton eines Clips fehlen. Ein Klick auf eine Datei zeigt, wo sie im Bin steckt (Masterclip, Subclips, Sequenzen). **Liste sichern…** schreibt die ganze Liste in eine Textdatei.
-5. **Anforderung sichern…** schreibt eine Datei `…_Request.ferry`. Öffne sie in MediaFiles Ferry auf dem System, das die Medien hat (**Manifest öffnen …**); Ferry sammelt die Dateien in eine normale Lieferung, die du hier mit **Prüfen & einspielen** einspielst.
+Der grüne Punkt zeigt die Kopie, die bleibt (die, die die Datenbank ihres Ordners kennt, sonst die älteste) – ein Klick auf eine andere Kopie behält diese. Kopien mit gleicher ID, aber anderer Größe sind nicht von selbst eingeschaltet. **Zur Seite legen** verschiebt die anderen Kopien nach `MediaFiles Check Duplicates` auf ihrem Laufwerk; ein Ordner ohne Mediendateien geht mit. Danach werden die Datenbanken neu geschrieben wie beim Rebalancing.
+
+![Duplikate](images/de/duplicates.png)
+
+## Verlauf
+
+Pflegen › **Verlauf** listet jeden Lauf von Rebalancing und Duplikaten: **Datenbanken neu schreiben** holt den Datenbank-Schritt nach, **Rückgängig** schiebt alles zurück (nie über eine vorhandene Datei) – umbenannte Ordner vorher zurückbenennen.
+
+## Projekte
+
+1. Projekte › **Projekte wählen** → **Ordner wählen…**: der Ordner mit deinen Avid-Projekten (jeder Ordner mit einer `.avp`-Datei; `Attic` bleibt außen vor). Er wird gemerkt. Die zu prüfenden Projekte einschalten und **Scannen** klicken.
+2. **Fehlende Medien** listet pro Bin jede fehlende Mediendatei einmal, benannt nach ihrem Master-Clip. Ein Klick zeigt, wo sie verwendet wird. **Liste sichern…** schreibt die ganze Liste.
+3. **AMA-Clips** zeigt, wo AMA-verknüpfte Dateien verwendet werden. Sie werden nicht angefordert.
+4. **Anfordern** → **Anforderung sichern…** schreibt eine `…_Request.ferry`-Datei. Schick sie an den Schnittplatz, der die Medien hat; dort: Austausch › Vergleichen, Datei öffnen, dann Sammeln. Hier: Austausch › Importieren der Lieferung.
 
 Gut zu wissen:
 
-- Clips und Medien werden über Avids Medien-IDs zugeordnet, nicht über Dateinamen. Eine Datei auf einem Laufwerk, die in **keiner** Avid-Datenbank steht, wird über die Medien-ID in ihrem MXF-Header erkannt; nur Dateien mit unlesbarem Header (beschädigt, noch im Schreiben) bleiben unerkannt – das Ergebnis warnt davor.
-- AMA-verlinkte Dateien werden nicht angefordert. **AMA-Clips anzeigen…** öffnet ein Fenster, das zeigt, wo sie benutzt werden – aufgebaut wie die fehlenden Medien, ein Klick auf einen Clip zeigt seine Verwendungen. AMA-Clips, zu denen es einen gleichnamigen Masterclip mit Medien auf den Laufwerken gibt (z. B. erst verlinkt, später importiert), fallen weg und werden nur gezählt. Auch die gesicherte Liste enthält sie.
-- Eine fehlende Datei, deren Quelle (Kameraclip oder Band, Bild oder Ton) als andere Mediendatei auf den Laufwerken liegt, wird mit **auf den Laufwerken – neu verlinken** markiert: Der Clip hat nur seine Verlinkung verloren; verlinke ihn in Media Composer neu. Sie wird nicht angefordert.
-- Dateien ohne Avid-Medienverweis (z. B. über AAF importiert) werden getrennt gezählt. Ferry findet sie nur, wenn das andere System sie in Avid MediaFiles hat.
-- Kamera-Masterclips haben oft Tonspuren, für die nie eine Mediendatei angelegt wurde (der Ton wurde extern aufgenommen). Diese Verweise werden ausgelassen und nur gezählt; ein Subclip braucht nur die Spuren, die er wirklich nutzt.
-- Fehlende Render-Dateien (gerenderte Effekte) werden nur gezählt, nicht aufgelistet oder angefordert – Media Composer rendert sie neu.
+- Clips werden über Avids Medien-IDs mit ihren Medien verbunden, nicht über Dateinamen. Eine Datei in keiner Avid-Datenbank wird über die ID in ihrem MXF-Kopf erkannt.
+- Eine fehlende Datei, deren Quelle in einer anderen Mediendatei auf den Laufwerken liegt, ist mit **auf den Laufwerken – neu verknüpfen** markiert: in Media Composer neu verknüpfen. Sie wird nicht angefordert.
+- Dateien ohne Avid-Medienverweis (z. B. per AAF importiert) werden extra gezählt; der Austausch findet sie nur, wenn der andere Schnittplatz sie in Avid MediaFiles hat.
+- Kamera-Tonspuren, für die nie eine Mediendatei entstand, und fehlende Render-Dateien werden nur gezählt.
 - Ein Laufwerk, das 30 Sekunden nicht antwortet, wird übersprungen und im Ergebnis genannt.
 
-## Datenbank neu aufbauen
+## Medien
+
+1. Medien › **Laufwerke und Projekte**: Laufwerke und die Projekte einschalten, deren Bins zählen, dann **Scannen**. Der erste Durchlauf liest den Kopf jeder Mediendatei, spätere nur neue oder geänderte Dateien. Die letzten fünf Scans werden gemerkt: **Laden…** zeigt einen davon ohne neuen Scan, nach der Rückfrage, ob sich seitdem nichts geändert hat.
+2. **Übersicht** zählt Medien und Render-Dateien, benutzt oder nicht, und wie viele Dateien die Projekte benutzen, die auf keinem gelesenen Laufwerk liegen. **Tabelle öffnen…** zeigt die Medientabelle: jede Datei mit Clip, Art, Codec, Bild, fps, Dauer, Ton, Größe, Projekt und Ordner – filtern, suchen, nach einer Spalte sortieren, Doppelklick auf einen Spaltenrand passt die Spalte an ihren längsten Eintrag an, Dateien auswählen, **Liste sichern…**.
+
+![Medienübersicht](images/de/media.png)
+
+So wird eine Datei eingeordnet:
+
+- **Render**: Media Composer markiert jede Render-Datei in ihrem Kopf; eine Render-Datei, die ein Effekt noch benutzt, ist auch aus den Bins bekannt.
+- **Medium**: alles andere, was Media Composer oder ein anderes Programm geschrieben hat. Eine Datei, die nichts davon verrät, bleibt **Unbekannt** und wird nie nach einer Regel verschoben.
+- **Unbenutzt**: kein Clip, keine Sequenz und kein Effekt der eingeschalteten Projekte benutzt sie. Medien anderer Projekte auf denselben Laufwerken gelten auch als unbenutzt – schalte jedes Projekt ein, das diese Laufwerke nutzt.
+
+Aktionen (Media Composer muss beendet sein):
+
+- **Render-Dateien in eigene Ordner**: Render-Dateien kommen in Ordner wie `Mac Studio-renderfiles-1` neben ihrem Ordner, höchstens so viele, wie die Rebalancing-Grenze erlaubt.
+- **Tauschen**: Import- und Render-Laufwerk wählen. Render-Dateien auf dem Import-Laufwerk kommen aufs Render-Laufwerk, Medien auf dem Render-Laufwerk aufs Import-Laufwerk, jeweils in einen Ordner mit demselben Namen. Jede Datei wird kopiert und die Kopie per Prüfsumme geprüft; danach wird das Original gelöscht oder nach `MediaFiles Check Aside` gelegt – das wählst du jedes Mal.
+- **Beiseitelegen**: Du wählst, was mitkommt – Render-Dateien, die kein eingeschaltetes Projekt benutzt (vorgewählt), auch benutzte Render-Dateien (Media Composer rendert sie neu), Mediendateien, die kein eingeschaltetes Projekt benutzt (aus, damit Medien bleiben). Ordner, die du in der Liste ausschaltest, bleiben unangetastet und werden gemerkt, z. B. Sound-Effekt-Bibliotheken. Auch die in der Tabelle ausgewählten Dateien lassen sich beiseitelegen. Alles kommt nach `MediaFiles Check Aside` auf seinem Laufwerk.
+- **Medien eines Bins**: Bin (`.avb`) wählen; jede Mediendatei, die seine Clips, Subclips und Sequenzen benutzen – auch aus anderen Bins des Projekts, auf Wunsch mit den Render-Dateien seiner Sequenzen – wird aufs Ziel-Laufwerk kopiert oder verschoben, in einen Ordner mit demselben Namen. Was dort schon liegt, bleibt.
+
+Es wird nie etwas überschrieben; eine Datei, die sich seit dem Scan geändert hat, bleibt liegen. Danach werden die Datenbanken der geänderten Ordner neu geschrieben wie beim Rebalancing. Medien › **Verlauf** listet jeden Lauf: **Datenbanken neu schreiben**, **Rückgängig**.
+
+## Aufgaben
+
+Aufgaben › **Offen** listet alles, was von Hand zu tun ist: Aufgaben von Lieferungen, die hier gesammelt oder importiert wurden (der Schnittplatz steht in eckigen Klammern; ein gelber Punkt heißt: dieser Schnittplatz), Datenbanken, die nach Rebalancing oder Duplikaten noch neu geschrieben werden müssen, und Ordner, die aufs Zurückbenennen warten. Wo die App helfen kann, steht der Knopf direkt daneben – z. B. **Prüfen…** für einen Ordner dieses Schnittplatzes, der eine neue Datenbank braucht. **Fertig** schiebt eine Aufgabe nach **Erledigt**.
+
+**Von Hand importieren** erklärt, wie man eine Lieferung ohne die App importiert. Die wichtigste Regel: nur den Inhalt des Lieferordners kopieren – nie den ganzen Ordner auf einen bestehenden ziehen, der Finder würde ihn samt allen Mediendateien ersetzen.
+
+![Aufgaben](images/de/tasks.png)
+
+## Eine Datenbank neu bauen
 
 1. Media Composer beenden.
-2. `msmMMOB.mdb` und `msmFMID.pmr` aus dem Ordner herausbewegen, z. B. in einen Ordner auf dem Schreibtisch. Erst löschen, wenn wieder alles läuft.
-3. Media Composer starten. Es schreibt eine neue Datenbank für den Ordner.
+2. `msmMMOB.mdb` und `msmFMID.pmr` aus dem Ordner schieben, z. B. in einen Ordner auf dem Schreibtisch. Erst löschen, wenn alles wieder läuft.
+3. Media Composer starten. Er schreibt eine neue Datenbank für den Ordner.
 4. Den Ordner noch einmal prüfen.
+
+Für Ordner, die Media Composer nicht selbst aktualisiert, stattdessen Pflegen › Umbenennen nehmen.
 
 ## Einstellungen
 
-**MediaFiles Check → Einstellungen…** (⌘,) stellt die Darstellung (Schalter **Hell/Dunkel**, an = dunkel) und die Sprache (English, Deutsch, Français, Español) ein. **MediaFiles Check → Über MediaFiles Check** zeigt Version und Lizenz.
+**MediaFiles Check → Einstellungen…** (⌘,) öffnet das Einstellungsfenster: **Allgemein** (Hell/Dunkel, Sprache), **Rebalancing** (Dateien pro Ordner), **Updates**, **Support** und **Über**.
 
 ![Einstellungen](images/de/settings.png)
 
 ## Updates
 
-MediaFiles Check sucht kurz nach dem Start und alle 6 Stunden auf GitHub nach einer neuen Version; **Einstellungen… → Nach Updates suchen** sucht sofort. Eine neue Version erscheint oben im Hauptfenster: **Neuigkeiten** öffnet die Versionshinweise, **Update installieren** lädt sie, prüft, dass sie vollständig und unverändert ist, legt die alte Version in den Papierkorb und startet die App neu.
+MediaFiles Check sucht kurz nach dem Start und alle 6 Stunden auf GitHub nach einer neuen Version; **Einstellungen… → Updates → Nach Updates suchen** sucht sofort. Eine neue Version erscheint als Leiste unter den Reitern: **Neuigkeiten** öffnet die Versionshinweise, **Update installieren** lädt sie, prüft, dass sie vollständig und unverändert ist, legt die alte Version in den Papierkorb und startet die App neu. **Testversionen erhalten** bietet auch Versionen an, die noch getestet werden.
 
 ## Support
 
-**Einstellungen… → Support** bietet vier Dinge:
+**Einstellungen… → Support**:
 
-- **Selbsttest…** prüft Datenbanken lesen, Vergleichen, Umbenennen für Media Composer und zurück sowie Updates – mit eigenen Testdaten in einem temporären Ordner. Deine Laufwerke werden nur aufgelistet, nie verändert. **Bericht senden** schickt uns das Ergebnis anonym; **Speichern** legt es in „Downloads“, damit du es vorher ansehen kannst.
-- **Melden…** schickt uns ein Problem oder eine Idee – ohne GitHub-Konto. Du kannst deine E-Mail für Rückfragen angeben und Systeminfo und Logdatei anhängen; dein Benutzername und Ordnernamen werden ersetzt.
+- **Selbsttest…** prüft Datenbanken lesen, Vergleichen, Umbenennen und Updates an eigenen Testdaten. **Bericht senden** schickt das Ergebnis anonym; **Speichern** legt es in Downloads.
+- **Melden…** schickt uns ein Problem oder eine Idee – kein GitHub-Konto nötig.
 - **Logdatei zeigen** (siehe unten).
-- **Spendier mir einen Kaffee** – wenn du MediaFiles Check nutzt und es dir gefällt, freue ich mich über einen Kaffee.
+- **Spendier mir einen Kaffee** – wenn du MediaFiles Check benutzt und magst, freue ich mich über einen Kaffee.
 
-Klappt das Senden nicht, liegt der Bericht in „Downloads“.
+Klappt das Senden nicht, wird der Bericht in Downloads gesichert.
 
 ## Logdatei
 
-MediaFiles Check schreibt, was es tut – Prüfungen, Umbenennungen, Fehler – in eine Logdatei. **Hilfe → Logdatei zeigen** zeigt sie im Finder; schick sie mit, wenn du ein Problem meldest.
+MediaFiles Check schreibt mit, was es tut – Prüfungen, Scans, Lieferungen, Umbenennungen, Fehler. **Hilfe → Logdatei zeigen** zeigt sie im Finder; schick sie mit, wenn du ein Problem meldest.
