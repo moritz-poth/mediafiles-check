@@ -1,8 +1,10 @@
-# MediaFiles Check
+<h1 align="center"><img src="assets/icon.png" width="72" align="absmiddle" alt="">&nbsp;&nbsp;MEDIAFILES CHECK</h1>
 
-Checks whether every folder in **Avid MediaFiles/MXF** matches its Avid database – and tells you where it doesn't.
+<p align="center"><code>Mac app</code>&nbsp;&nbsp;<code>macOS 11+</code>&nbsp;&nbsp;<code>free · GPL-3.0</code></p>
 
 <p align="center">☕ If you use MediaFiles Check and like it, I would be glad if you <a href="https://buymeacoffee.com/moritzpoth">bought me a coffee</a>.</p>
+
+Checks whether every folder in **Avid MediaFiles/MXF** matches its Avid database – and tells you where it doesn't.
 
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/home-dark.png"><img src="assets/screenshots/home-light.png" width="420" alt="Start page: drive list, Avid projects, renamed folders"></picture></p>
 
