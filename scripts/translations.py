@@ -9,6 +9,10 @@ PLURAL = {"de": "nplurals=2; plural=(n != 1);", "fr": "nplurals=2; plural=(n > 1
 
 # English: (German, French, Spanish). Plural entries: (singular, plural) -> ((de1, de2), (fr1, fr2), (es1, es2))
 T = {
+    'RECENT SCANS': ('LETZTE SCANS', 'DERNIÈRES ANALYSES', 'ÚLTIMOS ANÁLISIS'),
+    'Load…': ('Laden…', 'Charger…', 'Cargar…'),
+    'Load': ('Laden', 'Charger', 'Cargar'),
+    'Are you sure nothing changed on these drives and in these projects since then? Otherwise the overview is no longer right – scan again instead.': ('Bist du sicher, dass sich seitdem auf diesen Laufwerken und in diesen Projekten nichts geändert hat? Sonst stimmt die Übersicht nicht mehr – dann lieber neu scannen.', 'Êtes-vous sûr que rien n’a changé depuis sur ces disques et dans ces projets ? Sinon, la vue d’ensemble n’est plus juste – analysez plutôt à nouveau.', '¿Seguro que desde entonces no ha cambiado nada en estas unidades ni en estos proyectos? Si no, el resumen ya no es correcto: mejor vuelve a analizar.'),
     'Search…': ('Suchen…', 'Rechercher…', 'Buscar…'),
     'Delete': ('Löschen', 'Supprimer', 'Borrar'),
     'Move': ('Verschieben', 'Déplacer', 'Mover'),

@@ -45,6 +45,30 @@ fn kept_folders() -> HashSet<PathBuf> {
     kept_path().and_then(|p| fs::read_to_string(p).ok()).map(|t| t.lines().filter(|l| !l.is_empty()).map(PathBuf::from).collect()).unwrap_or_default()
 }
 
+fn scans_dir() -> PathBuf {
+    app_dir().unwrap_or_else(|| PathBuf::from(".")).join("media-scans")
+}
+
+/// The last scans (Drives and projects).
+fn show_scans(app: &AppWindow) {
+    let lang = lang_of(app);
+    let name = |p: &PathBuf| p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let rows: Vec<FolderRow> = inventory::list_scans(&scans_dir())
+        .into_iter()
+        .map(|(_, h)| {
+            let files = pick(&lang, ["{n} files", "{n} Dateien", "{n} fichiers", "{n} archivos"]).replace("{n}", &h.files.to_string());
+            let mut parts = vec![files, h.drives.iter().map(name).collect::<Vec<_>>().join(", ")];
+            if !h.projects.is_empty() {
+                parts.push(h.projects.iter().map(name).collect::<Vec<_>>().join(", "));
+            }
+            FolderRow { name: h.date.into(), detail: parts.join(" · ").into(), selected: false }
+        })
+        .collect();
+    let g = app.global::<Inventory>();
+    g.set_load_ask(-1);
+    g.set_scans(ModelRc::new(VecModel::from(rows)));
+}
+
 fn journal_path() -> PathBuf {
     app_dir().unwrap_or_else(|| PathBuf::from(".")).join("media-runs.json")
 }
@@ -591,6 +615,21 @@ fn start_scan(app: &AppWindow, st: &mut InvState, drives: &[(PathBuf, bool)], pr
         let present: HashSet<_> = items.iter().filter_map(|i| i.file_id).collect();
         let missing = |set: Option<&HashSet<_>>| set.map_or(0, |s| s.iter().filter(|id| !present.contains(*id)).count());
         let (mm, mr) = (missing(refs.as_ref().map(|r| &r.media)), missing(refs.as_ref().map(|r| &r.renders)));
+        // kept for the History of scans (a stopped scan is incomplete and not kept)
+        if !stop.load(Ordering::Relaxed) {
+            let head = inventory::ScanHead {
+                date: chrono::Local::now().format("%Y-%m-%d %H:%M").to_string(),
+                drives: chosen.clone(),
+                projects: if n > 0 { projects.clone() } else { vec![] },
+                projects_read: n,
+                failed,
+                missing: (mm, mr),
+                files: items.len(),
+            };
+            if let Err(e) = inventory::save_scan(&scans_dir(), &head, &items) {
+                log::write(&format!("  scan not kept: {e}"));
+            }
+        }
         *result.lock().unwrap() = Some((items, n, failed, mm, mr));
         let _ = slint::invoke_from_event_loop(move || {
             if let Some(w) = weak.upgrade() {
@@ -801,8 +840,26 @@ pub fn wire(app: &AppWindow, inv: &Inv, drives: &Drives, projects: &Rc<RefCell<P
             g.set_step(2);
             g.set_view(1);
             refresh_table(&mut st);
+            drop(st);
+            show_scans(&app);
         }
     });
+    g.on_load_scan({
+        let (ww, inv) = (app.as_weak(), inv.clone());
+        move |i| {
+            let app = ww.unwrap();
+            let Some((path, head)) = inventory::list_scans(&scans_dir()).into_iter().nth(i as usize) else { return };
+            match inventory::load_scan(&path, cache_path().as_deref()) {
+                Ok(items) => {
+                    log::write(&format!("media scan loaded: {} ({} files)", head.date, items.len()));
+                    *inv.borrow().result.lock().unwrap() = Some((items, head.projects_read, head.failed, head.missing.0, head.missing.1));
+                    app.global::<Inventory>().invoke_scanned();
+                }
+                Err(e) => app.global::<Inventory>().set_error(format!("{}: {e}", head.date).into()),
+            }
+        }
+    });
+    show_scans(app);
     g.on_show_table({
         let (ww, inv, settings) = (app.as_weak(), inv.clone(), settings.clone());
         move || open_table(&ww.unwrap(), &inv, &settings)

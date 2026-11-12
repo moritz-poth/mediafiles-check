@@ -16,7 +16,7 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::UNIX_EPOCH;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Kind {
     Media,
     Render,
@@ -24,14 +24,15 @@ pub enum Kind {
 }
 
 /// Where the kind comes from.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum From {
     Header,
     Project,
     Nothing,
 }
 
-#[derive(Debug, Clone)]
+/// Saved with a scan (History): the header (`info`) comes from the header cache again.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Item {
     pub path: PathBuf,
     /// drive name and MXF folder name
@@ -41,10 +42,13 @@ pub struct Item {
     /// modification date (ns)
     pub modified: u128,
     /// what the header says; None if it could not be read (`error`)
+    #[serde(skip)]
     pub info: Option<mxf::Info>,
     pub error: Option<String>,
     /// file and master clip ID: from the header, else from the database
+    #[serde(with = "hex_id")]
     pub file_id: Option<MobId>,
+    #[serde(skip)]
     pub master_id: Option<MobId>,
     /// project named in the folder's database
     pub project: Option<String>,
@@ -64,6 +68,84 @@ impl Item {
 
 /// Raised when what `mxf::info` reads or decides changes: an older cache is read anew.
 const CACHE_VERSION: u32 = 2;
+
+/// A mob ID as 64 hex digits (a JSON array of 32 numbers would be three times as long).
+mod hex_id {
+    use crate::avb::MobId;
+    use serde::{Deserialize, Deserializer, Serializer};
+    pub fn serialize<S: Serializer>(id: &Option<MobId>, s: S) -> Result<S::Ok, S::Error> {
+        match id {
+            Some(id) => s.serialize_str(&crate::avb::id_hex(id)),
+            None => s.serialize_none(),
+        }
+    }
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Option<MobId>, D::Error> {
+        let Some(t) = Option::<String>::deserialize(d)? else { return Ok(None) };
+        let bytes: Vec<u8> = (0..t.len()).step_by(2).filter_map(|i| t.get(i..i + 2).and_then(|h| u8::from_str_radix(h, 16).ok())).collect();
+        Ok(bytes.try_into().ok())
+    }
+}
+
+/// One scan kept for the History (`items` in a file of its own next to it).
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct ScanHead {
+    pub date: String,
+    pub drives: Vec<PathBuf>,
+    pub projects: Vec<PathBuf>,
+    /// projects whose bins were read, unreadable bins, media and renders used but on no scanned drive
+    pub projects_read: usize,
+    pub failed: usize,
+    pub missing: (usize, usize),
+    pub files: usize,
+}
+
+pub const SCANS_KEPT: usize = 5;
+
+/// Saves a scan into `dir` (head + items) and removes all but the newest `SCANS_KEPT`.
+pub fn save_scan(dir: &Path, head: &ScanHead, items: &[Item]) -> std::io::Result<()> {
+    fs::create_dir_all(dir)?;
+    let base = chrono::Local::now().format("%Y%m%d-%H%M%S%3f").to_string();
+    // two scans within the same millisecond (tests) must not share a file
+    let stamp = (0..).map(|n| format!("{base}-{n:03}")).find(|s| !dir.join(format!("{s}.json")).exists()).unwrap();
+    fs::write(dir.join(format!("{stamp}.items.json")), serde_json::to_vec(items)?)?;
+    fs::write(dir.join(format!("{stamp}.json")), serde_json::to_vec_pretty(head)?)?;
+    for (old, _) in list_scans(dir).into_iter().skip(SCANS_KEPT) {
+        let _ = fs::remove_file(old.with_extension("items.json"));
+        let _ = fs::remove_file(&old);
+    }
+    Ok(())
+}
+
+/// Saved scans, newest first: (head file, head).
+pub fn list_scans(dir: &Path) -> Vec<(PathBuf, ScanHead)> {
+    let mut v: Vec<(PathBuf, ScanHead)> = fs::read_dir(dir)
+        .map(|rd| {
+            rd.flatten()
+                .map(|e| e.path())
+                .filter(|p| p.extension().is_some_and(|x| x == "json") && !p.to_string_lossy().ends_with(".items.json"))
+                .filter_map(|p| Some((p.clone(), serde_json::from_slice(&fs::read(&p).ok()?).ok()?)))
+                .collect()
+        })
+        .unwrap_or_default();
+    v.sort_by(|a, b| b.0.cmp(&a.0));
+    v
+}
+
+/// The items of a saved scan, their headers taken from the header cache (a header not there stays empty).
+pub fn load_scan(head: &Path, cache: Option<&Path>) -> std::io::Result<Vec<Item>> {
+    let mut items: Vec<Item> = serde_json::from_slice(&fs::read(head.with_extension("items.json"))?)?;
+    let cached: Cache = cache.and_then(|c| fs::read(c).ok()).and_then(|b| serde_json::from_slice::<Cache>(&b).ok()).filter(|c| c.version == CACHE_VERSION).unwrap_or_default();
+    for it in &mut items {
+        if let Some((s, m, info)) = cached.files.get(&it.path.to_string_lossy().into_owned())
+            && *s == it.size
+            && *m == it.modified
+        {
+            it.master_id = info.master_id;
+            it.info = Some(info.clone());
+        }
+    }
+    Ok(items)
+}
 
 #[derive(Serialize, Deserialize, Default)]
 struct Cache {
@@ -246,6 +328,22 @@ mod tests {
             kind_from: From::Nothing,
             used: None,
         }
+    }
+
+    #[test]
+    fn scans_are_kept_and_loaded() {
+        let dir = std::env::temp_dir().join(format!("mfc-scans-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        let head = |n| ScanHead { date: format!("d{n}"), drives: vec![], projects: vec![], projects_read: 0, failed: 0, missing: (0, 0), files: n };
+        for n in 0..7 {
+            save_scan(&dir, &head(n), &[item(Some(true), n as u8)]).unwrap();
+        }
+        let list = list_scans(&dir);
+        assert_eq!(list.iter().map(|l| l.1.files).collect::<Vec<_>>(), [6, 5, 4, 3, 2]);
+        let items = load_scan(&list[0].0, None).unwrap();
+        assert_eq!((items[0].file_id, items[0].kind, items[0].info.is_none()), (Some([6; 32]), Kind::Unknown, true));
+        assert_eq!(fs::read_dir(&dir).unwrap().count(), 10);
+        fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

@@ -8,6 +8,18 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 
+msgid "RECENT SCANS"
+msgstr "DERNIÈRES ANALYSES"
+
+msgid "Load…"
+msgstr "Charger…"
+
+msgid "Load"
+msgstr "Charger"
+
+msgid "Are you sure nothing changed on these drives and in these projects since then? Otherwise the overview is no longer right – scan again instead."
+msgstr "Êtes-vous sûr que rien n’a changé depuis sur ces disques et dans ces projets ? Sinon, la vue d’ensemble n’est plus juste – analysez plutôt à nouveau."
+
 msgid "Search…"
 msgstr "Rechercher…"
 
