@@ -1,8 +1,10 @@
-# MediaFiles Check
+<h1 align="center"><img src="assets/icon.png" width="72" align="absmiddle" alt="">&nbsp;&nbsp;MEDIAFILES CHECK</h1>
 
-Looks after the Avid media files (MXF) of your edit systems: keeps two systems in step, checks every folder in **Avid MediaFiles/MXF** against its Avid database, finds what your Avid projects are missing, and tidies up full folders and duplicates. It now includes **MediaFiles Ferry** (the Exchange tab).
+<p align="center"><code>Mac app</code>&nbsp;&nbsp;<code>macOS 11+</code>&nbsp;&nbsp;<code>free · GPL-3.0</code></p>
 
 <p align="center">☕ If you use MediaFiles Check and like it, I would be glad if you <a href="https://buymeacoffee.com/moritzpoth">bought me a coffee</a>.</p>
+
+Looks after the Avid media files (MXF) of your edit systems: keeps two systems in step, checks every folder in **Avid MediaFiles/MXF** against its Avid database, finds what your Avid projects are missing, and tidies up full folders and duplicates. It now includes **MediaFiles Ferry** (the Exchange tab).
 
 > **Beta.** Please report problems in [Issues](../../issues) or in the app: **Settings… → Support → Report…** (no GitHub account needed).
 
