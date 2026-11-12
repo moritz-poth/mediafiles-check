@@ -139,11 +139,13 @@ Gut zu wissen:
 ## Medien
 
 1. Medien › **Laufwerke und Projekte**: Laufwerke und die Projekte einschalten, deren Bins zählen, dann **Scannen**. Der erste Durchlauf liest den Kopf jeder Mediendatei, spätere nur neue oder geänderte Dateien. Die letzten fünf Scans werden gemerkt: **Laden…** zeigt einen davon ohne neuen Scan, nach der Rückfrage, ob sich seitdem nichts geändert hat.
-2. **Übersicht** zählt Medien und Renders, benutzt oder nicht, und wie viele Dateien die Projekte benutzen, die auf keinem gelesenen Laufwerk liegen. **Tabelle öffnen…** zeigt die Medientabelle: jede Datei mit Clip, Art, Codec, Bild, fps, Dauer, Ton, Größe, Projekt und Ordner – filtern, suchen, nach einer Spalte sortieren, Dateien auswählen, **Liste sichern…**.
+2. **Übersicht** zählt Medien und Render-Dateien, benutzt oder nicht, und wie viele Dateien die Projekte benutzen, die auf keinem gelesenen Laufwerk liegen. **Tabelle öffnen…** zeigt die Medientabelle: jede Datei mit Clip, Art, Codec, Bild, fps, Dauer, Ton, Größe, Projekt und Ordner – filtern, suchen, nach einer Spalte sortieren, Doppelklick auf einen Spaltenrand passt die Spalte an ihren längsten Eintrag an, Dateien auswählen, **Liste sichern…**.
+
+![Medienübersicht](images/de/media.png)
 
 So wird eine Datei eingeordnet:
 
-- **Render**: Media Composer markiert jede Render-Datei in ihrem Kopf; ein Render, den ein Effekt noch benutzt, ist auch aus den Bins bekannt.
+- **Render**: Media Composer markiert jede Render-Datei in ihrem Kopf; eine Render-Datei, die ein Effekt noch benutzt, ist auch aus den Bins bekannt.
 - **Medium**: alles andere, was Media Composer oder ein anderes Programm geschrieben hat. Eine Datei, die nichts davon verrät, bleibt **Unbekannt** und wird nie nach einer Regel verschoben.
 - **Unbenutzt**: kein Clip, keine Sequenz und kein Effekt der eingeschalteten Projekte benutzt sie. Medien anderer Projekte auf denselben Laufwerken gelten auch als unbenutzt – schalte jedes Projekt ein, das diese Laufwerke nutzt.
 

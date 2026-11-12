@@ -106,9 +106,6 @@ msgstr "Unidad de render"
 msgid "Import drive"
 msgstr "Unidad de importación"
 
-msgid "Swap…"
-msgstr "Intercambiar…"
-
 msgid "Swap"
 msgstr "Intercambiar"
 
@@ -136,9 +133,6 @@ msgstr "Cancelar deja las bases de datos como están; puedes iniciarlo más tard
 msgid "Separate"
 msgstr "Separar"
 
-msgid "Separate…"
-msgstr "Separar…"
-
 msgid "Choose two different drives."
 msgstr "Elige dos unidades distintas."
 
@@ -163,8 +157,8 @@ msgstr "PROYECTOS"
 msgid "Media"
 msgstr "Medios"
 
-msgid "Renders"
-msgstr "Renders"
+msgid "Render files"
+msgstr "Archivos de render"
 
 msgid "Render"
 msgstr "Render"
@@ -178,14 +172,14 @@ msgstr "leyendo…"
 msgid "Size"
 msgstr "Tamaño"
 
-msgid "Choose the folder with your Avid projects under Projects. Without projects, the files are only sorted into media and renders – nothing can be called unused."
-msgstr "Elige la carpeta con tus proyectos de Avid en Proyectos. Sin proyectos, los archivos solo se separan en medios y renders: nada puede considerarse sin usar."
+msgid "Choose the folder with your Avid projects under Projects. Without projects, the files are only sorted into media and render files – nothing can be called unused."
+msgstr "Elige la carpeta con tus proyectos de Avid en Proyectos. Sin proyectos, los archivos solo se separan en medios y archivos de render: nada puede considerarse sin usar."
 
-msgid "Renders in use"
-msgstr "Renders en uso"
+msgid "Render files in use"
+msgstr "Archivos de render en uso"
 
-msgid "Renders not used"
-msgstr "Renders sin usar"
+msgid "Render files not used"
+msgstr "Archivos de render sin usar"
 
 msgid "Media in use"
 msgstr "Medios en uso"
@@ -1337,3 +1331,6 @@ msgstr "Guardar lista…"
 
 msgid "Save request…"
 msgstr "Guardar solicitud…"
+
+msgid "Preview…"
+msgstr "Vista previa…"

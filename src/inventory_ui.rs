@@ -541,6 +541,28 @@ fn refresh_table(st: &mut InvState) {
     let Some(w) = st.win.borrow().as_ref().map(|w| w.as_weak()) else { return };
     let Some(w) = w.upgrade() else { return };
     let rows: Vec<MediaRow> = st.shown.iter().map(|&i| row(&st.items[i], st.selected.contains(&st.items[i].path))).collect();
+    // widest text per column (characters; the font is monospaced) for the double-click on a column edge
+    let fit: Vec<i32> = (0..13)
+        .map(|c| {
+            rows.iter()
+                .map(|r| match c {
+                    0 => r.clip.chars().count(),
+                    4 => r.codec.chars().count(),
+                    5 => r.picture.chars().count(),
+                    6 => r.fps.chars().count(),
+                    7 => r.duration.chars().count(),
+                    8 => r.sound.chars().count(),
+                    9 => r.size.chars().count(),
+                    10 => r.project.chars().count(),
+                    11 => r.place.chars().count(),
+                    12 => r.file.chars().count(),
+                    _ => 0,
+                })
+                .max()
+                .unwrap_or(0) as i32
+        })
+        .collect();
+    w.set_fit_chars(ModelRc::new(VecModel::from(fit)));
     let count = |f: i32| st.items.iter().filter(|i| matches(i, f, &st.extra, "")).count() as i32;
     w.set_filter_counts(ModelRc::new(VecModel::from((0..6).map(count).collect::<Vec<_>>())));
     // extra filters: every value present, sorted; the first entry means all

@@ -1769,7 +1769,7 @@ component InventoryPane inherits VerticalLayout {
                 spacing: 10px;
                 SectionLabel { text: @tr("PROJECTS"); }
                 if Projects.projects.length == 0: Text {
-                    text: @tr("Choose the folder with your Avid projects under Projects. Without projects, the files are only sorted into media and renders – nothing can be called unused.");
+                    text: @tr("Choose the folder with your Avid projects under Projects. Without projects, the files are only sorted into media and render files – nothing can be called unused.");
                     wrap: word-wrap;
                     font-size: 12px;
                     color: Theme.muted;
@@ -1885,14 +1885,14 @@ component InventoryPane inherits VerticalLayout {
         }
         if Inventory.projects > 0: Card {
             CountRow { first: true; name: @tr("Media in use"); count: Inventory.counts[0]; size: Inventory.sizes[0]; }
-            CountRow { name: @tr("Renders in use"); count: Inventory.counts[1]; size: Inventory.sizes[1]; }
+            CountRow { name: @tr("Render files in use"); count: Inventory.counts[1]; size: Inventory.sizes[1]; }
             CountRow { name: @tr("Media not used"); count: Inventory.counts[2]; size: Inventory.sizes[2]; warn: true; }
-            CountRow { name: @tr("Renders not used"); count: Inventory.counts[3]; size: Inventory.sizes[3]; warn: true; }
+            CountRow { name: @tr("Render files not used"); count: Inventory.counts[3]; size: Inventory.sizes[3]; warn: true; }
             CountRow { name: @tr("Unknown"); count: Inventory.counts[4]; size: Inventory.sizes[4]; }
         }
         if Inventory.projects == 0: Card {
             CountRow { first: true; name: @tr("Media"); count: Inventory.counts[5]; size: Inventory.sizes[5]; }
-            CountRow { name: @tr("Renders"); count: Inventory.counts[6]; size: Inventory.sizes[6]; }
+            CountRow { name: @tr("Render files"); count: Inventory.counts[6]; size: Inventory.sizes[6]; }
             CountRow { name: @tr("Unknown"); count: Inventory.counts[4]; size: Inventory.sizes[4]; }
         }
         Para {
@@ -1915,13 +1915,13 @@ component InventoryPane inherits VerticalLayout {
         ActionRow {
             first: true;
             text: @tr("Render files into folders of their own");
-            button: @tr("Separate…");
+            button: @tr("Preview…");
             enabled: Inventory.counts[6] > 0;
             clicked => { Inventory.prepare(1); }
         }
         ActionRow {
             text: @tr("Render files to the render drive, media to the import drive");
-            button: @tr("Swap…");
+            button: @tr("Preview…");
             enabled: Inventory.drive-names.length > 1;
             clicked => { Inventory.prepare(2); }
         }
@@ -1932,7 +1932,7 @@ component InventoryPane inherits VerticalLayout {
         }
         ActionRow {
             text: @tr("Render files and files no switched-on project uses");
-            button: @tr("Set aside…");
+            button: @tr("Preview…");
             enabled: Inventory.counts[6] > 0 || Inventory.counts[2] + Inventory.counts[3] > 0;
             clicked => { Inventory.prepare(0); }
         }
@@ -4235,6 +4235,8 @@ component ColumnHead inherits Rectangle {
     in property <bool> up;
     in property <bool> right;
     in-out property <length> w;
+    // Breite für Doppelklick auf den Rand: so breit wie der längste Eintrag (Zeichen; Schrift ist monospaced)
+    in property <int> fit-chars;
     callback clicked(int);
     width: root.w;
     accessible-role: button;
@@ -4277,6 +4279,8 @@ component ColumnHead inherits Rectangle {
         TouchArea {
             mouse-cursor: col-resize;
             moved => { root.w = max(36px, root.w + self.mouse-x - self.pressed-x); }
+            // JetBrains Mono: 0.6 em je Zeichen; Kopf 11 px + Pfeil, Zellen 12 px, je 8 px Luft rechts
+            double-clicked => { root.w = max(root.text.character-count * 6.6px + 22px, root.fit-chars * 7.2px + 12px); }
         }
     }
 }
@@ -4330,6 +4334,8 @@ export component MediaTableWindow inherits CheckWindow {
     in property <bool> sort-up: true;
     in property <int> selected;
     in property <string> selected-size;
+    // längster Eintrag je Spalte in Zeichen (für den Doppelklick auf den Spaltenrand)
+    in property <[int]> fit-chars: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     callback filter-changed(int);
     callback extra-changed();
     callback search(string);
@@ -4363,7 +4369,7 @@ export component MediaTableWindow inherits CheckWindow {
         spacing: 12px;
         HorizontalLayout {
             spacing: 6px;
-            for f[i] in [@tr("All"), @tr("Media"), @tr("Media not used"), @tr("Renders"), @tr("Renders not used"), @tr("Unknown")]: Rectangle {
+            for f[i] in [@tr("All"), @tr("Media"), @tr("Media not used"), @tr("Render files"), @tr("Render files not used"), @tr("Unknown")]: Rectangle {
                 visible: (i != 2 && i != 4) || root.with-projects;
                 width: self.visible ? label.preferred-width + 20px : 0px;
                 height: 28px;
@@ -4450,19 +4456,19 @@ export component MediaTableWindow inherits CheckWindow {
                             padding-left: 8px;
                             padding-right: 8px;
                             Rectangle { width: root.w-mark; }
-                            ColumnHead { w <=> root.w-clip; text: @tr("Clip"); column: 0; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
-                            ColumnHead { w <=> root.w-kind; text: @tr("Kind"); column: 1; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
-                            ColumnHead { w <=> root.w-from; text: @tr("Known by"); column: 2; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
-                            ColumnHead { w <=> root.w-used; text: @tr("Used"); column: 3; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
-                            ColumnHead { w <=> root.w-codec; text: @tr("Codec"); column: 4; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
-                            ColumnHead { w <=> root.w-pic; text: @tr("Picture"); column: 5; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
-                            ColumnHead { w <=> root.w-fps; text: "fps"; column: 6; sorted: root.sort-column; up: root.sort-up; right: true; clicked(c) => { root.sort(c); } }
-                            ColumnHead { w <=> root.w-dur; text: @tr("Duration"); column: 7; sorted: root.sort-column; up: root.sort-up; right: true; clicked(c) => { root.sort(c); } }
-                            ColumnHead { w <=> root.w-sound; text: @tr("Sound"); column: 8; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
-                            ColumnHead { w <=> root.w-size; text: @tr("Size"); column: 9; sorted: root.sort-column; up: root.sort-up; right: true; clicked(c) => { root.sort(c); } }
-                            ColumnHead { w <=> root.w-project; text: @tr("Project"); column: 10; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
-                            ColumnHead { w <=> root.w-place; text: @tr("Drive / folder"); column: 11; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
-                            ColumnHead { w <=> root.w-file; text: @tr("File"); column: 12; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
+                            ColumnHead { w <=> root.w-clip; text: @tr("Clip"); column: 0; fit-chars: root.fit-chars[0]; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
+                            ColumnHead { w <=> root.w-kind; text: @tr("Kind"); column: 1; fit-chars: max(max(@tr("Media").character-count, @tr("Render").character-count), @tr("Unknown").character-count); sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
+                            ColumnHead { w <=> root.w-from; text: @tr("Known by"); column: 2; fit-chars: max(@tr("header").character-count, @tr("project").character-count); sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
+                            ColumnHead { w <=> root.w-used; text: @tr("Used"); column: 3; fit-chars: max(@tr("yes").character-count, @tr("no").character-count); sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
+                            ColumnHead { w <=> root.w-codec; text: @tr("Codec"); column: 4; fit-chars: root.fit-chars[4]; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
+                            ColumnHead { w <=> root.w-pic; text: @tr("Picture"); column: 5; fit-chars: root.fit-chars[5]; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
+                            ColumnHead { w <=> root.w-fps; text: "fps"; column: 6; fit-chars: root.fit-chars[6]; sorted: root.sort-column; up: root.sort-up; right: true; clicked(c) => { root.sort(c); } }
+                            ColumnHead { w <=> root.w-dur; text: @tr("Duration"); column: 7; fit-chars: root.fit-chars[7]; sorted: root.sort-column; up: root.sort-up; right: true; clicked(c) => { root.sort(c); } }
+                            ColumnHead { w <=> root.w-sound; text: @tr("Sound"); column: 8; fit-chars: root.fit-chars[8]; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
+                            ColumnHead { w <=> root.w-size; text: @tr("Size"); column: 9; fit-chars: root.fit-chars[9]; sorted: root.sort-column; up: root.sort-up; right: true; clicked(c) => { root.sort(c); } }
+                            ColumnHead { w <=> root.w-project; text: @tr("Project"); column: 10; fit-chars: root.fit-chars[10]; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
+                            ColumnHead { w <=> root.w-place; text: @tr("Drive / folder"); column: 11; fit-chars: root.fit-chars[11]; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
+                            ColumnHead { w <=> root.w-file; text: @tr("File"); column: 12; fit-chars: root.fit-chars[12]; sorted: root.sort-column; up: root.sort-up; clicked(c) => { root.sort(c); } }
                             Rectangle { horizontal-stretch: 1; }
                         }
                     }
