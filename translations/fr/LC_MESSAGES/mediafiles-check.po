@@ -8,6 +8,9 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 
+msgid "ACTIONS"
+msgstr "ACTIONS"
+
 msgid "Files copied"
 msgstr "Fichiers copiés"
 
@@ -207,9 +210,6 @@ msgstr "oui"
 
 msgid "no"
 msgstr "non"
-
-msgid "Renders are recognised by the mark Media Composer writes into them, or by the effect that uses them. A file nothing tells apart stays unknown and is never moved as media or render."
-msgstr "Les rendus sont reconnus à la marque que Media Composer y écrit, ou à l’effet qui les utilise. Un fichier que rien ne distingue reste inconnu et n’est jamais déplacé comme média ou rendu."
 
 msgid "Search"
 msgstr "Recherche"

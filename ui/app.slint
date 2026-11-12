@@ -72,7 +72,7 @@ export global Metrics {
     out property <length> spacing: 24px;
     out property <length> line: 18px;
     // umbrechende Texte brauchen eine feste Breite, sonst rechnet Slint sie als eine Zeile
-    out property <length> content-width: 800px - 173px - 2 * 24px;
+    out property <length> content-width: 960px - 205px - 2 * 36px;
 }
 
 export global Theme {
@@ -94,6 +94,10 @@ export global Theme {
     // Hauptfenster: Seitenleiste und Auswahl darin
     out property <color> sidebar: dark ? #232629 : #ececea;
     out property <color> selection: dark ? #34393e : #dcdcd9;
+    // Listen als Karten: Fläche, Rand, Trennlinie zwischen den Zeilen
+    out property <color> card: dark ? #25292d : #fbfbfa;
+    out property <color> card-line: dark ? #33383d : #d6d9dc;
+    out property <color> row-line: dark ? #2f3439 : #e4e6e8;
 }
 
 component Headline inherits VerticalLayout {
@@ -219,23 +223,108 @@ component Switch inherits Rectangle {
 }
 
 // Zeile mit Schalter: Klick irgendwo auf die Zeile schaltet um, beim Überfahren hervorgehoben (wie die Seitenleiste)
+// Liste als Karte (wie die Gruppen in den macOS-Einstellungen): Zeilen darin trennt eine feine Linie
+component Card inherits Rectangle {
+    background: Theme.card;
+    border-width: 1px;
+    border-color: Theme.card-line;
+    border-radius: 9px;
+    clip: true;
+    VerticalLayout {
+        padding: 1px;
+        @children
+    }
+}
+
+// Zeile einer Karte; first = keine Trennlinie darüber
+component CardRow inherits Rectangle {
+    in property <bool> first;
+    in property <length> spacing: 12px;
+    min-height: 38px;
+    if !root.first: Rectangle { y: 0; height: 1px; background: Theme.row-line; }
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        spacing: root.spacing;
+        @children
+    }
+}
+
+// Kartenzeile mit Schalter: Klick irgendwo auf die Zeile schaltet um, beim Überfahren hervorgehoben
 component ToggleRow inherits Rectangle {
     in property <bool> enabled: true;
-    in property <length> spacing: 10px;
+    in property <bool> first: true;
+    in property <length> spacing: 12px;
     callback toggled;
-    border-radius: 6px;
+    min-height: 38px;
     background: touch.has-hover && root.enabled ? Theme.selection : transparent;
+    if !root.first: Rectangle { y: 0; height: 1px; background: Theme.row-line; }
     touch := TouchArea {
         enabled: root.enabled;
         mouse-cursor: pointer;
         clicked => { root.toggled(); }
     }
     HorizontalLayout {
-        padding-left: 6px;
-        padding-right: 6px;
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 8px;
+        padding-bottom: 8px;
         spacing: root.spacing;
         @children
     }
+}
+
+// Lauf im Verlauf: Text (umbrechend) und darunter ggf. „Datenbanken noch nicht neu geschrieben“, Knöpfe rechts
+component RunItem inherits CardRow {
+    in property <string> text;
+    in property <bool> db-done;
+    in property <bool> mc-running;
+    callback db();
+    callback undo();
+    VerticalLayout {
+        horizontal-stretch: 1;
+        padding-top: 10px;
+        padding-bottom: 10px;
+        spacing: 4px;
+        Text {
+            width: Metrics.content-width - 430px;
+            text: root.text;
+            wrap: word-wrap;
+            font-size: 12px;
+            color: Theme.text;
+        }
+        if !root.db-done: Text {
+            text: @tr("Databases not rewritten yet");
+            font-size: 11px;
+            color: Theme.warning;
+        }
+    }
+    VerticalLayout {
+        alignment: center;
+        HorizontalLayout {
+            spacing: 8px;
+            if !root.db-done: CheckButton {
+                text: @tr("Rewrite databases");
+                small: true;
+                enabled: !root.mc-running;
+                clicked => { root.db(); }
+            }
+            CheckButton {
+                text: @tr("Undo");
+                small: true;
+                enabled: !root.mc-running;
+                clicked => { root.undo(); }
+            }
+        }
+    }
+}
+
+// Überschrift über einer Karte (LAUFWERKE …)
+component SectionLabel inherits Text {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    color: Theme.muted;
 }
 
 // Auswahl wie Mountpoints Dropdown: Knopf im Ferry-Stil (26 px) mit Titel und Pfeil, darunter das native Menü;
@@ -328,8 +417,17 @@ component ScrollBox inherits Rectangle {
 component RowList inherits Rectangle {
     in property <[ReportRow]> rows;
     in property <length> limit: 360px;
-    height: min(list.preferred-height, root.limit);
+    height: min(list.preferred-height + 20px, root.limit);
+    background: Theme.card;
+    border-width: 1px;
+    border-color: Theme.card-line;
+    border-radius: 9px;
+    clip: true;
     flick := Flickable {
+        x: 14px;
+        y: 10px;
+        width: parent.width - 28px;
+        height: parent.height - 20px;
         content-height: list.preferred-height;
         list := VerticalLayout {
             x: 0;
@@ -339,7 +437,7 @@ component RowList inherits Rectangle {
                 padding-top: r.level == 0 && i > 0 ? 10px : 0;
                 padding-left: r.level == 2 ? 16px : 0;
                 Text {
-                    width: Metrics.content-width - 12px - (r.level == 2 ? 16px : 0);
+                    width: Metrics.content-width - 40px - (r.level == 2 ? 16px : 0);
                     text: r.text;
                     wrap: word-wrap;
                     font-size: 12px;
@@ -349,7 +447,7 @@ component RowList inherits Rectangle {
             }
         }
     }
-    ScrollThumb { x: parent.width - self.width - 2px; view: flick.height; content: list.preferred-height; offset: flick.content-y; }
+    ScrollThumb { x: parent.width - self.width - 3px; view: flick.height; content: list.preferred-height; offset: flick.content-y; }
 }
 
 // Fehlende Mediendateien pro Bin, Klick auf eine Datei klappt auf, wo sie im Bin steckt
@@ -357,8 +455,17 @@ component MissingList inherits Rectangle {
     in property <[MissingRow]> rows;
     in property <length> limit: 360px;
     callback toggle(int);
-    height: min(list.preferred-height, root.limit);
+    height: min(list.preferred-height + 20px, root.limit);
+    background: Theme.card;
+    border-width: 1px;
+    border-color: Theme.card-line;
+    border-radius: 9px;
+    clip: true;
     flick := Flickable {
+        x: 14px;
+        y: 10px;
+        width: parent.width - 28px;
+        height: parent.height - 20px;
         content-height: list.preferred-height;
         list := VerticalLayout {
             x: 0;
@@ -402,7 +509,7 @@ component MissingList inherits Rectangle {
             }
         }
     }
-    ScrollThumb { x: parent.width - self.width - 2px; view: flick.height; content: list.preferred-height; offset: flick.content-y; }
+    ScrollThumb { x: parent.width - self.width - 3px; view: flick.height; content: list.preferred-height; offset: flick.content-y; }
 }
 
 component ProgressBar inherits Rectangle {
@@ -691,12 +798,12 @@ component ProjectsPane inherits VerticalLayout {
             text: @tr("No Avid projects in this folder.");
             color: Theme.muted;
         }
-        if Projects.projects.length > 0: ScrollBox {
-            limit: 170px;
-            spacing: 2px;
+        if Projects.projects.length > 0: Card {
+ScrollBox {  
+            limit: 6 * 38px;
             for p[i] in Projects.projects: ToggleRow {
+ first: i == 0;
                 toggled => { Projects.toggle(i); }
-                height: 26px;
                 spacing: 10px;
                 Text {
                     text: p.name;
@@ -715,6 +822,7 @@ component ProjectsPane inherits VerticalLayout {
                 }
             }
         }
+}
         Para {
             text: @tr("Reads every bin of the switched-on projects and lists the media files their clips, subclips and sequences need that are on none of the connected drives. Nothing is changed.");
         }
@@ -958,15 +1066,14 @@ export global Exchange {
     callback rescanned();
 }
 
-component MapList inherits VerticalLayout {
+component MapList inherits Card {
     in property <[MapRow]> rows;
     callback changed(int, int);
-    spacing: 8px;
-    for r[i] in root.rows: HorizontalLayout {
-        spacing: 10px;
+    for r[i] in root.rows: CardRow {
+        first: i == 0;
         Text {
             text: r.name;
-            width: 180px;
+            width: 220px;
             overflow: elide;
             vertical-alignment: center;
             color: Theme.text;
@@ -976,10 +1083,13 @@ component MapList inherits VerticalLayout {
             vertical-alignment: center;
             color: Theme.muted;
         }
-        Dropdown {
-            items: r.options;
-            current: r.selected;
-            selected(index) => { root.changed(i, index); }
+        VerticalLayout {
+            alignment: center;
+            Dropdown {
+                items: r.options;
+                current: r.selected;
+                selected(index) => { root.changed(i, index); }
+            }
         }
         Rectangle { horizontal-stretch: 1; }
     }
@@ -1061,14 +1171,15 @@ component ExchangePane inherits VerticalLayout {
                 text: @tr("Connect a drive with Avid media. If macOS asks whether MediaFiles Check may access files on removable or network volumes, allow it.");
                 color: Theme.faint;
             }
-            if Exchange.volumes.length > 0: ScrollBox {
-                limit: 6 * 22px + 5 * 10px;
-                spacing: 10px;
+            if Exchange.volumes.length > 0: SectionLabel { text: @tr("DRIVES"); }
+            if Exchange.volumes.length > 0: Card {
+ScrollBox {
+                limit: 6 * 38px;
                 for v[i] in Exchange.volumes: ToggleRow {
+ first: i == 0;
                     enabled: v.online;
                     toggled => { Exchange.toggle-volume(i); }
                     spacing: 10px;
-                    height: 22px;
                     Dot { color: v.online ? Theme.online : Theme.line; }
                     Text {
                         text: v.name;
@@ -1094,6 +1205,7 @@ component ExchangePane inherits VerticalLayout {
                     }
                 }
             }
+}
         }
         StatusLine {
             text: root.scan-status;
@@ -1147,8 +1259,9 @@ component ExchangePane inherits VerticalLayout {
         if Exchange.has-compare && Exchange.collisions.length > 0: Section {
             title: @tr("FOLDERS ON BOTH SIDES");
             Para { text: @tr("These folders exist on both systems with files of their own."); }
-            for c[i] in Exchange.collisions: HorizontalLayout {
-                spacing: 8px;
+            Card {
+            for c[i] in Exchange.collisions: CardRow {
+                first: i == 0;
                 Text {
                     text: c.name;
                     horizontal-stretch: 1;
@@ -1156,18 +1269,19 @@ component ExchangePane inherits VerticalLayout {
                     vertical-alignment: center;
                     color: Theme.text;
                 }
-                CheckButton {
+                VerticalLayout { alignment: center; CheckButton {
                     text: @tr("Merge");
                     small: true;
                     primary: c.choice == 0;
                     clicked => { Exchange.choice-changed(i, 0); }
-                }
-                CheckButton {
+                } }
+                VerticalLayout { alignment: center; CheckButton {
                     text: @tr("Rename");
                     small: true;
                     primary: c.choice == 1;
                     clicked => { Exchange.choice-changed(i, 1); }
-                }
+                } }
+            }
             }
             Para {
                 text: @tr("Merge: same folder, the database must be rebuilt. Rename: new folder with a unique name.");
@@ -1334,54 +1448,58 @@ export global Tasks {
     callback reload();
 }
 
-component TaskList inherits ScrollBox {
+component TaskList inherits Card {
     in property <[TaskRow]> rows;
     in property <bool> finished;
-    limit: 380px;
-    spacing: 0px;
-    for t[i] in root.rows: VerticalLayout {
-        padding-top: 7px;
-        padding-bottom: 7px;
-        spacing: 4px;
-        HorizontalLayout {
-            spacing: 8px;
-            Dot { color: root.finished ? Theme.online : t.mine ? Theme.warning : Theme.line; }
-            Text {
-                text: t.text;
-                width: Metrics.content-width - 44px;
-                wrap: word-wrap;
-                font-size: 12px;
-                color: root.finished ? Theme.muted : Theme.text;
+    ScrollBox {
+        limit: 380px;
+        for t[i] in root.rows: Rectangle {
+            if i > 0: Rectangle { y: 0; height: 1px; background: Theme.row-line; }
+            VerticalLayout {
+                padding-left: 14px;
+                padding-right: 14px;
+                padding-top: 10px;
+                padding-bottom: 10px;
+                spacing: 6px;
+                HorizontalLayout {
+                    spacing: 10px;
+                    Dot { color: root.finished ? Theme.online : t.mine ? Theme.warning : Theme.line; }
+                    Text {
+                        text: t.text;
+                        width: Metrics.content-width - 80px;
+                        wrap: word-wrap;
+                        color: root.finished ? Theme.muted : Theme.text;
+                    }
+                }
+                HorizontalLayout {
+                    padding-left: 18px;
+                    spacing: 8px;
+                    Text {
+                        text: t.source;
+                        horizontal-stretch: 1;
+                        vertical-alignment: center;
+                        font-size: 11px;
+                        overflow: elide;
+                        color: Theme.muted;
+                    }
+                    if t.action != "" && !root.finished: CheckButton {
+                        text: t.action;
+                        small: true;
+                        clicked => { Tasks.action(i); }
+                    }
+                    if t.stored && !root.finished: CheckButton {
+                        text: @tr("Done");
+                        small: true;
+                        clicked => { Tasks.finish(i); }
+                    }
+                    if root.finished: CheckButton {
+                        text: @tr("Reopen");
+                        small: true;
+                        clicked => { Tasks.reopen(i); }
+                    }
+                }
             }
         }
-        HorizontalLayout {
-            padding-left: 16px;
-            spacing: 8px;
-            Text {
-                text: t.source;
-                horizontal-stretch: 1;
-                vertical-alignment: center;
-                font-size: 11px;
-                overflow: elide;
-                color: Theme.faint;
-            }
-            if t.action != "" && !root.finished: CheckButton {
-                text: t.action;
-                small: true;
-                clicked => { Tasks.action(i); }
-            }
-            if t.stored && !root.finished: CheckButton {
-                text: @tr("Done");
-                small: true;
-                clicked => { Tasks.finish(i); }
-            }
-            if root.finished: CheckButton {
-                text: @tr("Reopen");
-                small: true;
-                clicked => { Tasks.reopen(i); }
-            }
-        }
-        Rectangle { height: 1px; background: Theme.line; }
     }
 }
 
@@ -1549,13 +1667,11 @@ export global Inventory {
     in property <int> missing-renders;
 }
 
-component CountRow inherits HorizontalLayout {
+component CountRow inherits CardRow {
     in property <string> name;
     in property <int> count;
     in property <string> size;
     in property <bool> warn;
-    height: 24px;
-    spacing: 10px;
     Text {
         text: root.name;
         horizontal-stretch: 1;
@@ -1581,25 +1697,26 @@ component CountRow inherits HorizontalLayout {
 }
 
 // Zeile mit kurzem Text links und Knopf rechts
-component ActionRow inherits HorizontalLayout {
+component ActionRow inherits CardRow {
     in property <string> text;
     in property <string> button;
     in property <bool> enabled: true;
     callback clicked();
-    spacing: 10px;
     Text {
         text: root.text;
         horizontal-stretch: 1;
         vertical-alignment: center;
-        wrap: word-wrap;
-        font-size: 12px;
+        overflow: elide;
         color: root.enabled ? Theme.text : Theme.faint;
     }
-    CheckButton {
-        text: root.button;
-        small: true;
-        enabled: root.enabled;
-        clicked => { root.clicked(); }
+    VerticalLayout {
+        alignment: center;
+        CheckButton {
+            text: root.button;
+            small: true;
+            enabled: root.enabled;
+            clicked => { root.clicked(); }
+        }
     }
 }
 
@@ -1618,71 +1735,57 @@ component InventoryPane inherits VerticalLayout {
                 clicked => { Inventory.scan(); }
             }
         }
-        Text {
-            text: @tr("DRIVES");
-            font-size: 11px;
-            font-weight: 600;
-            letter-spacing: 1px;
-            color: Theme.muted;
-        }
-        if Inventory.drives.length == 0: Text {
-            text: @tr("No drive with “Avid MediaFiles/MXF” found.");
-            color: Theme.muted;
-        }
-        if Inventory.drives.length > 0: ScrollBox {
-            limit: 4 * 26px + 3 * 2px;
-            spacing: 2px;
-            for d[i] in Inventory.drives: ToggleRow {
-                toggled => { Inventory.toggle-drive(i); }
-                height: 26px;
+        HorizontalLayout {
+            spacing: 22px;
+            VerticalLayout {
+                width: (Metrics.content-width - 22px) / 2;
+                alignment: start;
                 spacing: 10px;
-                Text {
-                    text: d.name;
-                    horizontal-stretch: 1;
-                    overflow: elide;
-                    vertical-alignment: center;
-                    color: d.selected ? Theme.text : Theme.muted;
+                SectionLabel { text: @tr("DRIVES"); }
+                if Inventory.drives.length == 0: Text {
+                    text: @tr("No drive with “Avid MediaFiles/MXF” found.");
+                    wrap: word-wrap;
+                    font-size: 12px;
+                    color: Theme.muted;
                 }
-                VerticalLayout {
-                    alignment: center;
-                    Switch {
-                        on: d.selected;
-                        label: d.name;
-                        toggled => { Inventory.toggle-drive(i); }
+                if Inventory.drives.length > 0: Card {
+                    ScrollBox {
+                        limit: 4 * 38px;
+                        for d[i] in Inventory.drives: ToggleRow {
+                            first: i == 0;
+                            toggled => { Inventory.toggle-drive(i); }
+                            Text { text: d.name; horizontal-stretch: 1; overflow: elide; vertical-alignment: center; color: d.selected ? Theme.text : Theme.muted; }
+                            VerticalLayout {
+                                alignment: center;
+                                Switch { on: d.selected; label: d.name; toggled => { Inventory.toggle-drive(i); } }
+                            }
+                        }
                     }
                 }
             }
-        }
-        Text {
-            text: @tr("PROJECTS");
-            font-size: 11px;
-            font-weight: 600;
-            letter-spacing: 1px;
-            color: Theme.muted;
-        }
-        if Projects.projects.length == 0: Para {
-            text: @tr("Choose the folder with your Avid projects under Projects. Without projects, the files are only sorted into media and renders – nothing can be called unused.");
-        }
-        if Projects.projects.length > 0: ScrollBox {
-            limit: 4 * 26px + 3 * 2px;
-            spacing: 2px;
-            for p[i] in Projects.projects: ToggleRow {
-                toggled => { Projects.toggle(i); }
-                height: 26px;
+            VerticalLayout {
+                width: (Metrics.content-width - 22px) / 2;
+                alignment: start;
                 spacing: 10px;
-                Text {
-                    text: p.name;
-                    horizontal-stretch: 1;
-                    overflow: elide;
-                    vertical-alignment: center;
-                    color: p.selected ? Theme.text : Theme.muted;
+                SectionLabel { text: @tr("PROJECTS"); }
+                if Projects.projects.length == 0: Text {
+                    text: @tr("Choose the folder with your Avid projects under Projects. Without projects, the files are only sorted into media and renders – nothing can be called unused.");
+                    wrap: word-wrap;
+                    font-size: 12px;
+                    color: Theme.muted;
                 }
-                VerticalLayout {
-                    alignment: center;
-                    Switch {
-                        on: p.selected;
-                        label: p.name;
-                        toggled => { Projects.toggle(i); }
+                if Projects.projects.length > 0: Card {
+                    ScrollBox {
+                        limit: 4 * 38px;
+                        for p[i] in Projects.projects: ToggleRow {
+                            first: i == 0;
+                            toggled => { Projects.toggle(i); }
+                            Text { text: p.name; horizontal-stretch: 1; overflow: elide; vertical-alignment: center; color: p.selected ? Theme.text : Theme.muted; }
+                            VerticalLayout {
+                                alignment: center;
+                                Switch { on: p.selected; label: p.name; toggled => { Projects.toggle(i); } }
+                            }
+                        }
                     }
                 }
             }
@@ -1696,55 +1799,52 @@ component InventoryPane inherits VerticalLayout {
             font-size: 12px;
             color: Theme.error;
         }
-        if Inventory.scans.length > 0: Text {
-            text: @tr("RECENT SCANS");
-            font-size: 11px;
-            font-weight: 600;
-            letter-spacing: 1px;
-            color: Theme.muted;
-        }
-        for sc[i] in Inventory.scans: VerticalLayout {
-            spacing: 8px;
-            HorizontalLayout {
-                spacing: 10px;
+        if Inventory.scans.length > 0: SectionLabel { text: @tr("RECENT SCANS"); }
+        if Inventory.scans.length > 0: Card {
+            for sc[i] in Inventory.scans: CardRow {
+                first: i == 0;
                 VerticalLayout {
                     horizontal-stretch: 1;
-                    alignment: center;
-                    Text { text: sc.name; overflow: elide; font-size: 12px; color: Theme.text; }
-                    Text { text: sc.detail; overflow: elide; font-size: 11px; color: Theme.muted; }
-                }
-                CheckButton {
-                    text: @tr("Load…");
-                    small: true;
-                    clicked => { Inventory.load-ask = i; }
-                }
-            }
-            if Inventory.load-ask == i: Rectangle {
-                border-radius: 6px;
-                background: Theme.selection;
-                VerticalLayout {
-                    padding: 10px;
+                    padding-top: 8px;
+                    padding-bottom: 8px;
                     spacing: 8px;
-                    Text {
-                        width: Metrics.content-width - 32px;
-                        text: @tr("Are you sure nothing changed on these drives and in these projects since then? Otherwise the overview is no longer right – scan again instead.");
-                        wrap: word-wrap;
-                        font-size: 12px;
-                        color: Theme.text;
-                    }
                     HorizontalLayout {
-                        spacing: 8px;
-                        alignment: end;
-                        CheckButton {
-                            text: @tr("Cancel");
-                            small: true;
-                            clicked => { Inventory.load-ask = -1; }
+                        spacing: 10px;
+                        VerticalLayout {
+                            horizontal-stretch: 1;
+                            alignment: center;
+                            spacing: 2px;
+                            Text { text: sc.name; overflow: elide; font-size: 12px; color: Theme.text; }
+                            Text { text: sc.detail; overflow: elide; font-size: 11px; color: Theme.muted; }
                         }
-                        CheckButton {
-                            text: @tr("Load");
-                            small: true;
-                            primary: true;
-                            clicked => { Inventory.load-scan(i); }
+                        VerticalLayout {
+                            alignment: center;
+                            CheckButton {
+                                text: @tr("Load…");
+                                small: true;
+                                clicked => { Inventory.load-ask = i; }
+                            }
+                        }
+                    }
+                    if Inventory.load-ask == i: Rectangle {
+                        border-radius: 6px;
+                        background: Theme.selection;
+                        VerticalLayout {
+                            padding: 10px;
+                            spacing: 8px;
+                            Text {
+                                width: Metrics.content-width - 52px;
+                                text: @tr("Are you sure nothing changed on these drives and in these projects since then? Otherwise the overview is no longer right – scan again instead.");
+                                wrap: word-wrap;
+                                font-size: 12px;
+                                color: Theme.text;
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                alignment: end;
+                                CheckButton { text: @tr("Cancel"); small: true; clicked => { Inventory.load-ask = -1; } }
+                                CheckButton { text: @tr("Load"); small: true; primary: true; clicked => { Inventory.load-scan(i); } }
+                            }
                         }
                     }
                 }
@@ -1783,17 +1883,15 @@ component InventoryPane inherits VerticalLayout {
                 clicked => { Inventory.show-table(); }
             }
         }
-        if Inventory.projects > 0: VerticalLayout {
-            spacing: 2px;
-            CountRow { name: @tr("Media in use"); count: Inventory.counts[0]; size: Inventory.sizes[0]; }
+        if Inventory.projects > 0: Card {
+            CountRow { first: true; name: @tr("Media in use"); count: Inventory.counts[0]; size: Inventory.sizes[0]; }
             CountRow { name: @tr("Renders in use"); count: Inventory.counts[1]; size: Inventory.sizes[1]; }
             CountRow { name: @tr("Media not used"); count: Inventory.counts[2]; size: Inventory.sizes[2]; warn: true; }
             CountRow { name: @tr("Renders not used"); count: Inventory.counts[3]; size: Inventory.sizes[3]; warn: true; }
             CountRow { name: @tr("Unknown"); count: Inventory.counts[4]; size: Inventory.sizes[4]; }
         }
-        if Inventory.projects == 0: VerticalLayout {
-            spacing: 2px;
-            CountRow { name: @tr("Media"); count: Inventory.counts[5]; size: Inventory.sizes[5]; }
+        if Inventory.projects == 0: Card {
+            CountRow { first: true; name: @tr("Media"); count: Inventory.counts[5]; size: Inventory.sizes[5]; }
             CountRow { name: @tr("Renders"); count: Inventory.counts[6]; size: Inventory.sizes[6]; }
             CountRow { name: @tr("Unknown"); count: Inventory.counts[4]; size: Inventory.sizes[4]; }
         }
@@ -1812,12 +1910,10 @@ component InventoryPane inherits VerticalLayout {
             text: @tr("{n} file could not be read." | "{n} files could not be read." % Inventory.unreadable);
             color: Theme.warning;
         }
-        Para {
-            text: @tr("Renders are recognised by the mark Media Composer writes into them, or by the effect that uses them. A file nothing tells apart stays unknown and is never moved as media or render.");
-            color: Theme.faint;
-        }
-        Divider { }
+        SectionLabel { text: @tr("ACTIONS"); }
+        Card {
         ActionRow {
+            first: true;
             text: @tr("Render files into folders of their own");
             button: @tr("Separate…");
             enabled: Inventory.counts[6] > 0;
@@ -1839,6 +1935,7 @@ component InventoryPane inherits VerticalLayout {
             button: @tr("Set aside…");
             enabled: Inventory.counts[6] > 0 || Inventory.counts[2] + Inventory.counts[3] > 0;
             clicked => { Inventory.prepare(0); }
+        }
         }
     }
 
@@ -1864,23 +1961,24 @@ component InventoryPane inherits VerticalLayout {
             font-weight: 600;
             color: Theme.text;
         }
-        HorizontalLayout {
-            spacing: 10px;
+        Card {
+        CardRow {
+            first: true;
             Text { text: @tr("Target drive"); width: 150px; vertical-alignment: center; color: Theme.muted; }
-            Dropdown {
+            VerticalLayout { alignment: center; Dropdown {
                 items: Inventory.target-names;
                 current: Inventory.target;
                 selected(i) => { Inventory.target = i; Inventory.bin-changed(); }
-            }
-            Dropdown {
+            } }
+            VerticalLayout { alignment: center; Dropdown {
                 items: [@tr("Copy"), @tr("Move")];
                 current: Inventory.bin-mode;
                 selected(i) => { Inventory.bin-mode = i; Inventory.bin-changed(); }
-            }
+            } }
             Rectangle { horizontal-stretch: 1; }
         }
         ToggleRow {
-            height: 26px;
+            first: false;
             toggled => { Inventory.bin-renders = !Inventory.bin-renders; Inventory.bin-changed(); }
             Text { text: @tr("Also the render files of its sequences"); horizontal-stretch: 1; vertical-alignment: center; font-size: 12px; color: Theme.text; }
             VerticalLayout {
@@ -1893,7 +1991,7 @@ component InventoryPane inherits VerticalLayout {
             }
         }
         if Inventory.bin-mode == 1: ToggleRow {
-            height: 26px;
+            first: false;
             toggled => { Inventory.delete-originals = !Inventory.delete-originals; }
             Text { text: @tr("Move or delete each original after its copy is checked?"); horizontal-stretch: 1; vertical-alignment: center; overflow: elide; font-size: 12px; color: Theme.text; }
             Text { text: Inventory.delete-originals ? @tr("Delete") : @tr("Move"); vertical-alignment: center; font-size: 12px; font-weight: 600; color: Inventory.delete-originals ? Theme.warning : Theme.text; }
@@ -1905,6 +2003,7 @@ component InventoryPane inherits VerticalLayout {
                     toggled => { Inventory.delete-originals = !Inventory.delete-originals; }
                 }
             }
+        }
         }
         if !Inventory.bin-reading: Para {
             text: @tr("{n} file" | "{n} files" % Inventory.plan-count) + " · " + Inventory.plan-size + (Inventory.bin-missing > 0 ? " · " + @tr("{n} more on none of the scanned drives" | "{n} more on none of the scanned drives" % Inventory.bin-missing) : "");
@@ -1942,33 +2041,29 @@ component InventoryPane inherits VerticalLayout {
         }
         if Inventory.task == 2: VerticalLayout {
             spacing: 8px;
-            HorizontalLayout {
-                spacing: 10px;
+            Card {
+            CardRow {
+                first: true;
                 Text { text: @tr("Import drive"); width: 150px; vertical-alignment: center; color: Theme.muted; }
-                Dropdown {
+                VerticalLayout { alignment: center; Dropdown {
                     items: Inventory.drive-names;
                     current: Inventory.imports;
                     selected(i) => { Inventory.imports = i; Inventory.swap-changed(); }
-                }
+                } }
                 Rectangle { horizontal-stretch: 1; }
             }
-            HorizontalLayout {
-                spacing: 10px;
+            CardRow {
                 Text { text: @tr("Render drive"); width: 150px; vertical-alignment: center; color: Theme.muted; }
-                Dropdown {
+                VerticalLayout { alignment: center; Dropdown {
                     items: Inventory.drive-names;
                     current: Inventory.renders;
                     selected(i) => { Inventory.renders = i; Inventory.swap-changed(); }
-                }
+                } }
                 Rectangle { horizontal-stretch: 1; }
             }
-            Para {
-                text: Inventory.imports == Inventory.renders ? @tr("Choose two different drives.") : @tr("{} render files to the render drive, {} media files to the import drive", Inventory.to-renders, Inventory.to-imports) + " · " + Inventory.plan-size;
-                color: Inventory.imports == Inventory.renders ? Theme.warning : Theme.text;
-            }
             ToggleRow {
+                first: false;
                 toggled => { Inventory.delete-originals = !Inventory.delete-originals; }
-                spacing: 10px;
                 Text {
                     text: @tr("Move or delete each original after its copy is checked?");
                     horizontal-stretch: 1;
@@ -1993,18 +2088,21 @@ component InventoryPane inherits VerticalLayout {
                     }
                 }
             }
+            }
+            Para {
+                text: Inventory.imports == Inventory.renders ? @tr("Choose two different drives.") : @tr("{} render files to the render drive, {} media files to the import drive", Inventory.to-renders, Inventory.to-imports) + " · " + Inventory.plan-size;
+                color: Inventory.imports == Inventory.renders ? Theme.warning : Theme.text;
+            }
             Para {
                 text: Inventory.delete-originals ? @tr("Every file is copied, the copy checked by checksum, then the original deleted.") : @tr("Every file is copied and the copy checked by checksum; the original goes into “MediaFiles Check Aside” on its drive – delete that folder yourself once all works.");
                 color: Inventory.delete-originals ? Theme.warning : Theme.muted;
             }
         }
-        if Inventory.task == 0: VerticalLayout {
-            spacing: 4px;
+        if Inventory.task == 0: Card {
             for o[i] in [@tr("Render files no switched-on project uses"), @tr("Also render files in use (Media Composer renders them again)"), @tr("Media files no switched-on project uses")]: ToggleRow {
+                first: i == 0;
                 enabled: i == 1 || Inventory.projects > 0;
                 toggled => { Inventory.aside-option(i); }
-                height: 26px;
-                spacing: 10px;
                 Text {
                     text: o;
                     horizontal-stretch: 1;
@@ -2035,12 +2133,12 @@ component InventoryPane inherits VerticalLayout {
             letter-spacing: 1px;
             color: Theme.muted;
         }
-        if Inventory.task == 0 && Inventory.aside-folders.length > 0: ScrollBox {
-            limit: 5 * 26px + 4 * 2px;
-            spacing: 2px;
+        if Inventory.task == 0 && Inventory.aside-folders.length > 0: Card {
+ScrollBox {
+            limit: 4 * 38px;
             for f[i] in Inventory.aside-folders: ToggleRow {
+ first: i == 0;
                 toggled => { Inventory.toggle-folder(i); }
-                height: 26px;
                 spacing: 10px;
                 Text {
                     text: f.name;
@@ -2066,6 +2164,7 @@ component InventoryPane inherits VerticalLayout {
                 }
             }
         }
+}
         if Inventory.plan-text != "": ScrollBox {
             limit: 110px;
             Para { text: Inventory.plan-text; color: Theme.muted; }
@@ -2133,35 +2232,14 @@ component InventoryPane inherits VerticalLayout {
         ScrollBox {
             limit: 320px;
             spacing: Metrics.spacing;
-            for r[i] in Inventory.runs: VerticalLayout {
-                spacing: 8px;
-                Text {
-                    width: Metrics.content-width - 12px;
+            if Inventory.runs.length > 0: Card {
+                for r[i] in Inventory.runs: RunItem {
+                    first: i == 0;
                     text: r.text;
-                    wrap: word-wrap;
-                    font-size: 12px;
-                    color: Theme.text;
-                }
-                if !r.db-done: Text {
-                    text: @tr("Databases not rewritten yet");
-                    font-size: 12px;
-                    color: Theme.warning;
-                }
-                HorizontalLayout {
-                    spacing: 10px;
-                    alignment: start;
-                    if !r.db-done: CheckButton {
-                        text: @tr("Rewrite databases");
-                        small: true;
-                        enabled: !Inventory.mc-running;
-                        clicked => { Inventory.db(i); }
-                    }
-                    CheckButton {
-                        text: @tr("Undo");
-                        small: true;
-                        enabled: !Inventory.mc-running;
-                        clicked => { Inventory.undo(i); }
-                    }
+                    db-done: r.db-done;
+                    mc-running: Inventory.mc-running;
+                    db => { Inventory.db(i); }
+                    undo => { Inventory.undo(i); }
                 }
             }
         }
@@ -2194,24 +2272,24 @@ component SideItem {
     accessible-enabled: root.step.enabled;
     accessible-action-default => { if root.step.enabled { root.clicked(); } }
     Rectangle {
-        border-radius: 6px;
+        border-radius: 7px;
         background: root.selected ? Theme.selection : touch.has-hover && root.step.enabled ? Theme.selection.with-alpha(0.5) : transparent;
     }
     VerticalLayout {
-        padding-left: 10px;
-        padding-right: 8px;
-        padding-top: 6px;
-        padding-bottom: 6px;
-        spacing: 1px;
+        padding-left: 12px;
+        padding-right: 10px;
+        padding-top: 9px;
+        padding-bottom: 9px;
+        spacing: 2px;
         Text {
             text: root.step.name;
-            font-size: 12px;
+            font-size: 13px;
             overflow: elide;
             color: root.selected ? Theme.text : root.step.enabled ? Theme.muted : Theme.disabled;
         }
         if root.step.status != "": Text {
             text: root.step.status;
-            font-size: 10px;
+            font-size: 11px;
             overflow: elide;
             color: Theme.faint;
         }
@@ -2253,11 +2331,11 @@ export struct RebalRow {
 
 export component AppWindow inherits CheckWindow {
     title: root.tab == 0 ? @tr("Exchange") : root.tab == 1 ? @tr("Check") : root.tab == 2 ? @tr("Projects") : root.tab == 3 ? @tr("Maintain") : root.tab == 5 ? @tr("Media") : @tr("Tasks");
-    width: 800px;
+    width: 960px;
     // nie höher als der Bildschirm (Rust: nutzbare Höhe minus Titelleiste); längere Seiten scrollen
     in property <length> screen-height: 100000px;
     // feste Größe für alle Reiter (der Nutzer wollte kein Springen); längere Seiten scrollen im Inhalt
-    height: min(500px, root.screen-height);
+    height: min(620px, root.screen-height);
     // wie das Einstellungsfenster: Reiterleiste in der Farbe der Titelleiste (heller, solange das Fenster aktiv ist)
     in property <bool> active: true;
 
@@ -2554,11 +2632,11 @@ export component AppWindow inherits CheckWindow {
         HorizontalLayout {
         // Seitenleiste: Schritte des Reiters in der Reihenfolge, in der man sie macht
         Rectangle {
-            width: 172px;
+            width: 204px;
             background: Theme.sidebar;
             VerticalLayout {
-                padding: 8px;
-                spacing: 2px;
+                padding: 12px;
+                spacing: 4px;
                 alignment: start;
                 for st[i] in root.steps: SideItem {
                     step: st;
@@ -2581,9 +2659,11 @@ export component AppWindow inherits CheckWindow {
         content-height: main.preferred-height;
     main := VerticalLayout {
         width: page-flick.width;
-        padding: 24px;
-        padding-top: 20px;
-        spacing: Metrics.spacing;
+        padding-left: 36px;
+        padding-right: 36px;
+        padding-top: 28px;
+        padding-bottom: 28px;
+        spacing: 22px;
 
         // ── Start ──────────────────────────────────────────────
         // ── Prüfen › Laufwerke ──
@@ -2614,12 +2694,13 @@ export component AppWindow inherits CheckWindow {
                 text: @tr("Connect a drive with Avid media. If macOS asks whether MediaFiles Check may access files on removable or network volumes, allow it.");
                 color: Theme.faint;
             }
-            if root.drives.length > 0: ScrollBox {
-                limit: 6 * 22px + 5 * 10px;
-                spacing: 10px;
+            if root.drives.length > 0: SectionLabel { text: @tr("DRIVES"); }
+            if root.drives.length > 0: Card {
+ScrollBox {
+                limit: 6 * 38px;
                 for d[i] in root.drives: ToggleRow {
+ first: i == 0;
                     toggled => { root.toggle-drive(i); }
-                    height: 22px;
                     spacing: 10px;
                     Dot { color: Theme.online; }
                     Text {
@@ -2639,6 +2720,7 @@ export component AppWindow inherits CheckWindow {
                     }
                 }
             }
+}
             Para {
                 text: @tr("The switches apply to Exchange › Scan too.");
                 color: Theme.faint;
@@ -2673,12 +2755,11 @@ export component AppWindow inherits CheckWindow {
             if root.renamed.length == 0: Para {
                 text: @tr("No folder is renamed right now. Folders are renamed for Media Composer from a check result (Check › Result) or when rebalancing and setting duplicates aside.");
             }
-            if root.renamed.length > 0: ScrollBox {
-                limit: 5 * 18px + 4 * 10px;
-                spacing: 10px;
-                for r in root.renamed: HorizontalLayout {
-                    spacing: 10px;
-                    height: Metrics.line;
+            if root.renamed.length > 0: Card {
+ScrollBox {
+                limit: 6 * 38px;
+                for r[i] in root.renamed: CardRow {
+                    first: i == 0;
                     Dot { color: r.status == 2 ? Theme.online : r.status == 1 ? Theme.warning : Theme.line; }
                     Text {
                         text: @tr("{} (was {})", r.current, r.original);
@@ -2695,6 +2776,7 @@ export component AppWindow inherits CheckWindow {
                     }
                 }
             }
+}
             if root.renamed.length > 0: Para {
                 text: @tr("Start Media Composer and wait until it has scanned the drives – the dot turns green once it has written the database. Then quit Media Composer and rename the folders back.");
             }
@@ -2963,26 +3045,26 @@ export component AppWindow inherits CheckWindow {
                 if root.rebalance-rows.length == 0: Para {
                     text: @tr("No folder on the selected drives has more than {} files, the two database files included.", Shared.limit);
                 }
-                if root.rebalance-rows.length > 0: ScrollBox {
+                if root.rebalance-rows.length > 0: Card {
+ScrollBox {
                     limit: 300px;
-                    spacing: 12px;
                             for r[i] in root.rebalance-rows: ToggleRow {
+                            first: i == 0;
                             enabled: !r.blocked;
                             toggled => { root.toggle-rebalance(i); }
-                                spacing: 10px;
                                 VerticalLayout {
                                     horizontal-stretch: 1;
                                     spacing: 2px;
                                     Text { text: r.title; overflow: elide; color: r.selected ? Theme.text : Theme.muted; }
                                     Text {
-                                        width: Metrics.content-width - 72px;
+                                        width: Metrics.content-width - 120px;
                                         text: r.detail;
                                         wrap: word-wrap;
                                         font-size: 11px;
                                         color: Theme.muted;
                                     }
                                     if r.note != "": Text {
-                                        width: Metrics.content-width - 72px;
+                                        width: Metrics.content-width - 120px;
                                         text: r.note;
                                         wrap: word-wrap;
                                         font-size: 11px;
@@ -2999,6 +3081,7 @@ export component AppWindow inherits CheckWindow {
                                 }
                             }
                 }
+}
                 if root.rebalance-rows.length > 0: Para {
                     text: @tr("The oldest media files go into the rebalanced folders, the youngest stay in the main folder; nothing is copied or deleted. Afterwards the databases of the changed folders have to be rewritten. You can undo it under History.");
                 }
@@ -3112,10 +3195,13 @@ export component AppWindow inherits CheckWindow {
             VerticalLayout {
                 spacing: 10px;
                 Para { text: root.dup-summary; color: Theme.text; }
-                if root.dup-groups.length > 0: ScrollBox {
+                if root.dup-groups.length > 0: Card {
+ScrollBox {
                     limit: 300px;
-                    spacing: 16px;
-                    for g[gi] in root.dup-groups: VerticalLayout {
+                    for g[gi] in root.dup-groups: Rectangle {
+ if gi > 0: Rectangle { y: 0; height: 1px; background: Theme.row-line; }
+ VerticalLayout {
+ padding-bottom: 8px;
                         spacing: 6px;
                         ToggleRow {
                             enabled: !g.blocked;
@@ -3125,8 +3211,8 @@ export component AppWindow inherits CheckWindow {
                                 horizontal-stretch: 1;
                                 spacing: 2px;
                                 Text { text: g.title; overflow: elide; font-weight: 600; color: g.selected ? Theme.text : Theme.muted; }
-                                Text { width: Metrics.content-width - 72px; text: g.detail; wrap: word-wrap; font-size: 11px; color: Theme.muted; }
-                                if g.note != "": Text { width: Metrics.content-width - 72px; text: g.note; wrap: word-wrap; font-size: 11px; color: Theme.warning; }
+                                Text { width: Metrics.content-width - 120px; text: g.detail; wrap: word-wrap; font-size: 11px; color: Theme.muted; }
+                                if g.note != "": Text { width: Metrics.content-width - 120px; text: g.note; wrap: word-wrap; font-size: 11px; color: Theme.warning; }
                             }
                             VerticalLayout {
                                 alignment: start;
@@ -3139,8 +3225,11 @@ export component AppWindow inherits CheckWindow {
                         }
                         // Klick auf eine Kopie: diese bleibt
                         for c[ci] in g.copies: Rectangle {
-                            height: 18px;
+                            height: 26px;
+                            background: copy-touch.has-hover ? Theme.selection : transparent;
                             HorizontalLayout {
+                                padding-left: 28px;
+                                padding-right: 14px;
                                 spacing: 8px;
                                 VerticalLayout {
                                     alignment: center;
@@ -3156,13 +3245,15 @@ export component AppWindow inherits CheckWindow {
                                 Text { text: c.place; horizontal-stretch: 1; overflow: elide; font-size: 11px; vertical-alignment: center; color: c.keep ? Theme.text : Theme.muted; }
                                 Text { text: c.keep ? @tr("stays") : @tr("set aside"); font-size: 11px; vertical-alignment: center; color: Theme.faint; }
                             }
-                            TouchArea {
+                            copy-touch := TouchArea {
                                 mouse-cursor: pointer;
                                 clicked => { root.keep-copy(gi, ci); }
                             }
                         }
                     }
+}
                 }
+}
                 if root.dup-groups.length > 0: Para {
                     text: @tr("Click a copy to keep it. The others go into “MediaFiles Check Duplicates” on their drive – nothing is deleted, you can undo it under Maintain › History.");
                 }
@@ -3219,70 +3310,28 @@ export component AppWindow inherits CheckWindow {
                 Section {
                     title: @tr("REBALANCING");
                     if root.rebalanced.length == 0: Para { text: @tr("No runs yet."); }
-                    for r[i] in root.rebalanced: VerticalLayout {
-                        spacing: 8px;
-                        Text {
-                            width: Metrics.content-width - 12px;
+                    if root.rebalanced.length > 0: Card {
+                        for r[i] in root.rebalanced: RunItem {
+                            first: i == 0;
                             text: r.text;
-                            wrap: word-wrap;
-                            font-size: 12px;
-                            color: Theme.text;
-                        }
-                        if !r.db-done: Text {
-                            text: @tr("Databases not rewritten yet");
-                            font-size: 12px;
-                            color: Theme.warning;
-                        }
-                        HorizontalLayout {
-                            spacing: 10px;
-                            alignment: start;
-                            if !r.db-done: CheckButton {
-                                text: @tr("Rewrite databases");
-                                small: true;
-                                enabled: !root.mc-running;
-                                clicked => { root.rebalance-db(i); }
-                            }
-                            CheckButton {
-                                text: @tr("Undo");
-                                small: true;
-                                enabled: !root.mc-running;
-                                clicked => { root.undo-rebalance(i); }
-                            }
+                            db-done: r.db-done;
+                            mc-running: root.mc-running;
+                            db => { root.rebalance-db(i); }
+                            undo => { root.undo-rebalance(i); }
                         }
                     }
                 }
                 Section {
                     title: @tr("DUPLICATES");
                     if root.dup-runs.length == 0: Para { text: @tr("No runs yet."); }
-                    for r[i] in root.dup-runs: VerticalLayout {
-                        spacing: 8px;
-                        Text {
-                            width: Metrics.content-width - 12px;
+                    if root.dup-runs.length > 0: Card {
+                        for r[i] in root.dup-runs: RunItem {
+                            first: i == 0;
                             text: r.text;
-                            wrap: word-wrap;
-                            font-size: 12px;
-                            color: Theme.text;
-                        }
-                        if !r.db-done: Text {
-                            text: @tr("Databases not rewritten yet");
-                            font-size: 12px;
-                            color: Theme.warning;
-                        }
-                        HorizontalLayout {
-                            spacing: 10px;
-                            alignment: start;
-                            if !r.db-done: CheckButton {
-                                text: @tr("Rewrite databases");
-                                small: true;
-                                enabled: !root.mc-running;
-                                clicked => { root.dup-db(i); }
-                            }
-                            CheckButton {
-                                text: @tr("Undo");
-                                small: true;
-                                enabled: !root.mc-running;
-                                clicked => { root.undo-dup(i); }
-                            }
+                            db-done: r.db-done;
+                            mc-running: root.mc-running;
+                            db => { root.dup-db(i); }
+                            undo => { root.undo-dup(i); }
                         }
                     }
                 }

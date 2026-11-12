@@ -9,6 +9,7 @@ PLURAL = {"de": "nplurals=2; plural=(n != 1);", "fr": "nplurals=2; plural=(n > 1
 
 # English: (German, French, Spanish). Plural entries: (singular, plural) -> ((de1, de2), (fr1, fr2), (es1, es2))
 T = {
+    'ACTIONS': ('AKTIONEN', 'ACTIONS', 'ACCIONES'),
     'Files copied': ('Dateien kopiert', 'Fichiers copiés', 'Archivos copiados'),
     'Choose bin…': ('Bin wählen…', 'Choisir un chutier…', 'Elegir bin…'),
     'Media of a bin': ('Medien eines Bins', 'Médias d’un chutier', 'Medios de un bin'),
@@ -75,7 +76,6 @@ T = {
     'File': ('Datei', 'Fichier', 'Archivo'),
     'yes': ('ja', 'oui', 'sí'),
     'no': ('nein', 'non', 'no'),
-    'Renders are recognised by the mark Media Composer writes into them, or by the effect that uses them. A file nothing tells apart stays unknown and is never moved as media or render.': ('Renders erkennt die App an der Markierung, die Media Composer in sie schreibt, oder am Effekt, der sie benutzt. Eine Datei, die nichts davon verrät, bleibt unbekannt und wird nie als Medium oder Render verschoben.', 'Les rendus sont reconnus à la marque que Media Composer y écrit, ou à l’effet qui les utilise. Un fichier que rien ne distingue reste inconnu et n’est jamais déplacé comme média ou rendu.', 'Los renders se reconocen por la marca que Media Composer escribe en ellos o por el efecto que los usa. Un archivo que nada distingue queda como desconocido y nunca se mueve como medio o render.'),
     'Search': ('Suche', 'Recherche', 'Buscar'),
     'Media table': ('Medientabelle', 'Tableau des médias', 'Tabla de medios'),
     'Duration': ('Dauer', 'Durée', 'Duración'),
